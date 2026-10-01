@@ -10,6 +10,7 @@ namespace DungeonGuardians.Presentation
         private readonly List<GameObject> actors = new List<GameObject>();
         private GameObject player;
         private GameObject goldRoot;
+        private GameObject backdrop;
         private LevelDefinition currentDefinition;
 
         public void Render(RuntimeLevelState state)
@@ -35,6 +36,12 @@ namespace DungeonGuardians.Presentation
 
             goldRoot = new GameObject("Gold");
             goldRoot.transform.SetParent(transform, false);
+
+            if (backdrop == null)
+            {
+                backdrop = CreateSprite("Cavern Backdrop", new Color(0.04f, 0.18f, 0.21f), transform);
+                backdrop.GetComponent<SpriteRenderer>().sortingOrder = -10;
+            }
         }
 
         private void RenderTiles(RuntimeLevelState state)
@@ -107,6 +114,12 @@ namespace DungeonGuardians.Presentation
 
             camera.transform.position = new Vector3((definition.width - 1) * 0.5f, (definition.height - 1) * 0.5f - 0.4f, -10f);
             camera.orthographicSize = Mathf.Max(definition.height * 0.6f, definition.width * 0.32f);
+
+            if (backdrop != null)
+            {
+                backdrop.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, 1f);
+                backdrop.transform.localScale = new Vector3(definition.width + 10f, definition.height + 8f, 1f);
+            }
         }
 
         private void EnsureCount(List<GameObject> list, int count, string prefix)
@@ -161,13 +174,13 @@ namespace DungeonGuardians.Presentation
             switch (tile)
             {
                 case TileType.Solid:
-                    return new Color(0.58f, 0.42f, 0.26f);
+                    return new Color(0.62f, 0.43f, 0.25f);
                 case TileType.Brick:
-                    return new Color(0.38f, 0.24f, 0.17f);
+                    return new Color(0.35f, 0.2f, 0.14f);
                 case TileType.Ladder:
-                    return new Color(0.77f, 0.45f, 0.18f);
+                    return new Color(0.9f, 0.48f, 0.16f);
                 case TileType.Bar:
-                    return new Color(0.85f, 0.53f, 0.22f);
+                    return new Color(0.96f, 0.6f, 0.22f);
                 case TileType.ExitClosed:
                     return new Color(0.48f, 0.31f, 0.18f);
                 case TileType.ExitOpen:

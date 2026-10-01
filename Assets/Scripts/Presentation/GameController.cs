@@ -95,11 +95,11 @@ namespace DungeonGuardians.Presentation
             accumulator = 0f;
             simulation = new DungeonSimulation(catalog.Levels[levelIndex], balance);
             simulation.StateChanged += Render;
-            Render();
             hud.Bind(input);
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
             hud.ShowMessage(string.Empty);
+            Render();
         }
 
         private void Render()

@@ -47,7 +47,7 @@ namespace DungeonGuardians.Presentation
             camera.orthographic = true;
             camera.orthographicSize = 6f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.05f, 0.09f, 0.11f);
+            camera.backgroundColor = new Color(0.03f, 0.12f, 0.15f);
             camera.transform.position = new Vector3(0f, 0f, -10f);
         }
     }
