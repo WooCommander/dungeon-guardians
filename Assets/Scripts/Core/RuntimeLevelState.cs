@@ -11,6 +11,10 @@ namespace DungeonGuardians.Core
         public readonly List<GuardianState> Guardians;
         public readonly List<HoleState> Holes;
         public GridPoint PlayerPosition;
+        // Ticks left in the current dig; movement is locked while it is above zero.
+        public int PlayerDigTicks;
+        // -1 for left, 1 for right.
+        public int PlayerDigDirection;
         public bool ExitOpen;
         public bool Won;
         public bool Lost;
@@ -36,6 +40,8 @@ namespace DungeonGuardians.Core
         public GridPoint Position;
         public int RespawnTicks;
         public bool Trapped;
+        // Accumulates speed per tick; the guardian steps one cell each time it reaches 1.
+        public float MoveBudget;
 
         public GuardianState(GridPoint position)
         {

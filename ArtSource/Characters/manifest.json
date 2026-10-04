@@ -1,0 +1,38 @@
+[
+  {
+    "file": "explorer.glb",
+    "triangles": 15264,
+    "joints": 17,
+    "mesh_parts": 53,
+    "animations": [
+      "Idle",
+      "Walk",
+      "Climb",
+      "Fall",
+      "Dig"
+    ],
+    "bytes": 685272
+  },
+  {
+    "file": "guardian.glb",
+    "triangles": 13536,
+    "joints": 16,
+    "mesh_parts": 47,
+    "animations": [
+      "Idle",
+      "Walk",
+      "Climb",
+      "Fall",
+      "Struggle"
+    ],
+    "bytes": 608752
+  },
+  {
+    "file": "pickaxe.glb",
+    "triangles": 1152,
+    "joints": 1,
+    "mesh_parts": 4,
+    "animations": [],
+    "bytes": 51340
+  }
+]

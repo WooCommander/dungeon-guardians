@@ -39,3 +39,13 @@ Unity-прототип мобильной аркадной головоломк�
 - `.` или пробел: воздух.
 
 Актеры и золото задаются отдельными массивами координат, чтобы тип поверхности не смешивался с объектами уровня.
+
+## Графика
+
+Исходники моделей лежат в `ArtSource/` (GLB и скрипты генерации): `Characters/` — герой и хранитель с анимациями, `Environment/` — модульные детали уровня. Unity не читает GLB, поэтому модели конвертируются в FBX через Blender:
+
+```
+blender --background --factory-startup --python ArtSource/convert_to_fbx.py
+```
+
+Результат попадает в `Assets/Resources/Characters` и `Assets/Resources/Environment`. Настройки импорта задаёт `Assets/Scripts/Editor/ArtModelImporter.cs`. Уровень собирается из деталей по JSON-карте в `LevelRenderer`, анимации выбирает `CharacterView`.

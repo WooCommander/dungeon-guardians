@@ -25,6 +25,7 @@ namespace DungeonGuardians.Presentation
         {
             Application.targetFrameRate = 60;
             EnsureCamera();
+            EnsureLighting();
 
             var input = gameObject.AddComponent<PlayerInputBridge>();
             var renderer = gameObject.AddComponent<LevelRenderer>();
@@ -32,6 +33,27 @@ namespace DungeonGuardians.Presentation
 
             controller = gameObject.AddComponent<GameController>();
             controller.Initialize(input, renderer, hud, new BalanceConfig(), new ProgressStore());
+        }
+
+        // Character models use lit materials; tiles are unlit sprites and are not affected.
+        private static void EnsureLighting()
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.42f, 0.46f, 0.52f);
+
+            if (FindObjectOfType<Light>() != null)
+            {
+                return;
+            }
+
+            var lightObject = new GameObject("Key Light");
+            var light = lightObject.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.color = new Color(1f, 0.9f, 0.76f);
+            light.intensity = 1.2f;
+            light.shadows = LightShadows.None;
+            // From the upper left and in front, so faces turned towards the camera are lit.
+            lightObject.transform.rotation = Quaternion.Euler(35f, 25f, 0f);
         }
 
         private static void EnsureCamera()

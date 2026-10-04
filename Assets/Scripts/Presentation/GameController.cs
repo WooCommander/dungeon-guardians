@@ -19,6 +19,9 @@ namespace DungeonGuardians.Presentation
         private int levelIndex;
         private float accumulator;
         private bool paused;
+        // Dig taps are one-shot: keep them until a simulation tick consumes them, since not every frame has a tick.
+        private bool pendingDigLeft;
+        private bool pendingDigRight;
 
         public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, BalanceConfig balance, ProgressStore progressStore)
         {
@@ -50,8 +53,14 @@ namespace DungeonGuardians.Presentation
             InputSnapshot snapshot = input.Read();
             if (snapshot.Pause)
             {
-                paused = !paused;
-                hud.SetPaused(paused);
+                SetPaused(!paused);
+            }
+
+            int hotkeyLevel = input.ReadLevelHotkey();
+            if (hotkeyLevel >= 0 && hotkeyLevel < catalog.Levels.Count)
+            {
+                LoadLevel(hotkeyLevel);
+                return;
             }
 
             if (snapshot.Restart)
@@ -62,15 +71,25 @@ namespace DungeonGuardians.Presentation
 
             if (paused)
             {
+                pendingDigLeft = false;
+                pendingDigRight = false;
                 return;
             }
+
+            pendingDigLeft |= snapshot.DigLeft;
+            pendingDigRight |= snapshot.DigRight;
 
             accumulator += Time.deltaTime;
             float tickLength = 1f / balance.TickRate;
             while (accumulator >= tickLength)
             {
                 accumulator -= tickLength;
-                simulation.Tick(snapshot);
+                InputSnapshot tickInput = snapshot;
+                tickInput.DigLeft = pendingDigLeft;
+                tickInput.DigRight = pendingDigRight;
+                pendingDigLeft = false;
+                pendingDigRight = false;
+                simulation.Tick(tickInput);
 
                 if (simulation.State.Won)
                 {
@@ -83,15 +102,31 @@ namespace DungeonGuardians.Presentation
                     hud.ShowMessage("Поражение");
                     break;
                 }
-
-                snapshot = InputSnapshot.Empty;
             }
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus && simulation != null)
+            {
+                SetPaused(true);
+            }
+        }
+
+        private void SetPaused(bool value)
+        {
+            paused = value;
+            pendingDigLeft = false;
+            pendingDigRight = false;
+            hud.SetPaused(paused);
         }
 
         private void LoadLevel(int index)
         {
             levelIndex = Mathf.Clamp(index, 0, catalog.Levels.Count - 1);
             paused = false;
+            pendingDigLeft = false;
+            pendingDigRight = false;
             accumulator = 0f;
             simulation = new DungeonSimulation(catalog.Levels[levelIndex], balance);
             simulation.StateChanged += Render;
@@ -104,7 +139,7 @@ namespace DungeonGuardians.Presentation
 
         private void Render()
         {
-            levelRenderer.Render(simulation.State);
+            levelRenderer.Render(simulation);
             hud.SetGold(simulation.State.Definition.gold.Length - simulation.State.RemainingGold.Count, simulation.State.Definition.gold.Length);
             hud.SetExit(simulation.State.ExitOpen);
         }

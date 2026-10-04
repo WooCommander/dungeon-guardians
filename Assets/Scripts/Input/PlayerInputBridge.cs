@@ -1,87 +1,304 @@
+using System.Collections.Generic;
 using DungeonGuardians.Core;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 namespace DungeonGuardians.Input
 {
     public sealed class PlayerInputBridge : MonoBehaviour
     {
-        private InputSnapshot touchState;
-        private InputSnapshot pointerState;
+        private enum TouchZone
+        {
+            None,
+            DPad,
+            DigLeft,
+            DigRight
+        }
+
+        // Mouse acts as one more pointer for testing in the editor and on PC.
+        private const int MousePointerId = -1;
+        // Fraction of the d-pad radius where input is ignored.
+        private const float DeadZone = 0.2f;
+        // tan(22.5°): splits the d-pad into 4 cardinal and 4 diagonal sectors.
+        private const float DiagonalSlope = 0.4142f;
+
+        // Each pointer keeps the zone it started in, so sliding a finger never steals another finger's control.
+        private readonly Dictionary<int, TouchZone> ownedPointers = new Dictionary<int, TouchZone>();
+        private readonly HashSet<int> ignoredPointers = new HashSet<int>();
+        private readonly HashSet<int> activePointers = new HashSet<int>();
+        private readonly List<int> stalePointers = new List<int>();
+
+        private RectTransform dpadArea;
+        private RectTransform digLeftArea;
+        private RectTransform digRightArea;
+        private bool ignoreHeldPointers;
         private bool restartRequested;
         private bool pauseRequested;
 
-        private void Update()
+        public InputSnapshot HeldDirections { get; private set; }
+        public bool DigLeftHeld { get; private set; }
+        public bool DigRightHeld { get; private set; }
+
+        public void BindTouchAreas(RectTransform dpad, RectTransform digLeft, RectTransform digRight)
         {
-            pointerState = InputSnapshot.Empty;
-            if (!UnityEngine.Input.GetMouseButton(0))
+            dpadArea = dpad;
+            digLeftArea = digLeft;
+            digRightArea = digRight;
+        }
+
+        private void OnEnable()
+        {
+            EnhancedTouchSupport.Enable();
+        }
+
+        private void OnDisable()
+        {
+            EnhancedTouchSupport.Disable();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
             {
-                return;
+                ClearHeldInput();
             }
+        }
 
-            Vector2 position = UnityEngine.Input.mousePosition;
-            float width = Screen.width;
-            float height = Screen.height;
-
-            if (position.y > height * 0.42f)
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
             {
-                return;
-            }
-
-            if (position.x < width * 0.36f)
-            {
-                Vector2 center = new Vector2(width * 0.14f, height * 0.15f);
-                Vector2 delta = position - center;
-
-                if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
-                {
-                    pointerState.Left = delta.x < -20f;
-                    pointerState.Right = delta.x > 20f;
-                }
-                else
-                {
-                    pointerState.Down = delta.y < -20f;
-                    pointerState.Up = delta.y > 20f;
-                }
-            }
-            else if (position.x > width * 0.64f)
-            {
-                pointerState.DigLeft = position.x < width * 0.82f;
-                pointerState.DigRight = position.x >= width * 0.82f;
+                ClearHeldInput();
             }
         }
 
         public InputSnapshot Read()
         {
-            InputSnapshot snapshot = touchState;
-            snapshot.Left |= pointerState.Left;
-            snapshot.Right |= pointerState.Right;
-            snapshot.Up |= pointerState.Up;
-            snapshot.Down |= pointerState.Down;
-            snapshot.DigLeft |= pointerState.DigLeft;
-            snapshot.DigRight |= pointerState.DigRight;
-            snapshot.Left |= UnityEngine.Input.GetKey(KeyCode.LeftArrow) || UnityEngine.Input.GetKey(KeyCode.A);
-            snapshot.Right |= UnityEngine.Input.GetKey(KeyCode.RightArrow) || UnityEngine.Input.GetKey(KeyCode.D);
-            snapshot.Up |= UnityEngine.Input.GetKey(KeyCode.UpArrow) || UnityEngine.Input.GetKey(KeyCode.W);
-            snapshot.Down |= UnityEngine.Input.GetKey(KeyCode.DownArrow) || UnityEngine.Input.GetKey(KeyCode.S);
-            snapshot.DigLeft |= UnityEngine.Input.GetKeyDown(KeyCode.Q) || UnityEngine.Input.GetKeyDown(KeyCode.Z);
-            snapshot.DigRight |= UnityEngine.Input.GetKeyDown(KeyCode.E) || UnityEngine.Input.GetKeyDown(KeyCode.X);
-            snapshot.Restart |= restartRequested || UnityEngine.Input.GetKeyDown(KeyCode.R);
-            snapshot.Pause |= pauseRequested || UnityEngine.Input.GetKeyDown(KeyCode.Escape);
+            InputSnapshot snapshot = PollPointers();
 
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                snapshot.Left |= keyboard.leftArrowKey.isPressed || keyboard.aKey.isPressed;
+                snapshot.Right |= keyboard.rightArrowKey.isPressed || keyboard.dKey.isPressed;
+                snapshot.Up |= keyboard.upArrowKey.isPressed || keyboard.wKey.isPressed;
+                snapshot.Down |= keyboard.downArrowKey.isPressed || keyboard.sKey.isPressed;
+                snapshot.DigLeft |= keyboard.qKey.wasPressedThisFrame || keyboard.zKey.wasPressedThisFrame;
+                snapshot.DigRight |= keyboard.eKey.wasPressedThisFrame || keyboard.xKey.wasPressedThisFrame;
+                snapshot.Restart |= keyboard.rKey.wasPressedThisFrame;
+                snapshot.Pause |= keyboard.escapeKey.wasPressedThisFrame;
+                DigLeftHeld |= keyboard.qKey.isPressed || keyboard.zKey.isPressed;
+                DigRightHeld |= keyboard.eKey.isPressed || keyboard.xKey.isPressed;
+            }
+
+            snapshot.Restart |= restartRequested;
+            snapshot.Pause |= pauseRequested;
             restartRequested = false;
             pauseRequested = false;
-            touchState.DigLeft = false;
-            touchState.DigRight = false;
+
+            // Opposite directions cancel each other out.
+            if (snapshot.Left && snapshot.Right)
+            {
+                snapshot.Left = false;
+                snapshot.Right = false;
+            }
+
+            if (snapshot.Up && snapshot.Down)
+            {
+                snapshot.Up = false;
+                snapshot.Down = false;
+            }
+
+            HeldDirections = new InputSnapshot
+            {
+                Left = snapshot.Left,
+                Right = snapshot.Right,
+                Up = snapshot.Up,
+                Down = snapshot.Down
+            };
             return snapshot;
         }
 
-        public void SetLeft(bool value) => touchState.Left = value;
-        public void SetRight(bool value) => touchState.Right = value;
-        public void SetUp(bool value) => touchState.Up = value;
-        public void SetDown(bool value) => touchState.Down = value;
-        public void DigLeft() => touchState.DigLeft = true;
-        public void DigRight() => touchState.DigRight = true;
+        // Debug shortcut: keys 1-9 jump straight to that level. Returns a zero-based index or -1.
+        public int ReadLevelHotkey()
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                for (int i = 0; i < 9; i++)
+                {
+                    if (keyboard[Key.Digit1 + i].wasPressedThisFrame)
+                    {
+                        return i;
+                    }
+                }
+            }
+#endif
+            return -1;
+        }
+
         public void Restart() => restartRequested = true;
         public void TogglePause() => pauseRequested = true;
+
+        private InputSnapshot PollPointers()
+        {
+            var snapshot = new InputSnapshot();
+            DigLeftHeld = false;
+            DigRightHeld = false;
+            activePointers.Clear();
+
+            foreach (Touch touch in Touch.activeTouches)
+            {
+                if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                {
+                    continue;
+                }
+
+                ProcessPointer(touch.touchId, touch.startScreenPosition, touch.screenPosition, ref snapshot);
+            }
+
+            Mouse mouse = Mouse.current;
+            if (mouse != null && mouse.leftButton.isPressed)
+            {
+                // The first frame a pointer is seen counts as its start, so the current position works for both.
+                Vector2 position = mouse.position.ReadValue();
+                ProcessPointer(MousePointerId, position, position, ref snapshot);
+            }
+
+            ForgetReleasedPointers();
+            ignoreHeldPointers = false;
+            return snapshot;
+        }
+
+        private void ProcessPointer(int id, Vector2 startPosition, Vector2 position, ref InputSnapshot snapshot)
+        {
+            activePointers.Add(id);
+            if (ignoredPointers.Contains(id))
+            {
+                return;
+            }
+
+            if (!ownedPointers.TryGetValue(id, out TouchZone zone))
+            {
+                zone = ignoreHeldPointers ? TouchZone.None : HitTest(startPosition);
+                if (zone == TouchZone.None)
+                {
+                    ignoredPointers.Add(id);
+                    return;
+                }
+
+                ownedPointers.Add(id, zone);
+                snapshot.DigLeft |= zone == TouchZone.DigLeft;
+                snapshot.DigRight |= zone == TouchZone.DigRight;
+            }
+
+            switch (zone)
+            {
+                case TouchZone.DPad:
+                    ApplyDPad(position, ref snapshot);
+                    break;
+                case TouchZone.DigLeft:
+                    DigLeftHeld = true;
+                    break;
+                case TouchZone.DigRight:
+                    DigRightHeld = true;
+                    break;
+            }
+        }
+
+        private TouchZone HitTest(Vector2 screenPosition)
+        {
+            if (Contains(dpadArea, screenPosition))
+            {
+                return TouchZone.DPad;
+            }
+
+            if (Contains(digLeftArea, screenPosition))
+            {
+                return TouchZone.DigLeft;
+            }
+
+            if (Contains(digRightArea, screenPosition))
+            {
+                return TouchZone.DigRight;
+            }
+
+            return TouchZone.None;
+        }
+
+        private void ApplyDPad(Vector2 position, ref InputSnapshot snapshot)
+        {
+            // Overlay canvas: RectTransform.position is already in screen pixels.
+            Vector2 delta = position - (Vector2)dpadArea.position;
+            float radius = dpadArea.rect.width * 0.5f * dpadArea.lossyScale.x;
+            float deadZone = radius * DeadZone;
+            if (delta.sqrMagnitude < deadZone * deadZone)
+            {
+                return;
+            }
+
+            float absX = Mathf.Abs(delta.x);
+            float absY = Mathf.Abs(delta.y);
+
+            // Diagonal sectors report both axes; the simulation picks the axis by context (ladder or not).
+            if (absX > absY * DiagonalSlope)
+            {
+                snapshot.Left |= delta.x < 0f;
+                snapshot.Right |= delta.x > 0f;
+            }
+
+            if (absY > absX * DiagonalSlope)
+            {
+                snapshot.Down |= delta.y < 0f;
+                snapshot.Up |= delta.y > 0f;
+            }
+        }
+
+        private void ForgetReleasedPointers()
+        {
+            stalePointers.Clear();
+            foreach (int id in ownedPointers.Keys)
+            {
+                if (!activePointers.Contains(id))
+                {
+                    stalePointers.Add(id);
+                }
+            }
+
+            foreach (int id in ignoredPointers)
+            {
+                if (!activePointers.Contains(id))
+                {
+                    stalePointers.Add(id);
+                }
+            }
+
+            foreach (int id in stalePointers)
+            {
+                ownedPointers.Remove(id);
+                ignoredPointers.Remove(id);
+            }
+        }
+
+        private void ClearHeldInput()
+        {
+            // Fingers still on the screen after focus returns stay ignored until they are lifted.
+            ownedPointers.Clear();
+            ignoreHeldPointers = true;
+            restartRequested = false;
+            pauseRequested = false;
+            HeldDirections = InputSnapshot.Empty;
+            DigLeftHeld = false;
+            DigRightHeld = false;
+        }
+
+        private static bool Contains(RectTransform area, Vector2 screenPosition)
+        {
+            return area != null && RectTransformUtility.RectangleContainsScreenPoint(area, screenPosition, null);
+        }
     }
 }

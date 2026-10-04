@@ -4,104 +4,276 @@ using UnityEngine;
 
 namespace DungeonGuardians.Presentation
 {
+    // Builds the level from the modular 3D pieces in Resources/Environment and places the characters.
+    // A cell is 1 x 1 unit; cell (x, y) is centred on world (x, y) and the gameplay plane is z = 0.
     public sealed class LevelRenderer : MonoBehaviour
     {
-        private readonly List<GameObject> tiles = new List<GameObject>();
-        private readonly List<GameObject> actors = new List<GameObject>();
-        private GameObject player;
-        private GameObject goldRoot;
+        // Character height in cells and depth: slightly in front of blocks and ladders.
+        private const float ExplorerHeight = 0.92f;
+        private const float GuardianHeight = 0.95f;
+        private const float ActorDepth = -0.25f;
+
+        // Blocks are 1 x 0.5 with the pivot at the bottom centre, so a cell holds two of them.
+        private const float BlockHeight = 0.5f;
+        private const float LadderDepth = 0.1f;
+        // Bars hang near the top of the cell, at hand height of a hanging character.
+        private const float BarHeight = 0.38f;
+        // The door model is about 1.5 x 1.9; shrink it to roughly one cell wide.
+        private const float DoorScale = 0.62f;
+        private const float DoorDepth = 0.25f;
+        private const float GoldScale = 1.6f;
+        private const float GoldSpinSpeed = 90f;
+        private const float BackWallDepth = 0.45f;
+        private const int TorchSpacing = 5;
+        private const int MaxTorchLights = 4;
+
+        private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
+        private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
+        private readonly List<CharacterView> guardians = new List<CharacterView>();
+        private GameObject[,] cellObjects;
+        private TileType[,] cellTypes;
+        private Transform levelRoot;
+        private CharacterView player;
         private GameObject backdrop;
         private LevelDefinition currentDefinition;
+        private RuntimeLevelState currentState;
 
-        public void Render(RuntimeLevelState state)
+        public void Render(DungeonSimulation simulation)
         {
+            RuntimeLevelState state = simulation.State;
             if (currentDefinition != state.Definition)
             {
-                RebuildStaticLevel(state);
+                RebuildLevel(state);
             }
 
             RenderTiles(state);
             RenderGold(state);
-            RenderActors(state);
+            RenderActors(simulation);
             PositionCamera(state.Definition);
         }
 
-        private void RebuildStaticLevel(RuntimeLevelState state)
+        private void Update()
         {
-            Clear(tiles);
-            Clear(actors);
-            DestroyIfExists(player);
-            DestroyIfExists(goldRoot);
-            currentDefinition = state.Definition;
+            float angle = GoldSpinSpeed * Time.deltaTime;
+            foreach (GameObject gold in goldPieces.Values)
+            {
+                if (gold.activeSelf)
+                {
+                    gold.transform.Rotate(0f, angle, 0f, Space.World);
+                }
+            }
+        }
 
-            goldRoot = new GameObject("Gold");
-            goldRoot.transform.SetParent(transform, false);
+        private void RebuildLevel(RuntimeLevelState state)
+        {
+            LevelDefinition definition = state.Definition;
+            currentDefinition = definition;
+
+            foreach (CharacterView guardian in guardians)
+            {
+                Destroy(guardian.gameObject);
+            }
+
+            guardians.Clear();
+            goldPieces.Clear();
+            if (levelRoot != null)
+            {
+                Destroy(levelRoot.gameObject);
+            }
+
+            levelRoot = new GameObject("Level").transform;
+            levelRoot.SetParent(transform, false);
+            cellObjects = new GameObject[definition.width, definition.height];
+            cellTypes = new TileType[definition.width, definition.height];
+
+            foreach (GridPoint point in definition.gold ?? System.Array.Empty<GridPoint>())
+            {
+                GameObject gold = Spawn("gold", levelRoot, new Vector3(point.x, point.y - 0.5f, ActorDepth + 0.1f), GoldScale, new Color(1f, 0.78f, 0.14f));
+                gold.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                goldPieces[point] = gold;
+            }
+
+            BuildDecor(state);
 
             if (backdrop == null)
             {
-                backdrop = CreateSprite("Cavern Backdrop", new Color(0.04f, 0.18f, 0.21f), transform);
-                backdrop.GetComponent<SpriteRenderer>().sortingOrder = -10;
+                backdrop = CreateBackdrop();
             }
         }
 
         private void RenderTiles(RuntimeLevelState state)
         {
-            EnsureCount(tiles, state.Definition.width * state.Definition.height, "Tile");
-
             for (int y = 0; y < state.Definition.height; y++)
             {
                 for (int x = 0; x < state.Definition.width; x++)
                 {
-                    int index = y * state.Definition.width + x;
                     TileType tile = state.Tiles[x, y];
-                    GameObject tileObject = tiles[index];
-                    tileObject.transform.position = ToWorld(new GridPoint(x, y), 0f);
-                    tileObject.transform.localScale = TileScale(tile);
-                    tileObject.SetActive(tile != TileType.Air);
-                    tileObject.GetComponent<SpriteRenderer>().color = TileColor(tile);
+                    if (cellObjects[x, y] != null && cellTypes[x, y] == tile)
+                    {
+                        continue;
+                    }
+
+                    // Cells change rarely (digging, hole refill, exit opening), so rebuild only those.
+                    if (cellObjects[x, y] != null)
+                    {
+                        Destroy(cellObjects[x, y]);
+                    }
+
+                    cellTypes[x, y] = tile;
+                    cellObjects[x, y] = BuildCell(tile, x, y);
+                }
+            }
+        }
+
+        private GameObject BuildCell(TileType tile, int x, int y)
+        {
+            var cell = new GameObject($"Cell {x},{y} {tile}");
+            cell.transform.SetParent(levelRoot, false);
+            cell.transform.localPosition = new Vector3(x, y - 0.5f, 0f);
+            Transform parent = cell.transform;
+
+            switch (tile)
+            {
+                case TileType.Solid:
+                    SpawnLocal("block_solid", parent, Vector3.zero, 1f, new Color(0.3f, 0.32f, 0.36f));
+                    SpawnLocal("block_solid", parent, new Vector3(0f, BlockHeight, 0f), 1f, new Color(0.3f, 0.32f, 0.36f));
+                    break;
+                case TileType.Brick:
+                    SpawnLocal("block_diggable", parent, Vector3.zero, 1f, new Color(0.62f, 0.45f, 0.28f));
+                    SpawnLocal("block_diggable", parent, new Vector3(0f, BlockHeight, 0f), 1f, new Color(0.62f, 0.45f, 0.28f));
+                    break;
+                case TileType.Ladder:
+                    SpawnLocal("ladder_section", parent, new Vector3(0f, 0f, LadderDepth), 1f, new Color(0.55f, 0.35f, 0.18f));
+                    break;
+                case TileType.Bar:
+                    SpawnLocal("rope_section", parent, new Vector3(0f, 0.5f + BarHeight, 0f), 1f, new Color(0.7f, 0.55f, 0.3f));
+                    break;
+                case TileType.ExitClosed:
+                    SpawnLocal("door_closed", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.35f, 0.22f, 0.12f));
+                    break;
+                case TileType.ExitOpen:
+                    SpawnLocal("door_open", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.18f, 0.82f, 0.75f));
+                    break;
+                case TileType.Altar:
+                    SpawnLocal("altar", parent, new Vector3(0f, 0f, 0.15f), 1f, new Color(0.2f, 0.58f, 0.66f));
+                    break;
+            }
+
+            return cell;
+        }
+
+        // Torches on the back wall above walkable floor. Purely decorative: they never cover a cell's contents.
+        private void BuildDecor(RuntimeLevelState state)
+        {
+            int lights = 0;
+            for (int x = 2; x < state.Definition.width - 1; x += TorchSpacing)
+            {
+                for (int y = 1; y < state.Definition.height - 1; y++)
+                {
+                    bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && state.Tiles[x, y + 1] == TileType.Air;
+                    if (!floor)
+                    {
+                        continue;
+                    }
+
+                    var position = new Vector3(x, y - 0.35f, BackWallDepth);
+                    Spawn("torch", levelRoot, position, 0.8f, new Color(1f, 0.6f, 0.2f));
+
+                    if (lights < MaxTorchLights)
+                    {
+                        var lightObject = new GameObject("Torch Light");
+                        lightObject.transform.SetParent(levelRoot, false);
+                        lightObject.transform.localPosition = position + new Vector3(0f, 0.75f, -0.6f);
+                        var light = lightObject.AddComponent<Light>();
+                        light.type = LightType.Point;
+                        light.color = new Color(1f, 0.62f, 0.3f);
+                        light.range = 3.5f;
+                        light.intensity = 1.4f;
+                        lights++;
+                    }
+
+                    break;
                 }
             }
         }
 
         private void RenderGold(RuntimeLevelState state)
         {
-            foreach (Transform child in goldRoot.transform)
+            foreach (KeyValuePair<GridPoint, GameObject> gold in goldPieces)
             {
-                Destroy(child.gameObject);
-            }
-
-            foreach (GridPoint point in state.RemainingGold)
-            {
-                GameObject gold = CreateSprite("Gold", new Color(1f, 0.78f, 0.14f), goldRoot.transform);
-                gold.transform.position = ToWorld(point, -0.25f);
-                gold.transform.localScale = new Vector3(0.45f, 0.28f, 1f);
+                gold.Value.SetActive(state.RemainingGold.Contains(gold.Key));
             }
         }
 
-        private void RenderActors(RuntimeLevelState state)
+        private void RenderActors(DungeonSimulation simulation)
         {
+            RuntimeLevelState state = simulation.State;
+            BalanceConfig balance = simulation.Balance;
+            bool newRun = currentState != state;
+            currentState = state;
+
             if (player == null)
             {
-                player = CreateSprite("Explorer", new Color(1f, 0.55f, 0.21f), transform);
-                player.transform.localScale = new Vector3(0.56f, 0.8f, 1f);
+                player = CharacterView.Create("explorer", transform, ExplorerHeight, balance.PlayerSpeed, new Color(1f, 0.55f, 0.21f));
             }
 
-            player.transform.position = ToWorld(state.PlayerPosition, -0.5f);
-
-            EnsureCount(actors, state.Guardians.Count, "Guardian");
-            for (int i = 0; i < actors.Count; i++)
+            if (newRun)
             {
-                GameObject guardian = actors[i];
+                player.SnapNextMove();
+                player.SetOneShotDuration("Dig", balance.DigTicks / balance.TickRate);
+            }
+
+            player.SetTarget(ToActorWorld(state.PlayerPosition));
+            if (state.Lost)
+            {
+                player.SetPose(CharacterPose.Dead);
+            }
+            else if (state.PlayerDigTicks > 0)
+            {
+                player.SetPose(CharacterPose.Dig, state.PlayerDigDirection);
+            }
+            else
+            {
+                player.SetPose(MovementPose(simulation, state.PlayerPosition));
+            }
+
+            while (guardians.Count < state.Guardians.Count)
+            {
+                guardians.Add(CharacterView.Create("guardian", transform, GuardianHeight, balance.GuardianSpeed, new Color(0.23f, 0.78f, 0.86f)));
+            }
+
+            for (int i = 0; i < guardians.Count; i++)
+            {
+                CharacterView view = guardians[i];
                 bool active = i < state.Guardians.Count && state.Guardians[i].RespawnTicks <= 0;
-                guardian.SetActive(active);
+                view.SetVisible(active);
                 if (!active)
                 {
                     continue;
                 }
 
-                guardian.transform.position = ToWorld(state.Guardians[i].Position, -0.45f);
-                guardian.transform.localScale = new Vector3(0.64f, 0.82f, 1f);
+                GuardianState guardian = state.Guardians[i];
+                if (newRun)
+                {
+                    view.SnapNextMove();
+                }
+
+                view.SetTarget(ToActorWorld(guardian.Position));
+                view.SetPose(guardian.Trapped ? CharacterPose.Struggle : MovementPose(simulation, guardian.Position));
             }
+        }
+
+        private static CharacterPose MovementPose(DungeonSimulation simulation, GridPoint position)
+        {
+            switch (simulation.State.Tiles[position.x, position.y])
+            {
+                case TileType.Ladder:
+                    return CharacterPose.Ladder;
+                case TileType.Bar:
+                    return CharacterPose.Bar;
+            }
+
+            return simulation.HasSupport(position) ? CharacterPose.Ground : CharacterPose.Fall;
         }
 
         private void PositionCamera(LevelDefinition definition)
@@ -117,97 +289,78 @@ namespace DungeonGuardians.Presentation
 
             if (backdrop != null)
             {
-                backdrop.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, 1f);
+                backdrop.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, 2f);
                 backdrop.transform.localScale = new Vector3(definition.width + 10f, definition.height + 8f, 1f);
             }
         }
 
-        private void EnsureCount(List<GameObject> list, int count, string prefix)
+        private GameObject Spawn(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)
         {
-            while (list.Count < count)
-            {
-                Color color = prefix == "Guardian" ? new Color(0.23f, 0.78f, 0.86f) : Color.white;
-                list.Add(CreateSprite($"{prefix} {list.Count}", color, transform));
-            }
-
-            for (int i = 0; i < list.Count; i++)
-            {
-                list[i].SetActive(i < count);
-            }
+            GameObject instance = SpawnLocal(asset, parent, localPosition, scale, fallbackColor);
+            instance.name = asset;
+            return instance;
         }
 
-        private static GameObject CreateSprite(string name, Color color, Transform parent)
+        private GameObject SpawnLocal(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)
         {
-            var gameObject = new GameObject(name);
-            gameObject.transform.SetParent(parent, false);
-            var renderer = gameObject.AddComponent<SpriteRenderer>();
+            GameObject prefab = LoadPrefab(asset);
+            GameObject instance;
+            if (prefab != null)
+            {
+                instance = Instantiate(prefab, parent, false);
+                instance.transform.localScale = prefab.transform.localScale * scale;
+            }
+            else
+            {
+                // Keep the game playable if an art file is missing: a cube roughly the size of the piece.
+                instance = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                instance.transform.SetParent(parent, false);
+                instance.transform.localScale = new Vector3(0.9f, BlockHeight, 0.8f) * scale;
+                instance.GetComponent<Renderer>().material.color = fallbackColor;
+                Destroy(instance.GetComponent<Collider>());
+                localPosition += new Vector3(0f, BlockHeight * 0.5f * scale, 0f);
+            }
+
+            instance.transform.localPosition = localPosition;
+            return instance;
+        }
+
+        private GameObject LoadPrefab(string asset)
+        {
+            if (!prefabs.TryGetValue(asset, out GameObject prefab))
+            {
+                prefab = Resources.Load<GameObject>($"Environment/{asset}");
+                if (prefab == null)
+                {
+                    Debug.LogError($"Environment model Resources/Environment/{asset} not found; using a placeholder cube.");
+                }
+
+                prefabs[asset] = prefab;
+            }
+
+            return prefab;
+        }
+
+        private GameObject CreateBackdrop()
+        {
+            var backdropObject = new GameObject("Cavern Backdrop");
+            backdropObject.transform.SetParent(transform, false);
+            var renderer = backdropObject.AddComponent<SpriteRenderer>();
             renderer.sprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
-            renderer.color = color;
-            return gameObject;
+            renderer.color = new Color(0.05f, 0.1f, 0.12f);
+            renderer.sortingOrder = -10;
+            return backdropObject;
         }
 
-        private static Vector3 ToWorld(GridPoint point, float z)
+        private static bool IsBlock(TileType tile)
         {
-            return new Vector3(point.x, point.y, z);
+            return tile == TileType.Solid || tile == TileType.Brick;
         }
 
-        private static Vector3 TileScale(TileType tile)
+        // Models stand on their origin, so place them at the bottom of the cell.
+        private static Vector3 ToActorWorld(GridPoint point)
         {
-            switch (tile)
-            {
-                case TileType.Ladder:
-                    return new Vector3(0.22f, 1f, 1f);
-                case TileType.Bar:
-                    return new Vector3(1f, 0.16f, 1f);
-                case TileType.ExitClosed:
-                case TileType.ExitOpen:
-                    return new Vector3(0.72f, 0.9f, 1f);
-                case TileType.Altar:
-                    return new Vector3(0.58f, 0.58f, 1f);
-                default:
-                    return Vector3.one * 0.96f;
-            }
-        }
-
-        private static Color TileColor(TileType tile)
-        {
-            switch (tile)
-            {
-                case TileType.Solid:
-                    return new Color(0.62f, 0.43f, 0.25f);
-                case TileType.Brick:
-                    return new Color(0.35f, 0.2f, 0.14f);
-                case TileType.Ladder:
-                    return new Color(0.9f, 0.48f, 0.16f);
-                case TileType.Bar:
-                    return new Color(0.96f, 0.6f, 0.22f);
-                case TileType.ExitClosed:
-                    return new Color(0.48f, 0.31f, 0.18f);
-                case TileType.ExitOpen:
-                    return new Color(0.18f, 0.82f, 0.75f);
-                case TileType.Altar:
-                    return new Color(0.2f, 0.58f, 0.66f);
-                default:
-                    return Color.clear;
-            }
-        }
-
-        private static void Clear(List<GameObject> objects)
-        {
-            foreach (GameObject item in objects)
-            {
-                DestroyIfExists(item);
-            }
-
-            objects.Clear();
-        }
-
-        private static void DestroyIfExists(GameObject item)
-        {
-            if (item != null)
-            {
-                Destroy(item);
-            }
+            return new Vector3(point.x, point.y - 0.5f, ActorDepth);
         }
     }
 }

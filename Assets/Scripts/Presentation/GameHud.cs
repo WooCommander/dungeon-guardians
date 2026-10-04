@@ -1,23 +1,34 @@
 using DungeonGuardians.Input;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace DungeonGuardians.Presentation
 {
     public sealed class GameHud : MonoBehaviour
     {
+        private static readonly Color PanelColor = new Color(0.08f, 0.1f, 0.13f, 0.82f);
+        private static readonly Color PressedColor = new Color(0.25f, 0.62f, 0.58f, 0.92f);
+        private static readonly Color DPadBackColor = new Color(0.08f, 0.1f, 0.13f, 0.35f);
+
+        // Unity 6 removed the built-in Arial.ttf; LegacyRuntime.ttf is its replacement.
+        private static Font uiFont;
+        private static Font UiFont => uiFont != null ? uiFont : uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
         private Canvas canvas;
         private Text levelText;
         private Text goldText;
         private Text exitText;
         private Text messageText;
+        private Image upArrow;
+        private Image downArrow;
+        private Image leftArrow;
+        private Image rightArrow;
+        private Image digLeftButton;
+        private Image digRightButton;
         private PlayerInputBridge input;
-        private string levelLabel = string.Empty;
-        private string goldLabel = string.Empty;
-        private string exitLabel = "LOCKED";
         private string messageLabel = string.Empty;
-        private bool exitIsOpen;
 
         public void Bind(PlayerInputBridge bridge)
         {
@@ -30,21 +41,17 @@ namespace DungeonGuardians.Presentation
 
         public void SetLevel(string title, int index, int count)
         {
-            levelLabel = $"{index:00}/{count:00}  {title}";
-            levelText.text = levelLabel;
+            levelText.text = $"{index:00}/{count:00}  {title}";
         }
 
         public void SetGold(int collected, int total)
         {
-            goldLabel = $"{collected} / {total}";
-            goldText.text = goldLabel;
+            goldText.text = $"{collected} / {total}";
         }
 
         public void SetExit(bool open)
         {
-            exitIsOpen = open;
-            exitLabel = open ? "EXIT" : "LOCKED";
-            exitText.text = exitLabel;
+            exitText.text = open ? "EXIT" : "LOCKED";
             exitText.color = open ? new Color(0.42f, 1f, 0.82f) : new Color(1f, 0.74f, 0.28f);
         }
 
@@ -67,47 +74,20 @@ namespace DungeonGuardians.Presentation
             messageText.enabled = !string.IsNullOrWhiteSpace(value);
         }
 
-        private void OnGUI()
+        private void LateUpdate()
         {
-            if (input == null)
+            if (input == null || canvas == null)
             {
                 return;
             }
 
-            GUIStyle panel = new GUIStyle(GUI.skin.box)
-            {
-                fontSize = 24,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter
-            };
-            panel.normal.textColor = Color.white;
-
-            GUI.Box(new Rect(20f, 20f, 360f, 52f), levelLabel, panel);
-            GUI.Box(new Rect((Screen.width - 180f) * 0.5f, 20f, 180f, 52f), goldLabel, panel);
-
-            GUIStyle exitStyle = new GUIStyle(panel);
-            exitStyle.normal.textColor = exitIsOpen ? new Color(0.42f, 1f, 0.82f) : new Color(1f, 0.74f, 0.28f);
-            GUI.Box(new Rect(Screen.width - 220f, 20f, 200f, 52f), exitLabel, exitStyle);
-
-            if (!string.IsNullOrWhiteSpace(messageLabel))
-            {
-                GUI.Box(new Rect((Screen.width - 300f) * 0.5f, (Screen.height - 80f) * 0.5f, 300f, 80f), messageLabel, panel);
-            }
-
-            DrawHoldButton(new Rect(28f, Screen.height - 158f, 92f, 92f), "<", input.SetLeft);
-            DrawHoldButton(new Rect(132f, Screen.height - 158f, 92f, 92f), ">", input.SetRight);
-            DrawHoldButton(new Rect(80f, Screen.height - 258f, 92f, 92f), "^", input.SetUp);
-            DrawHoldButton(new Rect(80f, Screen.height - 58f, 92f, 50f), "v", input.SetDown);
-
-            if (GUI.Button(new Rect(Screen.width - 312f, Screen.height - 138f, 132f, 92f), "DIG L"))
-            {
-                input.DigLeft();
-            }
-
-            if (GUI.Button(new Rect(Screen.width - 160f, Screen.height - 138f, 132f, 92f), "DIG R"))
-            {
-                input.DigRight();
-            }
+            var held = input.HeldDirections;
+            Tint(upArrow, held.Up);
+            Tint(downArrow, held.Down);
+            Tint(leftArrow, held.Left);
+            Tint(rightArrow, held.Right);
+            Tint(digLeftButton, input.DigLeftHeld);
+            Tint(digRightButton, input.DigRightHeld);
         }
 
         private void Build()
@@ -118,7 +98,11 @@ namespace DungeonGuardians.Presentation
             canvasObject.transform.SetParent(transform, false);
             canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            var scaler = canvasObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            // Landscape phones vary mostly in width, so scale by height to keep the controls the same physical size.
+            scaler.referenceResolution = new Vector2(1600f, 900f);
+            scaler.matchWidthOrHeight = 1f;
             canvasObject.AddComponent<GraphicRaycaster>();
 
             levelText = AddText("Level", new Vector2(24f, -24f), TextAnchor.UpperLeft);
@@ -128,13 +112,22 @@ namespace DungeonGuardians.Presentation
             messageText.fontSize = 42;
             messageText.enabled = false;
 
-            AddHoldButton("Left", new Vector2(84f, 84f), "<", value => input.SetLeft(value));
-            AddHoldButton("Right", new Vector2(220f, 84f), ">", value => input.SetRight(value));
-            AddHoldButton("Up", new Vector2(152f, 152f), "^", value => input.SetUp(value));
-            AddHoldButton("Down", new Vector2(152f, 20f), "v", value => input.SetDown(value));
-            AddTapButton("DigLeft", new Vector2(-260f, 84f), "DIG L", () => input.DigLeft());
-            AddTapButton("DigRight", new Vector2(-96f, 84f), "DIG R", () => input.DigRight());
-            AddTapButton("Pause", new Vector2(-52f, -52f), "II", () => input.TogglePause(), TextAnchor.UpperRight);
+            // Touch controls are read by PlayerInputBridge per pointer, not through uGUI events.
+            Image dpad = AddPanel("DPad", canvas.transform, TextAnchor.LowerLeft, new Vector2(210f, 210f), new Vector2(340f, 340f), string.Empty);
+            dpad.color = DPadBackColor;
+            upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 112f), new Vector2(112f, 112f), "^");
+            downArrow = AddPanel("Down", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, -112f), new Vector2(112f, 112f), "v");
+            leftArrow = AddPanel("Left", dpad.transform, TextAnchor.MiddleCenter, new Vector2(-112f, 0f), new Vector2(112f, 112f), "<");
+            rightArrow = AddPanel("Right", dpad.transform, TextAnchor.MiddleCenter, new Vector2(112f, 0f), new Vector2(112f, 112f), ">");
+
+            digLeftButton = AddPanel("DigLeft", canvas.transform, TextAnchor.LowerRight, new Vector2(-330f, 150f), new Vector2(170f, 170f), "DIG L");
+            digRightButton = AddPanel("DigRight", canvas.transform, TextAnchor.LowerRight, new Vector2(-130f, 150f), new Vector2(170f, 170f), "DIG R");
+
+            input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
+
+            Image pause = AddPanel("Pause", canvas.transform, TextAnchor.UpperRight, new Vector2(-60f, -110f), new Vector2(96f, 96f), "II");
+            pause.raycastTarget = true;
+            pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
         }
 
         private Text AddText(string name, Vector2 anchoredPosition, TextAnchor alignment)
@@ -142,11 +135,12 @@ namespace DungeonGuardians.Presentation
             var textObject = new GameObject(name);
             textObject.transform.SetParent(canvas.transform, false);
             var text = textObject.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.font = UiFont;
             text.fontSize = 28;
             text.fontStyle = FontStyle.Bold;
             text.alignment = alignment;
             text.color = Color.white;
+            text.raycastTarget = false;
 
             RectTransform rect = text.GetComponent<RectTransform>();
             rect.anchorMin = AnchorFor(alignment);
@@ -156,77 +150,47 @@ namespace DungeonGuardians.Presentation
             return text;
         }
 
-        private void AddHoldButton(string name, Vector2 anchoredPosition, string label, System.Action<bool> callback)
+        private static Image AddPanel(string name, Transform parent, TextAnchor anchor, Vector2 anchoredPosition, Vector2 size, string label)
         {
-            Button button = AddButton(name, anchoredPosition, label, TextAnchor.LowerLeft);
-            HoldButton holdButton = button.gameObject.AddComponent<HoldButton>();
-            holdButton.OnChanged = callback;
-        }
+            var panelObject = new GameObject(name);
+            panelObject.transform.SetParent(parent, false);
+            var image = panelObject.AddComponent<Image>();
+            image.color = PanelColor;
+            image.raycastTarget = false;
 
-        private void AddTapButton(string name, Vector2 anchoredPosition, string label, UnityEngine.Events.UnityAction callback, TextAnchor anchor = TextAnchor.LowerRight)
-        {
-            Button button = AddButton(name, anchoredPosition, label, anchor);
-            button.onClick.AddListener(callback);
-        }
-
-        private Button AddButton(string name, Vector2 anchoredPosition, string label, TextAnchor anchor)
-        {
-            var buttonObject = new GameObject(name);
-            buttonObject.transform.SetParent(canvas.transform, false);
-            var image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.08f, 0.1f, 0.13f, 0.82f);
-            var button = buttonObject.AddComponent<Button>();
-
-            RectTransform rect = buttonObject.GetComponent<RectTransform>();
+            RectTransform rect = image.rectTransform;
             rect.anchorMin = AnchorFor(anchor);
             rect.anchorMax = AnchorFor(anchor);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(116f, 116f);
+            rect.sizeDelta = size;
+
+            if (string.IsNullOrEmpty(label))
+            {
+                return image;
+            }
 
             var labelObject = new GameObject("Label");
-            labelObject.transform.SetParent(buttonObject.transform, false);
+            labelObject.transform.SetParent(panelObject.transform, false);
             var text = labelObject.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            text.fontSize = 30;
+            text.font = UiFont;
+            text.fontSize = 34;
             text.fontStyle = FontStyle.Bold;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
             text.text = label;
+            text.raycastTarget = false;
 
-            RectTransform labelRect = text.GetComponent<RectTransform>();
+            RectTransform labelRect = text.rectTransform;
             labelRect.anchorMin = Vector2.zero;
             labelRect.anchorMax = Vector2.one;
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
-            return button;
+            return image;
         }
 
-        private static void DrawHoldButton(Rect rect, string label, System.Action<bool> callback)
+        private static void Tint(Image image, bool pressed)
         {
-            Event current = Event.current;
-            int controlId = GUIUtility.GetControlID(FocusType.Passive, rect);
-
-            switch (current.GetTypeForControl(controlId))
-            {
-                case EventType.MouseDown:
-                    if (rect.Contains(current.mousePosition))
-                    {
-                        GUIUtility.hotControl = controlId;
-                        callback(true);
-                        current.Use();
-                    }
-                    break;
-                case EventType.MouseUp:
-                    if (GUIUtility.hotControl == controlId)
-                    {
-                        GUIUtility.hotControl = 0;
-                        callback(false);
-                        current.Use();
-                    }
-                    break;
-            }
-
-            GUI.Button(rect, label);
+            image.color = pressed ? PressedColor : PanelColor;
         }
 
         private static Vector2 AnchorFor(TextAnchor anchor)
@@ -259,7 +223,7 @@ namespace DungeonGuardians.Presentation
 
             var eventSystem = new GameObject("EventSystem");
             eventSystem.AddComponent<EventSystem>();
-            eventSystem.AddComponent<StandaloneInputModule>();
+            eventSystem.AddComponent<InputSystemUIInputModule>();
         }
     }
 }

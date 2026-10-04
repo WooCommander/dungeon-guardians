@@ -6,9 +6,11 @@ namespace DungeonGuardians.Core
     public sealed class DungeonSimulation
     {
         private readonly BalanceConfig balance;
-        private int digLockTicks;
+        // Accumulates speed per tick; the player steps one cell each time it reaches 1. Starts full so the first step is immediate.
+        private float playerMoveBudget = 1f;
 
         public RuntimeLevelState State { get; private set; }
+        public BalanceConfig Balance => balance;
         public event Action StateChanged;
 
         public DungeonSimulation(LevelDefinition level, BalanceConfig balance)
@@ -25,9 +27,9 @@ namespace DungeonGuardians.Core
                 return;
             }
 
-            if (digLockTicks > 0)
+            if (State.PlayerDigTicks > 0)
             {
-                digLockTicks--;
+                State.PlayerDigTicks--;
             }
             else if (input.DigLeft)
             {
@@ -54,33 +56,56 @@ namespace DungeonGuardians.Core
         {
             GridPoint direction = new GridPoint(0, 0);
             TileType current = GetTile(State.PlayerPosition);
+            bool onLadder = current == TileType.Ladder;
+            bool wantsUp = input.Up && onLadder;
+            bool wantsDown = input.Down && (onLadder || current == TileType.Bar);
+            bool wantsHorizontal = input.Left || input.Right;
+            GridPoint horizontal = input.Left ? GridPoint.Left : GridPoint.Right;
 
-            if (input.Left)
+            // Without support the player falls regardless of input.
+            if (!HasSupport(State.PlayerPosition))
             {
-                direction = GridPoint.Left;
+                direction = GridPoint.Down;
             }
-            else if (input.Right)
-            {
-                direction = GridPoint.Right;
-            }
-            else if (input.Up && current == TileType.Ladder)
+            // On a ladder vertical input wins when the move is possible; elsewhere horizontal wins.
+            else if (onLadder && wantsUp && CanOccupy(State.PlayerPosition + GridPoint.Up))
             {
                 direction = GridPoint.Up;
             }
-            else if (input.Down && (current == TileType.Ladder || current == TileType.Bar))
+            else if (onLadder && wantsDown && CanOccupy(State.PlayerPosition + GridPoint.Down))
             {
                 direction = GridPoint.Down;
             }
-            else if (!HasSupport(State.PlayerPosition))
+            else if (wantsHorizontal)
+            {
+                direction = horizontal;
+            }
+            else if (wantsUp)
+            {
+                direction = GridPoint.Up;
+            }
+            else if (wantsDown)
             {
                 direction = GridPoint.Down;
             }
 
+            float step = balance.PlayerSpeed / balance.TickRate;
             GridPoint next = State.PlayerPosition + direction;
-            if (CanOccupy(next))
+            bool hasDirection = direction.x != 0 || direction.y != 0;
+            if (!hasDirection || !CanOccupy(next))
             {
-                State.PlayerPosition = next;
+                playerMoveBudget = Math.Min(playerMoveBudget + step, 1f);
+                return;
             }
+
+            playerMoveBudget += step;
+            if (playerMoveBudget < 1f)
+            {
+                return;
+            }
+
+            playerMoveBudget -= 1f;
+            State.PlayerPosition = next;
         }
 
         private void TryDig(int horizontalOffset)
@@ -97,9 +122,17 @@ namespace DungeonGuardians.Core
                 return;
             }
 
+            // The cell above the target must be open: no solid block, ladder, bar or exit.
+            TileType aboveTarget = GetTile(target + GridPoint.Up);
+            if (aboveTarget != TileType.Air && aboveTarget != TileType.Altar)
+            {
+                return;
+            }
+
             State.Tiles[target.x, target.y] = TileType.Air;
             State.Holes.Add(new HoleState(target, TileType.Brick, balance.HoleTicks));
-            digLockTicks = balance.DigTicks;
+            State.PlayerDigTicks = balance.DigTicks;
+            State.PlayerDigDirection = horizontalOffset;
         }
 
         private void UpdateHoles()
@@ -135,6 +168,7 @@ namespace DungeonGuardians.Core
 
         private void UpdateGuardians()
         {
+            float step = balance.GuardianSpeed / balance.TickRate;
             foreach (GuardianState guardian in State.Guardians)
             {
                 if (guardian.RespawnTicks > 0)
@@ -143,29 +177,37 @@ namespace DungeonGuardians.Core
                     if (guardian.RespawnTicks == 0)
                     {
                         guardian.Position = FindRespawnPoint();
+                        guardian.MoveBudget = 0f;
                     }
 
                     continue;
                 }
 
-                if (GetTile(guardian.Position) == TileType.Air && !HasSupport(guardian.Position))
-                {
-                    TryMoveGuardian(guardian, GridPoint.Down);
-                    continue;
-                }
-
-                int horizontal = Math.Sign(State.PlayerPosition.x - guardian.Position.x);
-                if (horizontal != 0 && TryMoveGuardian(guardian, new GridPoint(horizontal, 0)))
+                guardian.MoveBudget += step;
+                if (guardian.MoveBudget < 1f)
                 {
                     continue;
                 }
 
-                int vertical = Math.Sign(State.PlayerPosition.y - guardian.Position.y);
-                if (vertical != 0 && GetTile(guardian.Position) == TileType.Ladder)
-                {
-                    TryMoveGuardian(guardian, new GridPoint(0, vertical));
-                }
+                guardian.MoveBudget = StepGuardian(guardian) ? guardian.MoveBudget - 1f : 1f;
             }
+        }
+
+        private bool StepGuardian(GuardianState guardian)
+        {
+            if (GetTile(guardian.Position) == TileType.Air && !HasSupport(guardian.Position))
+            {
+                return TryMoveGuardian(guardian, GridPoint.Down);
+            }
+
+            int horizontal = Math.Sign(State.PlayerPosition.x - guardian.Position.x);
+            if (horizontal != 0 && TryMoveGuardian(guardian, new GridPoint(horizontal, 0)))
+            {
+                return true;
+            }
+
+            int vertical = Math.Sign(State.PlayerPosition.y - guardian.Position.y);
+            return vertical != 0 && GetTile(guardian.Position) == TileType.Ladder && TryMoveGuardian(guardian, new GridPoint(0, vertical));
         }
 
         private bool TryMoveGuardian(GuardianState guardian, GridPoint direction)
@@ -215,7 +257,7 @@ namespace DungeonGuardians.Core
             }
         }
 
-        private bool HasSupport(GridPoint point)
+        public bool HasSupport(GridPoint point)
         {
             TileType current = GetTile(point);
             if (current == TileType.Ladder || current == TileType.Bar)
