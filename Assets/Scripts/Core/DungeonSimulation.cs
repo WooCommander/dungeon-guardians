@@ -141,6 +141,11 @@ namespace DungeonGuardians.Core
             {
                 HoleState hole = State.Holes[i];
                 hole.RemainingTicks--;
+                if (hole.RemainingTicks == balance.GuardianClimbOutTicks)
+                {
+                    ClimbOut(hole);
+                }
+
                 if (hole.RemainingTicks > 0)
                 {
                     continue;
@@ -166,6 +171,32 @@ namespace DungeonGuardians.Core
             }
         }
 
+        // Just before the hole closes, a trapped guardian climbs onto the cell above one of its edges: towards the
+        // explorer first, then the other way. With both sides blocked it stays and is buried when the hole closes.
+        private void ClimbOut(HoleState hole)
+        {
+            foreach (GuardianState guardian in State.Guardians)
+            {
+                if (guardian.RespawnTicks > 0 || !guardian.Trapped || !guardian.Position.Equals(hole.Position))
+                {
+                    continue;
+                }
+
+                int towardsPlayer = State.PlayerPosition.x < hole.Position.x ? -1 : 1;
+                foreach (int side in new[] { towardsPlayer, -towardsPlayer })
+                {
+                    GridPoint edge = hole.Position + new GridPoint(side, 1);
+                    if (CanOccupy(edge))
+                    {
+                        guardian.Position = edge;
+                        guardian.Trapped = false;
+                        guardian.MoveBudget = 0f;
+                        break;
+                    }
+                }
+            }
+        }
+
         private void UpdateGuardians()
         {
             float step = balance.GuardianSpeed / balance.TickRate;
@@ -180,6 +211,12 @@ namespace DungeonGuardians.Core
                         guardian.MoveBudget = 0f;
                     }
 
+                    continue;
+                }
+
+                // A trapped guardian stays in its hole until the hole closes over it.
+                if (guardian.Trapped)
+                {
                     continue;
                 }
 
@@ -249,7 +286,8 @@ namespace DungeonGuardians.Core
         {
             foreach (GuardianState guardian in State.Guardians)
             {
-                if (guardian.RespawnTicks <= 0 && guardian.Position.Equals(State.PlayerPosition))
+                // A guardian caught in a hole is harmless for now (TZ section 7).
+                if (guardian.RespawnTicks <= 0 && !guardian.Trapped && guardian.Position.Equals(State.PlayerPosition))
                 {
                     State.Lost = true;
                     return;
@@ -265,7 +303,22 @@ namespace DungeonGuardians.Core
                 return true;
             }
 
-            return IsSolidSupport(point + GridPoint.Down);
+            // The head of a trapped guardian bridges its hole: the explorer and other guardians walk across it.
+            GridPoint below = point + GridPoint.Down;
+            return IsSolidSupport(below) || IsTrappedGuardianAt(below);
+        }
+
+        private bool IsTrappedGuardianAt(GridPoint point)
+        {
+            foreach (GuardianState guardian in State.Guardians)
+            {
+                if (guardian.RespawnTicks <= 0 && guardian.Trapped && guardian.Position.Equals(point))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool IsSolidSupport(GridPoint point)

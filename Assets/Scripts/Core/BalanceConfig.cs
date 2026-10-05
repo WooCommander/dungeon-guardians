@@ -8,6 +8,8 @@ namespace DungeonGuardians.Core
         public float GuardianSpeed = 2.3f;
         public int DigTicks = 10;
         public int HoleTicks = 180;
+        // A trapped guardian climbs out this many ticks before its hole closes (0.5 s); the hole then refills empty.
+        public int GuardianClimbOutTicks = 15;
         public int GuardianRespawnTicks = 120;
     }
 }

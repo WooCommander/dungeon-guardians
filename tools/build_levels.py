@@ -81,8 +81,8 @@ def save(number, title, level, start, exit_, gold, guardians=(), altars=()):
 
 def level_1():
     # "Первые залы", laid out after the approved concept screen: three tiers of sandstone (B) mixed with reinforced
-    # blocks (#), ladders between the tiers, ropes under the ceiling and the door on the top right. No guardians yet:
-    # the first level teaches walking, ladders, ropes, gold and the exit.
+    # blocks (#), ladders between the tiers, ropes under the ceiling and the door on the top right. One guardian starts
+    # on the top right tier, far from the explorer; its altar is on the right of the middle tier.
     # 33 x 13 cells fills a 16:9 screen above the control strip, so the painted cavern shows inside the level.
     # Rows: blocks at y = 1, 5, 9; walk rows y = 2, 6, 10; ropes at y = 11 under the ceiling.
     m = Map(33, 13)
@@ -104,7 +104,8 @@ def level_1():
     m.bar(11, 4, 11); m.bar(11, 13, 16); m.bar(11, 18, 25)  # ropes under the ceiling
     gold = [(2, 2), (17, 2), (24, 2), (15, 4), (4, 6), (23, 6), (24, 6),
             (2, 10), (21, 10), (7, 11), (14, 11), (22, 11)]
-    save(1, "Первые залы", m, start=(8, 2), exit_=(29, 10), gold=gold)
+    save(1, "Первые залы", m, start=(8, 2), exit_=(29, 10), gold=gold,
+         guardians=[(24, 10)], altars=[(30, 6)])
 
 
 def level_2():
