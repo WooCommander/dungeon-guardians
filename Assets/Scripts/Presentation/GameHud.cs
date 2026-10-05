@@ -8,6 +8,10 @@ namespace DungeonGuardians.Presentation
 {
     public sealed class GameHud : MonoBehaviour
     {
+        // Share of the screen height taken by the control strip at the bottom. The camera keeps the level above it,
+        // so the d-pad and dig buttons never cover a walkable cell (TZ section 3).
+        public const float ControlStripHeight = 0.27f;
+
         private static readonly Color PanelColor = new Color(0.08f, 0.1f, 0.13f, 0.82f);
         private static readonly Color PressedColor = new Color(0.25f, 0.62f, 0.58f, 0.92f);
         private static readonly Color DPadBackColor = new Color(0.08f, 0.1f, 0.13f, 0.35f);
@@ -113,15 +117,17 @@ namespace DungeonGuardians.Presentation
             messageText.enabled = false;
 
             // Touch controls are read by PlayerInputBridge per pointer, not through uGUI events.
-            Image dpad = AddPanel("DPad", canvas.transform, TextAnchor.LowerLeft, new Vector2(210f, 210f), new Vector2(340f, 340f), string.Empty);
+            // They fit inside the bottom control strip (0.27 of the 900-unit reference height = 243 units);
+            // every arrow and button stays well above the 48-unit minimum touch size.
+            Image dpad = AddPanel("DPad", canvas.transform, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
             dpad.color = DPadBackColor;
-            upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 112f), new Vector2(112f, 112f), "^");
-            downArrow = AddPanel("Down", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, -112f), new Vector2(112f, 112f), "v");
-            leftArrow = AddPanel("Left", dpad.transform, TextAnchor.MiddleCenter, new Vector2(-112f, 0f), new Vector2(112f, 112f), "<");
-            rightArrow = AddPanel("Right", dpad.transform, TextAnchor.MiddleCenter, new Vector2(112f, 0f), new Vector2(112f, 112f), ">");
+            upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 78f), new Vector2(76f, 76f), "^");
+            downArrow = AddPanel("Down", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, -78f), new Vector2(76f, 76f), "v");
+            leftArrow = AddPanel("Left", dpad.transform, TextAnchor.MiddleCenter, new Vector2(-78f, 0f), new Vector2(76f, 76f), "<");
+            rightArrow = AddPanel("Right", dpad.transform, TextAnchor.MiddleCenter, new Vector2(78f, 0f), new Vector2(76f, 76f), ">");
 
-            digLeftButton = AddPanel("DigLeft", canvas.transform, TextAnchor.LowerRight, new Vector2(-330f, 150f), new Vector2(170f, 170f), "DIG L");
-            digRightButton = AddPanel("DigRight", canvas.transform, TextAnchor.LowerRight, new Vector2(-130f, 150f), new Vector2(170f, 170f), "DIG R");
+            digLeftButton = AddPanel("DigLeft", canvas.transform, TextAnchor.LowerRight, new Vector2(-280f, 112f), new Vector2(150f, 150f), "DIG L");
+            digRightButton = AddPanel("DigRight", canvas.transform, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
 
             input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
 

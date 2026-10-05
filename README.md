@@ -68,4 +68,12 @@ blender --background --factory-startup --python ArtSource/Characters/build_explo
 blender --background --factory-startup --python ArtSource/Environment/import_tripo_prop.py -- models/<выгрузка>.zip block_solid
 ```
 
+Золото, лестницы и факелы — вырезки из картинок вида спереди в `map-images/` (камера смотрит строго сбоку, поэтому они выглядят как на концепте). Скрипт убирает серый фон, делает бесшовный кусок лестницы и срезает нарисованное пламя факела — в игре оно анимированное:
+
+```
+python tools/cutout_props.py
+```
+
+Нарисованный фон пещеры кладётся в `Assets/Resources/Backgrounds/cavern.png`; без него фон собирается из процедурных силуэтов.
+
 Результат попадает в `Assets/Resources/Characters` и `Assets/Resources/Environment`. Настройки импорта задаёт `Assets/Scripts/Editor/ArtModelImporter.cs`. Уровень собирается из деталей по JSON-карте в `LevelRenderer`, анимации выбирает `CharacterView`.

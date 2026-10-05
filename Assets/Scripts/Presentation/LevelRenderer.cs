@@ -23,8 +23,20 @@ namespace DungeonGuardians.Presentation
         private const float DoorScale = 0.62f;
         private const float DoorDepth = 0.25f;
         private const float GoldScale = 1.6f;
-        private const float GoldSpinSpeed = 90f;
+        // Painted props (tools/cutout_props.py), sized in cells.
+        private const float GoldWidth = 0.55f;
+        private const float GoldRestHeight = 0.04f;
+        private const float GoldBobHeight = 0.06f;
+        private const float GoldBobSpeed = 2.2f;
+        // Just behind the characters, so the explorer passes in front of the bar he picks up.
+        private const float GoldDepth = 0.05f;
+        private const float LadderWidth = 0.78f;
+        private const float TorchHolderHeight = 0.5f;
         private const float BackWallDepth = 0.45f;
+        private const int FrameWallColumns = 3;
+        // Slightly behind the gameplay plane so the level's own border reads as the front edge.
+        private const float FrameWallDepth = 0.1f;
+        private const float HudTopMargin = 0.9f;
         private const int TorchSpacing = 6;
         private const int TorchRowStagger = 3;
         private const int MaxTorchLights = 8;
@@ -35,13 +47,14 @@ namespace DungeonGuardians.Presentation
         private const float TorchFlameSize = 0.38f;
 
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
+        private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
+        private readonly Dictionary<GridPoint, float> goldRestY = new Dictionary<GridPoint, float>();
         private readonly List<CharacterView> guardians = new List<CharacterView>();
         private GameObject[,] cellObjects;
         private TileType[,] cellTypes;
         private Transform levelRoot;
         private CharacterView player;
-        private GameObject backdrop;
         private LevelDefinition currentDefinition;
         private RuntimeLevelState currentState;
 
@@ -61,12 +74,16 @@ namespace DungeonGuardians.Presentation
 
         private void Update()
         {
-            float angle = GoldSpinSpeed * Time.deltaTime;
-            foreach (GameObject gold in goldPieces.Values)
+            // Gold gently floats so it catches the eye; each bar has its own phase.
+            foreach (KeyValuePair<GridPoint, GameObject> gold in goldPieces)
             {
-                if (gold.activeSelf)
+                if (gold.Value.activeSelf)
                 {
-                    gold.transform.Rotate(0f, angle, 0f, Space.World);
+                    float phase = gold.Key.x * 0.9f + gold.Key.y * 1.7f;
+                    float lift = GoldBobHeight * (0.5f + 0.5f * Mathf.Sin(Time.time * GoldBobSpeed + phase));
+                    Vector3 position = gold.Value.transform.localPosition;
+                    position.y = goldRestY[gold.Key] + lift;
+                    gold.Value.transform.localPosition = position;
                 }
             }
         }
@@ -83,6 +100,7 @@ namespace DungeonGuardians.Presentation
 
             guardians.Clear();
             goldPieces.Clear();
+            goldRestY.Clear();
             if (levelRoot != null)
             {
                 Destroy(levelRoot.gameObject);
@@ -95,17 +113,16 @@ namespace DungeonGuardians.Presentation
 
             foreach (GridPoint point in definition.gold ?? System.Array.Empty<GridPoint>())
             {
-                GameObject gold = Spawn("gold", levelRoot, new Vector3(point.x, point.y - 0.5f, ActorDepth), GoldScale, new Color(1f, 0.78f, 0.14f));
-                gold.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                var bottom = new Vector3(point.x, point.y - 0.5f + GoldRestHeight, GoldDepth);
+                GameObject gold = SpawnSprite("gold", levelRoot, bottom, GoldWidth, 0f)
+                    ?? Spawn("gold", levelRoot, bottom, GoldScale, new Color(1f, 0.78f, 0.14f));
                 goldPieces[point] = gold;
+                goldRestY[point] = gold.transform.localPosition.y;
             }
 
             BuildDecor(state);
-
-            if (backdrop == null)
-            {
-                backdrop = CreateBackdrop();
-            }
+            BuildFrameWalls(definition);
+            CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode());
         }
 
         private void RenderTiles(RuntimeLevelState state)
@@ -150,7 +167,12 @@ namespace DungeonGuardians.Presentation
                     SpawnLocal("block_diggable", parent, new Vector3(0f, BlockHeight, 0f), 1f, new Color(0.62f, 0.45f, 0.28f));
                     break;
                 case TileType.Ladder:
-                    SpawnLocal("ladder_section", parent, new Vector3(0f, 0f, LadderDepth), 1f, new Color(0.55f, 0.35f, 0.18f));
+                    // One seamless three-rung tile per cell; stacked cells continue the rails.
+                    if (SpawnSprite("ladder", parent, new Vector3(0f, 0f, LadderDepth), LadderWidth, 1f) == null)
+                    {
+                        SpawnLocal("ladder_section", parent, new Vector3(0f, 0f, LadderDepth), 1f, new Color(0.55f, 0.35f, 0.18f));
+                    }
+
                     break;
                 case TileType.Bar:
                     SpawnLocal("rope_section", parent, new Vector3(0f, 0.5f + BarHeight, 0f), 1f, new Color(0.7f, 0.55f, 0.3f));
@@ -178,7 +200,9 @@ namespace DungeonGuardians.Presentation
             {
                 for (int x = 1; x < state.Definition.width - 1; x++)
                 {
-                    bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && state.Tiles[x, y + 1] == TileType.Air;
+                    // A rope overhead is thin enough to leave room for the flame.
+                    TileType above = state.Tiles[x, y + 1];
+                    bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && (above == TileType.Air || above == TileType.Bar);
                     if (floor && (x + y * TorchRowStagger) % TorchSpacing == 0)
                     {
                         torches.Add(new Vector3(x, y - 0.5f + TorchMountHeight, BackWallDepth));
@@ -186,12 +210,32 @@ namespace DungeonGuardians.Presentation
                 }
             }
 
+            // A pair of torches flanking the exit door, as on the concept screen.
+            GridPoint exit = state.Definition.exit;
+            foreach (int side in new[] { -1, 1 })
+            {
+                int x = exit.x + side;
+                var position = new Vector3(x, exit.y - 0.5f + TorchMountHeight, BackWallDepth);
+                if (state.Tiles[x, exit.y] == TileType.Air && !torches.Contains(position))
+                {
+                    torches.Add(position);
+                }
+            }
+
             // Real-time lights are costly on phones: light an even spread of torches, the rest only glow.
             int lightEvery = Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
             for (int i = 0; i < torches.Count; i++)
             {
-                Spawn("torch", levelRoot, torches[i], TorchScale, new Color(1f, 0.6f, 0.2f));
-                Vector3 flame = torches[i] + new Vector3(0f, TorchFlameHeight, -0.12f);
+                // The painted holder ends at the cup; the animated flame sits on its rim.
+                GameObject holder = SpawnSprite("torch", levelRoot, torches[i], 0f, TorchHolderHeight);
+                float cupTop = TorchHolderHeight - 0.03f;
+                if (holder == null)
+                {
+                    Spawn("torch", levelRoot, torches[i], TorchScale, new Color(1f, 0.6f, 0.2f));
+                    cupTop = TorchFlameHeight;
+                }
+
+                Vector3 flame = torches[i] + new Vector3(0f, cupTop, -0.05f);
                 TorchFlame.Create(levelRoot, flame, TorchFlameSize, i % lightEvery == 0);
             }
         }
@@ -287,14 +331,69 @@ namespace DungeonGuardians.Presentation
             // and make anything nearer the camera look larger and higher.
             camera.orthographic = true;
             camera.transform.rotation = Quaternion.identity;
-            camera.transform.position = new Vector3((definition.width - 1) * 0.5f, (definition.height - 1) * 0.5f - 0.4f, -10f);
-            camera.orthographicSize = Mathf.Max(definition.height * 0.6f, definition.width * 0.32f);
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.02f, 0.05f, 0.06f);
 
-            if (backdrop != null)
+            // The whole level sits above the control strip, with a little room at the top for the HUD text.
+            // On narrow screens the width decides the size; the extra height then goes below the level.
+            float levelTop = definition.height - 0.5f + HudTopMargin;
+            float levelBottom = -0.5f;
+            float sizeForHeight = (levelTop - levelBottom) / (2f * (1f - GameHud.ControlStripHeight));
+            float sizeForWidth = (definition.width + 0.4f) / (2f * camera.aspect);
+            float size = Mathf.Max(sizeForHeight, sizeForWidth);
+            camera.orthographicSize = size;
+            camera.transform.position = new Vector3((definition.width - 1) * 0.5f, levelTop - size, -10f);
+        }
+
+        // Thick sandstone walls outside the level's left and right edges, as on the concept screen, so wide screens
+        // show masonry rather than empty space beside the map.
+        private void BuildFrameWalls(LevelDefinition definition)
+        {
+            for (int column = 1; column <= FrameWallColumns; column++)
             {
-                backdrop.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, 2f);
-                backdrop.transform.localScale = new Vector3(definition.width + 10f, definition.height + 8f, 1f);
+                foreach (int x in new[] { -column, definition.width - 1 + column })
+                {
+                    for (int y = 0; y < definition.height; y++)
+                    {
+                        var cell = new Vector3(x, y - 0.5f, FrameWallDepth);
+                        SpawnLocal("block_diggable", levelRoot, cell, 1f, new Color(0.62f, 0.45f, 0.28f));
+                        SpawnLocal("block_diggable", levelRoot, cell + new Vector3(0f, BlockHeight, 0f), 1f, new Color(0.62f, 0.45f, 0.28f));
+                    }
+                }
             }
+        }
+
+        // A painted cut-out from Resources/Sprites standing on bottomCenter. Give the width or the height (0 keeps the
+        // aspect ratio), or both to stretch. Returns null when the sprite is missing so callers can fall back to a model.
+        private GameObject SpawnSprite(string asset, Transform parent, Vector3 bottomCenter, float width, float height)
+        {
+            if (!sprites.TryGetValue(asset, out Sprite sprite))
+            {
+                sprite = Resources.Load<Sprite>($"Sprites/{asset}");
+                sprites[asset] = sprite;
+            }
+
+            if (sprite == null)
+            {
+                return null;
+            }
+
+            Vector2 size = sprite.bounds.size;
+            float scaleX = width > 0f ? width / size.x : height / size.y;
+            float scaleY = height > 0f ? height / size.y : scaleX;
+            if (width <= 0f)
+            {
+                scaleX = scaleY;
+            }
+
+            var item = new GameObject(asset);
+            item.transform.SetParent(parent, false);
+            item.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+            // Sprites pivot at their centre; lift by half the height so the art stands on bottomCenter.
+            item.transform.localPosition = bottomCenter + new Vector3(0f, size.y * scaleY * 0.5f - sprite.bounds.center.y * scaleY, 0f);
+            var renderer = item.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            return item;
         }
 
         private GameObject Spawn(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)
@@ -343,17 +442,6 @@ namespace DungeonGuardians.Presentation
             }
 
             return prefab;
-        }
-
-        private GameObject CreateBackdrop()
-        {
-            var backdropObject = new GameObject("Cavern Backdrop");
-            backdropObject.transform.SetParent(transform, false);
-            var renderer = backdropObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
-            renderer.color = new Color(0.05f, 0.1f, 0.12f);
-            renderer.sortingOrder = -10;
-            return backdropObject;
         }
 
         private static bool IsBlock(TileType tile)
