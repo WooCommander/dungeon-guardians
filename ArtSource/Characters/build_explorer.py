@@ -66,18 +66,20 @@ def idle():
 
 
 def walk():
+    # A brisk, wide stride: the explorer covers 3 cells a second, so a slow cycle made the feet slide.
+    # One cycle (two steps) takes 16 frames, about half a second.
     def frame(phase):
         # phase 1: left leg forward, right arm forward; phase -1: the opposite.
-        return pose(hips_drop=-0.012, chest=5,
-                    left=arm(LEFT, 22 * phase, 20, -15),
-                    right=arm(RIGHT, -22 * phase, 20, -15),
-                    legs=legs(-28 * phase, 8, 28 * phase, 8))
+        return pose(hips_drop=-0.016, chest=8,
+                    left=arm(LEFT, 30 * phase, 20, -25),
+                    right=arm(RIGHT, -30 * phase, 20, -25),
+                    legs=legs(-36 * phase, 10, 36 * phase, 10))
 
     def passing(left_lifted):
-        lift = legs(-2, 40, 4, 6) if left_lifted else legs(4, 6, -2, 40)
-        return pose(hips_drop=0.006, chest=5, left=arm(LEFT, 0, 20, -15), right=arm(RIGHT, 0, 20, -15), legs=lift)
+        lift = legs(-6, 55, 6, 6) if left_lifted else legs(6, 6, -6, 55)
+        return pose(hips_drop=0.008, chest=8, left=arm(LEFT, 0, 20, -25), right=arm(RIGHT, 0, 20, -25), legs=lift)
 
-    return [(0, frame(1)), (6, passing(False)), (12, frame(-1)), (18, passing(True)), (24, frame(1))]
+    return [(0, frame(1)), (4, passing(False)), (8, frame(-1)), (12, passing(True)), (16, frame(1))]
 
 
 def climb():

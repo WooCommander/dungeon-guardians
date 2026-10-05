@@ -13,6 +13,8 @@ namespace DungeonGuardians.Presentation
         private const float ExplorerHeight = 0.92f;
         private const float GuardianHeight = 0.95f;
         private const float ActorDepth = 0f;
+        // Walk clip playback speed for the explorer; raise it if the feet still lag behind the movement.
+        private const float ExplorerWalkPlayback = 1.8f;
 
         // Blocks are 1 x 0.5 with the pivot at the bottom centre, so a cell holds two of them.
         private const float BlockHeight = 0.5f;
@@ -271,7 +273,7 @@ namespace DungeonGuardians.Presentation
 
             if (player == null)
             {
-                player = CharacterView.Create("explorer", transform, ExplorerHeight, balance.PlayerSpeed, new Color(1f, 0.55f, 0.21f));
+                player = CharacterView.Create("explorer", transform, ExplorerHeight, balance.PlayerSpeed, new Color(1f, 0.55f, 0.21f), ExplorerWalkPlayback);
             }
 
             if (newRun)

@@ -31,18 +31,21 @@ namespace DungeonGuardians.Presentation
         private Animation animationPlayer;
         private Vector3 target;
         private float speed;
+        private float walkPlayback = 1f;
         private bool snapNext = true;
         private float lastMoveTime = -1f;
         private int facing = 1;
         private CharacterPose pose;
         private string currentClip;
 
-        public static CharacterView Create(string modelName, Transform parent, float height, float speed, Color fallbackColor)
+        // walkPlayback scales the Walk clip so the steps keep up with the movement speed.
+        public static CharacterView Create(string modelName, Transform parent, float height, float speed, Color fallbackColor, float walkPlayback = 1f)
         {
             var root = new GameObject(modelName);
             root.transform.SetParent(parent, false);
             var view = root.AddComponent<CharacterView>();
             view.speed = speed;
+            view.walkPlayback = walkPlayback;
             view.Build(modelName, height, fallbackColor);
             return view;
         }
@@ -133,7 +136,7 @@ namespace DungeonGuardians.Presentation
             switch (pose)
             {
                 case CharacterPose.Ground:
-                    Play(moving ? "Walk" : "Idle", 1f);
+                    Play(moving ? "Walk" : "Idle", moving ? walkPlayback : 1f);
                     break;
                 case CharacterPose.Ladder:
                 case CharacterPose.Bar:
