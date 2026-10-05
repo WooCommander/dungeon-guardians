@@ -38,7 +38,7 @@ namespace DungeonGuardians.Presentation
         private CharacterPose pose;
         private string currentClip;
 
-        // walkPlayback scales the Walk clip so the steps keep up with the movement speed.
+        // walkPlayback scales the Walk and Climb clips so the steps keep up with the movement speed.
         public static CharacterView Create(string modelName, Transform parent, float height, float speed, Color fallbackColor, float walkPlayback = 1f)
         {
             var root = new GameObject(modelName);
@@ -141,7 +141,7 @@ namespace DungeonGuardians.Presentation
                 case CharacterPose.Ladder:
                 case CharacterPose.Bar:
                     // No dedicated hang clip yet: the climb cycle is reused on bars and frozen while standing still.
-                    Play("Climb", moving ? 1f : 0f);
+                    Play("Climb", moving ? walkPlayback : 0f);
                     break;
                 case CharacterPose.Fall:
                     Play("Fall", 1f);

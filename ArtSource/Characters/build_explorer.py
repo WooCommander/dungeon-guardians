@@ -82,15 +82,34 @@ def walk():
     return [(0, frame(1)), (4, passing(False)), (8, frame(-1)), (12, passing(True)), (16, frame(1))]
 
 
+def climb_legs(left_lift, right_lift):
+    # On the ladder the camera sees the explorer's back, where a plain forward knee lift hardly shows. A lifted leg
+    # therefore also swings out to the side (frog-like), which reads clearly from behind. lift: 0 = hanging, 1 = high step.
+    result = {}
+    for side, prefix, lift in ((LEFT, "Left", left_lift), (RIGHT, "Right", right_lift)):
+        thigh = -10 - 65 * lift
+        knee = 15 + 85 * lift
+        result[f"{prefix}_UpperLeg"] = (thigh, -side * 16 * lift, 0)
+        result[f"{prefix}_LowerLeg"] = (knee, 0, 0)
+        result[f"{prefix}_Foot"] = (-(thigh + knee), 0, 0)
+    return result
+
+
 def climb():
-    def frame(phase):
-        # The left hand reaches up while the right foot steps up, and vice versa.
-        reach_left = phase > 0
-        return pose(chest=-4,
-                    left=arm(LEFT, -168 if reach_left else -125, 8, -10 if reach_left else -50),
-                    right=arm(RIGHT, -125 if reach_left else -168, 8, -50 if reach_left else -10),
-                    legs=legs(-15, 25, -60, 80) if reach_left else legs(-60, 80, -15, 25))
-    return [(0, frame(1)), (12, frame(-1)), (24, frame(1))]
+    def frame(reach_left, amount=1.0):
+        # The left hand reaches up while the right foot steps up, and vice versa; the hips sway towards the support leg.
+        sway = 7 * amount if reach_left else -7 * amount
+        lifted, hanging = 0.2 + 0.8 * amount, 0.2 * (1 - amount)
+        result = pose(hips_drop=-0.012 * amount, chest=-4,
+                      left=arm(LEFT, -168 if reach_left else -125, 8, -10 if reach_left else -50),
+                      right=arm(RIGHT, -125 if reach_left else -168, 8, -50 if reach_left else -10),
+                      legs=climb_legs(hanging, lifted) if reach_left else climb_legs(lifted, hanging))
+        result["Hips"] = (0, sway, 0, -0.012 * amount)
+        result["Spine"] = (0, -sway * 0.6, 0)
+        return result
+
+    # Halfway frames keep both feet low, so each step visibly lifts and lowers instead of snapping between poses.
+    return [(0, frame(True)), (6, frame(True, 0.2)), (12, frame(False)), (18, frame(False, 0.2)), (24, frame(True))]
 
 
 def fall():
