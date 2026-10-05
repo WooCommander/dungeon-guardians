@@ -8,7 +8,8 @@ import bpy
 SOURCE = pathlib.Path(__file__).resolve().parent
 RESOURCES = SOURCE.parent / "Assets" / "Resources"
 
-CHARACTERS = ["explorer", "guardian"]
+# The explorer is built from the Tripo model by Characters/build_explorer.py.
+CHARACTERS = ["guardian"]
 ENVIRONMENT = [
     "altar", "block_diggable", "block_solid", "column", "door_closed", "door_open",
     "gold", "ladder_section", "rope_section", "rubble", "torch",

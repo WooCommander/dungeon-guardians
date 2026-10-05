@@ -40,12 +40,32 @@ Unity-прототип мобильной аркадной головоломк�
 
 Актеры и золото задаются отдельными массивами координат, чтобы тип поверхности не смешивался с объектами уровня.
 
+Уровни собираются генератором `tools/build_levels.py` (платформы, лестницы и перекладины задаются координатами) и проверяются `tools/validate_levels.py`: формат, старт и выход, золото не внутри блоков, достижимость золота и выхода по правилам движения, включая копание. Ключ `--map` печатает карту с отмеченными достижимыми клетками.
+
+```
+python tools/build_levels.py && python tools/validate_levels.py --map
+```
+
 ## Графика
 
 Исходники моделей лежат в `ArtSource/` (GLB и скрипты генерации): `Characters/` — герой и хранитель с анимациями, `Environment/` — модульные детали уровня. Unity не читает GLB, поэтому модели конвертируются в FBX через Blender:
 
 ```
 blender --background --factory-startup --python ArtSource/convert_to_fbx.py
+```
+
+Герой собирается отдельным скриптом из модели Tripo (`ArtSource/Characters/explorer_tripo/`): к правой кисти крепится кирка, анимации Idle, Walk, Climb, Fall и Dig задаются ключами, результат выгружается в `explorer.fbx`:
+
+```
+blender --background --factory-startup --python ArtSource/Characters/build_explorer.py
+```
+
+Добавьте `-- --preview <папка>`, чтобы отрендерить ключевые позы для проверки.
+
+Детали уровня из Tripo (сырые выгрузки лежат в `models/`, в git не попадают) импортируются скриптом: он упрощает сетку, подгоняет размер под клетку и выкладывает текстуры. Список деталей и их размеры — в `PROPS` внутри скрипта:
+
+```
+blender --background --factory-startup --python ArtSource/Environment/import_tripo_prop.py -- models/<выгрузка>.zip block_solid
 ```
 
 Результат попадает в `Assets/Resources/Characters` и `Assets/Resources/Environment`. Настройки импорта задаёт `Assets/Scripts/Editor/ArtModelImporter.cs`. Уровень собирается из деталей по JSON-карте в `LevelRenderer`, анимации выбирает `CharacterView`.

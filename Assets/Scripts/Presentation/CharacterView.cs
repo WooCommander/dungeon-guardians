@@ -192,50 +192,96 @@ namespace DungeonGuardians.Presentation
 
         private void Build(string modelName, float height, Color fallbackColor)
         {
+            // The fit (scale and lift) lives on its own parent: the FBX clips also animate the model's root node,
+            // so anything set directly on the model root would be overwritten every frame.
+            Transform fit = new GameObject("Fit").transform;
+            fit.SetParent(transform, false);
+
             GameObject prefab = Resources.Load<GameObject>($"Characters/{modelName}");
             GameObject model;
             if (prefab != null)
             {
-                model = Instantiate(prefab, transform, false);
+                model = Instantiate(prefab, fit, false);
+                ModelTextures.Apply(model, "Characters", modelName, false);
             }
             else
             {
                 Debug.LogError($"Character model Resources/Characters/{modelName} not found; using a placeholder cube.");
                 model = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                model.transform.SetParent(transform, false);
+                model.transform.SetParent(fit, false);
                 model.GetComponent<Renderer>().material.color = fallbackColor;
             }
 
             model.name = "Model";
-            FitToHeight(model, height);
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
+            {
+                // Characters stand in front of the block wall; their shadow would land below the feet and make them look afloat.
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
             SetUpAnimation(model);
+            // Measure the model as the game shows it: in the first frame of Idle, with the clip's root motion applied.
+            // Started directly rather than cross-faded, so the sampled pose has full weight.
+            if (animationPlayer != null && clipNames.TryGetValue("Idle", out string idle))
+            {
+                animationPlayer.Play(idle);
+                animationPlayer.Sample();
+                currentClip = "Idle";
+            }
+
+            FitToHeight(fit, model, height);
         }
 
-        // The source models are about 2 m tall; scale them to the requested height in cells and stand them on the origin.
-        private void FitToHeight(GameObject model, float height)
+        // Scale the model to the requested height in cells and stand its lowest point on the origin.
+        private void FitToHeight(Transform fit, GameObject model, float height)
         {
-            Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0)
+            if (!MeasureHeight(model, out float bottom, out float top))
             {
                 return;
             }
 
-            Bounds bounds = renderers[0].bounds;
-            foreach (Renderer item in renderers)
-            {
-                bounds.Encapsulate(item.bounds);
-            }
-
-            float scale = height / Mathf.Max(bounds.size.y, 0.001f);
-            model.transform.localScale *= scale;
-            float bottom = (bounds.min.y - transform.position.y) * scale;
-            model.transform.localPosition -= new Vector3(0f, bottom, 0f);
+            float scale = height / Mathf.Max(top - bottom, 0.001f);
+            fit.localScale = Vector3.one * scale;
+            fit.localPosition = new Vector3(0f, -(bottom - transform.position.y) * scale, 0f);
 
             foreach (SkinnedMeshRenderer skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>())
             {
                 // Animated poses can leave the bind-pose bounds; avoid the model popping out at screen edges.
                 skinned.updateWhenOffscreen = true;
             }
+        }
+
+        // Exact vertical extent of the model in its current pose. The bounds a skinned mesh gets from the importer are only
+        // a loose box; baking the skin gives the real vertex positions.
+        private static bool MeasureHeight(GameObject model, out float bottom, out float top)
+        {
+            bottom = float.MaxValue;
+            top = float.MinValue;
+            var baked = new Mesh();
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
+            {
+                if (renderer is SkinnedMeshRenderer skinned)
+                {
+                    // Baked with scale applied, so only position and rotation remain to reach world space.
+                    skinned.BakeMesh(baked, true);
+                    Matrix4x4 toWorld = Matrix4x4.TRS(skinned.transform.position, skinned.transform.rotation, Vector3.one);
+                    foreach (Vector3 vertex in baked.vertices)
+                    {
+                        float y = toWorld.MultiplyPoint3x4(vertex).y;
+                        bottom = Mathf.Min(bottom, y);
+                        top = Mathf.Max(top, y);
+                    }
+                }
+                else
+                {
+                    // Rigid parts such as the pickaxe: their renderer bounds are already tight.
+                    bottom = Mathf.Min(bottom, renderer.bounds.min.y);
+                    top = Mathf.Max(top, renderer.bounds.max.y);
+                }
+            }
+
+            Destroy(baked);
+            return bottom < top;
         }
 
         private void SetUpAnimation(GameObject model)

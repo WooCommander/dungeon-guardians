@@ -8,10 +8,11 @@ namespace DungeonGuardians.Presentation
     // A cell is 1 x 1 unit; cell (x, y) is centred on world (x, y) and the gameplay plane is z = 0.
     public sealed class LevelRenderer : MonoBehaviour
     {
-        // Character height in cells and depth: slightly in front of blocks and ladders.
+        // Character height in cells and depth. Characters stand on the centre line of the blocks (z = 0), so they read as
+        // standing on the platform rather than in front of it.
         private const float ExplorerHeight = 0.92f;
         private const float GuardianHeight = 0.95f;
-        private const float ActorDepth = -0.25f;
+        private const float ActorDepth = 0f;
 
         // Blocks are 1 x 0.5 with the pivot at the bottom centre, so a cell holds two of them.
         private const float BlockHeight = 0.5f;
@@ -24,8 +25,14 @@ namespace DungeonGuardians.Presentation
         private const float GoldScale = 1.6f;
         private const float GoldSpinSpeed = 90f;
         private const float BackWallDepth = 0.45f;
-        private const int TorchSpacing = 5;
-        private const int MaxTorchLights = 4;
+        private const int TorchSpacing = 6;
+        private const int TorchRowStagger = 3;
+        private const int MaxTorchLights = 8;
+        // The torch model is about 0.86 tall with its fire bowl at the top; the flame sprite sits on the bowl.
+        private const float TorchScale = 0.8f;
+        private const float TorchMountHeight = 0.15f;
+        private const float TorchFlameHeight = 0.62f;
+        private const float TorchFlameSize = 0.38f;
 
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
@@ -88,7 +95,7 @@ namespace DungeonGuardians.Presentation
 
             foreach (GridPoint point in definition.gold ?? System.Array.Empty<GridPoint>())
             {
-                GameObject gold = Spawn("gold", levelRoot, new Vector3(point.x, point.y - 0.5f, ActorDepth + 0.1f), GoldScale, new Color(1f, 0.78f, 0.14f));
+                GameObject gold = Spawn("gold", levelRoot, new Vector3(point.x, point.y - 0.5f, ActorDepth), GoldScale, new Color(1f, 0.78f, 0.14f));
                 gold.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
                 goldPieces[point] = gold;
             }
@@ -162,38 +169,30 @@ namespace DungeonGuardians.Presentation
             return cell;
         }
 
-        // Torches on the back wall above walkable floor. Purely decorative: they never cover a cell's contents.
+        // Torches on the back wall above walkable floor on every tier, staggered from row to row.
+        // Purely decorative: they sit behind the gameplay plane and never cover a cell's contents.
         private void BuildDecor(RuntimeLevelState state)
         {
-            int lights = 0;
-            for (int x = 2; x < state.Definition.width - 1; x += TorchSpacing)
+            var torches = new List<Vector3>();
+            for (int y = 1; y < state.Definition.height - 1; y++)
             {
-                for (int y = 1; y < state.Definition.height - 1; y++)
+                for (int x = 1; x < state.Definition.width - 1; x++)
                 {
                     bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && state.Tiles[x, y + 1] == TileType.Air;
-                    if (!floor)
+                    if (floor && (x + y * TorchRowStagger) % TorchSpacing == 0)
                     {
-                        continue;
+                        torches.Add(new Vector3(x, y - 0.5f + TorchMountHeight, BackWallDepth));
                     }
-
-                    var position = new Vector3(x, y - 0.35f, BackWallDepth);
-                    Spawn("torch", levelRoot, position, 0.8f, new Color(1f, 0.6f, 0.2f));
-
-                    if (lights < MaxTorchLights)
-                    {
-                        var lightObject = new GameObject("Torch Light");
-                        lightObject.transform.SetParent(levelRoot, false);
-                        lightObject.transform.localPosition = position + new Vector3(0f, 0.75f, -0.6f);
-                        var light = lightObject.AddComponent<Light>();
-                        light.type = LightType.Point;
-                        light.color = new Color(1f, 0.62f, 0.3f);
-                        light.range = 3.5f;
-                        light.intensity = 1.4f;
-                        lights++;
-                    }
-
-                    break;
                 }
+            }
+
+            // Real-time lights are costly on phones: light an even spread of torches, the rest only glow.
+            int lightEvery = Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
+            for (int i = 0; i < torches.Count; i++)
+            {
+                Spawn("torch", levelRoot, torches[i], TorchScale, new Color(1f, 0.6f, 0.2f));
+                Vector3 flame = torches[i] + new Vector3(0f, TorchFlameHeight, -0.12f);
+                TorchFlame.Create(levelRoot, flame, TorchFlameSize, i % lightEvery == 0);
             }
         }
 
@@ -284,6 +283,10 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
+            // Strict side view (TZ section 3). A scene camera may be perspective; that would crop the level
+            // and make anything nearer the camera look larger and higher.
+            camera.orthographic = true;
+            camera.transform.rotation = Quaternion.identity;
             camera.transform.position = new Vector3((definition.width - 1) * 0.5f, (definition.height - 1) * 0.5f - 0.4f, -10f);
             camera.orthographicSize = Mathf.Max(definition.height * 0.6f, definition.width * 0.32f);
 
@@ -309,6 +312,7 @@ namespace DungeonGuardians.Presentation
             {
                 instance = Instantiate(prefab, parent, false);
                 instance.transform.localScale = prefab.transform.localScale * scale;
+                ModelTextures.Apply(instance, "Environment", asset, true);
             }
             else
             {
