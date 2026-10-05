@@ -18,11 +18,15 @@ TARGET = PROJECT / "Assets" / "Resources" / "Environment"
 TEXTURE_TARGET = TARGET / "Textures"
 SHIPPED_MAPS = ["basecolor", "normal"]
 
-# Size of the piece in cells (x = width, z = height; depth keeps the width's proportion) and the triangle budget.
+# Size of the piece in cells and the triangle budget. With both width and height the piece is stretched to fit;
+# with only one of them it keeps its proportions. Depth always follows the horizontal scale.
 # Blocks are half a cell high: LevelRenderer stacks two per cell.
 PROPS = {
     "block_solid": {"width": 1.0, "height": 0.5, "triangles": 1500},
     "block_diggable": {"width": 1.0, "height": 0.5, "triangles": 1500},
+    "gold": {"width": 0.55, "triangles": 600},
+    "ladder_section": {"width": 0.78, "height": 1.0, "triangles": 1500},
+    "torch": {"height": 0.62, "triangles": 1200},
 }
 
 
@@ -39,7 +43,10 @@ def relink_textures(folder):
     files = [path for path in folder.rglob("*") if path.suffix.lower() in (".jpeg", ".jpg", ".png")]
     shipped = {}
     for image in bpy.data.images:
-        kind = image.name.rsplit("_", 1)[-1].lower()
+        # The map type is the last word of the file name ("..._basecolor.JPEG"); some exports give the images
+        # generic names ("Diffuse Texture.003"), so prefer the file name and fall back to the image name.
+        stem = pathlib.Path(bpy.path.abspath(image.filepath)).stem if image.filepath else image.name
+        kind = stem.rsplit("_", 1)[-1].lower()
         match = next((path for path in files if path.stem.lower().endswith("_" + kind)), None)
         if match is None:
             continue
@@ -61,20 +68,21 @@ def decimate(mesh, triangles):
     print(f"[prop] triangles {before} -> {len(mesh.data.polygons)}")
 
 
-def fit_to_cell(mesh, width, height):
+def fit_to_cell(mesh, width=None, height=None):
     bpy.context.view_layer.objects.active = mesh
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     points = [vertex.co for vertex in mesh.data.vertices]
     low = Vector((min(p.x for p in points), min(p.y for p in points), min(p.z for p in points)))
     high = Vector((max(p.x for p in points), max(p.y for p in points), max(p.z for p in points)))
     size = high - low
-    scale_x = width / size.x
-    scale_z = height / size.z
+    scale_x = width / size.x if width else height / size.z
+    scale_z = height / size.z if height else scale_x
     # Bottom centre to the origin, then scale; depth follows the width so the piece keeps its proportions.
     centre = Vector(((low.x + high.x) / 2, (low.y + high.y) / 2, low.z))
     mesh.data.transform(Matrix.Diagonal((scale_x, scale_x, scale_z, 1.0)) @ Matrix.Translation(-centre))
     mesh.data.update()
-    print(f"[prop] size {tuple(round(v, 3) for v in size)} -> ({width}, {round(size.y * scale_x, 3)}, {height})")
+    print(f"[prop] size {tuple(round(v, 3) for v in size)} -> "
+          f"({round(size.x * scale_x, 3)}, {round(size.y * scale_x, 3)}, {round(size.z * scale_z, 3)})")
 
 
 def main():
@@ -102,7 +110,7 @@ def main():
         mesh.name = asset
 
         decimate(mesh, settings["triangles"])
-        fit_to_cell(mesh, settings["width"], settings["height"])
+        fit_to_cell(mesh, settings.get("width"), settings.get("height"))
 
         TEXTURE_TARGET.mkdir(parents=True, exist_ok=True)
         for kind in SHIPPED_MAPS:
