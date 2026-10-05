@@ -10,7 +10,14 @@ namespace DungeonGuardians.Presentation
     {
         // Share of the screen height taken by the control strip at the bottom. The camera keeps the level above it,
         // so the d-pad and dig buttons never cover a walkable cell (TZ section 3).
-        public const float ControlStripHeight = 0.27f;
+        public const float ControlStripHeight = 0.262f;
+
+        // The control strip copies the concept screen (image.png, 1672 x 941): its sprites come from tools/cut_ui.py
+        // and are placed at the concept's pixel positions, converted to the 900-unit-high canvas.
+        private const float ConceptToCanvas = 900f / 941f;
+        private static readonly Color StripColor = new Color(0.02f, 0.025f, 0.03f, 0.78f);
+        private static readonly Color HighlightColor = new Color(1f, 0.85f, 0.55f, 0.3f);
+        private static readonly Color PressedButtonColor = new Color(0.78f, 0.78f, 0.78f, 1f);
 
         private static readonly Color PanelColor = new Color(0.08f, 0.1f, 0.13f, 0.82f);
         private static readonly Color PressedColor = new Color(0.25f, 0.62f, 0.58f, 0.92f);
@@ -31,6 +38,8 @@ namespace DungeonGuardians.Presentation
         private Image rightArrow;
         private Image digLeftButton;
         private Image digRightButton;
+        private bool conceptControls;
+        private static Sprite softCircle;
         private PlayerInputBridge input;
         private string messageLabel = string.Empty;
 
@@ -86,6 +95,18 @@ namespace DungeonGuardians.Presentation
             }
 
             var held = input.HeldDirections;
+            if (conceptControls)
+            {
+                // A warm glow over the pressed petal; a pressed dig button darkens and sinks slightly.
+                Glow(upArrow, held.Up);
+                Glow(downArrow, held.Down);
+                Glow(leftArrow, held.Left);
+                Glow(rightArrow, held.Right);
+                Press(digLeftButton, input.DigLeftHeld);
+                Press(digRightButton, input.DigRightHeld);
+                return;
+            }
+
             Tint(upArrow, held.Up);
             Tint(downArrow, held.Down);
             Tint(leftArrow, held.Left);
@@ -117,8 +138,128 @@ namespace DungeonGuardians.Presentation
             messageText.enabled = false;
 
             // Touch controls are read by PlayerInputBridge per pointer, not through uGUI events.
-            // They fit inside the bottom control strip (0.27 of the 900-unit reference height = 243 units);
-            // every arrow and button stays well above the 48-unit minimum touch size.
+            conceptControls = BuildConceptControls();
+            if (!conceptControls)
+            {
+                BuildPlainControls();
+            }
+
+            Image pause = AddPanel("Pause", canvas.transform, TextAnchor.UpperRight, new Vector2(-60f, -110f), new Vector2(96f, 96f), "II");
+            pause.raycastTarget = true;
+            pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
+        }
+
+        // The concept's control strip: a dark panel over the bottom of the background, the round d-pad on the left,
+        // the two pickaxe buttons with captions on the right.
+        private bool BuildConceptControls()
+        {
+            Sprite dpadSprite = Resources.Load<Sprite>("UI/dpad");
+            Sprite digLeftSprite = Resources.Load<Sprite>("UI/dig_left");
+            Sprite digRightSprite = Resources.Load<Sprite>("UI/dig_right");
+            if (dpadSprite == null || digLeftSprite == null || digRightSprite == null)
+            {
+                return false;
+            }
+
+            var strip = new GameObject("Control Strip").AddComponent<Image>();
+            strip.transform.SetParent(canvas.transform, false);
+            strip.color = StripColor;
+            strip.raycastTarget = false;
+            strip.rectTransform.anchorMin = Vector2.zero;
+            strip.rectTransform.anchorMax = new Vector2(1f, 0f);
+            strip.rectTransform.pivot = new Vector2(0.5f, 0f);
+            strip.rectTransform.sizeDelta = new Vector2(0f, 900f * ControlStripHeight);
+
+            // Positions are the concept's pixel centres measured from the bottom-left or bottom-right corner.
+            Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f));
+            upArrow = AddGlow("Up", dpad.transform, new Vector2(0f, 69f));
+            downArrow = AddGlow("Down", dpad.transform, new Vector2(0f, -69f));
+            leftArrow = AddGlow("Left", dpad.transform, new Vector2(-73f, 0f));
+            rightArrow = AddGlow("Right", dpad.transform, new Vector2(75f, 0f));
+
+            digLeftButton = AddSprite("DigLeft", digLeftSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1332f), 941f - 792f));
+            digRightButton = AddSprite("DigRight", digRightSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1525f), 941f - 792f));
+            AddCaption("UI/label_dig_left", new Vector2(-(1672f - 1333f), 941f - 887f));
+            AddCaption("UI/label_dig_right", new Vector2(-(1672f - 1527f), 941f - 887f));
+
+            input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
+            return true;
+        }
+
+        // Concept pixel position (centre) and native size become canvas units.
+        private Image AddSprite(string name, Sprite sprite, TextAnchor anchor, Vector2 conceptPosition)
+        {
+            var image = new GameObject(name).AddComponent<Image>();
+            image.transform.SetParent(canvas.transform, false);
+            image.sprite = sprite;
+            image.raycastTarget = false;
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = rect.anchorMax = AnchorFor(anchor);
+            rect.anchoredPosition = conceptPosition * ConceptToCanvas;
+            rect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * ConceptToCanvas;
+            return image;
+        }
+
+        private void AddCaption(string path, Vector2 conceptPosition)
+        {
+            Sprite sprite = Resources.Load<Sprite>(path);
+            if (sprite != null)
+            {
+                AddSprite(sprite.name, sprite, TextAnchor.LowerRight, conceptPosition);
+            }
+        }
+
+        private static Image AddGlow(string name, Transform dpad, Vector2 conceptOffset)
+        {
+            var glow = new GameObject(name).AddComponent<Image>();
+            glow.transform.SetParent(dpad, false);
+            glow.sprite = GetSoftCircle();
+            glow.color = Color.clear;
+            glow.raycastTarget = false;
+            glow.rectTransform.anchoredPosition = conceptOffset * ConceptToCanvas;
+            glow.rectTransform.sizeDelta = new Vector2(96f, 96f) * ConceptToCanvas;
+            return glow;
+        }
+
+        private static void Glow(Image glow, bool pressed)
+        {
+            glow.color = pressed ? HighlightColor : Color.clear;
+        }
+
+        private static void Press(Image button, bool pressed)
+        {
+            button.color = pressed ? PressedButtonColor : Color.white;
+            button.rectTransform.localScale = Vector3.one * (pressed ? 0.94f : 1f);
+        }
+
+        // A round glow that fades towards the edge, generated once.
+        private static Sprite GetSoftCircle()
+        {
+            if (softCircle != null)
+            {
+                return softCircle;
+            }
+
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Soft Circle" };
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(size / 2f, size / 2f)) / (size / 2f);
+                    float fade = Mathf.Clamp01(1f - distance);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, fade * fade));
+                }
+            }
+
+            texture.Apply();
+            softCircle = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+            return softCircle;
+        }
+
+        // Plain stand-in controls, used when the concept sprites are missing.
+        private void BuildPlainControls()
+        {
             Image dpad = AddPanel("DPad", canvas.transform, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
             dpad.color = DPadBackColor;
             upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 78f), new Vector2(76f, 76f), "^");
@@ -130,10 +271,6 @@ namespace DungeonGuardians.Presentation
             digRightButton = AddPanel("DigRight", canvas.transform, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
 
             input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
-
-            Image pause = AddPanel("Pause", canvas.transform, TextAnchor.UpperRight, new Vector2(-60f, -110f), new Vector2(96f, 96f), "II");
-            pause.raycastTarget = true;
-            pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
         }
 
         private Text AddText(string name, Vector2 anchoredPosition, TextAnchor alignment)

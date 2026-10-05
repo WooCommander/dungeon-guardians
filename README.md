@@ -60,7 +60,13 @@ blender --background --factory-startup --python ArtSource/convert_to_fbx.py
 blender --background --factory-startup --python ArtSource/Characters/build_explorer.py
 ```
 
-Добавьте `-- --preview <папка>`, чтобы отрендерить ключевые позы для проверки.
+Хранитель собирается так же из каменного голема Tripo (`ArtSource/Characters/guardian_tripo/`). У этой выгрузки нет скелета, поэтому скрипт сам ставит кости по суставам голема, привязывает меш и задаёт клипы Idle, Walk, Climb, Fall и Struggle:
+
+```
+blender --background --factory-startup --python ArtSource/Characters/build_guardian.py
+```
+
+Общий код обоих скриптов — `ArtSource/Characters/character_rig.py`. Добавьте `-- --preview <папка>`, чтобы отрендерить ключевые позы для проверки.
 
 Детали уровня из Tripo (сырые выгрузки лежат в `models/`, в git не попадают) импортируются скриптом: он упрощает сетку, подгоняет размер под клетку и выкладывает текстуры. Список деталей и их размеры — в `PROPS` внутри скрипта:
 

@@ -10,6 +10,8 @@ namespace DungeonGuardians.Editor
         // Painted cut-outs (tools/cutout_props.py) and background art, shown as sprites in the level.
         private const string SpriteFolder = "Assets/Resources/Sprites/";
         private const string BackgroundFolder = "Assets/Resources/Backgrounds/";
+        // Touch controls cut from the concept screen (tools/cut_ui.py).
+        private const string UiFolder = "Assets/Resources/UI/";
 
         // Tripo maps (Textures/<model>_basecolor, _normal) are bound to materials at runtime by ModelTextures.
         // Source maps are up to 4K, far more than a phone needs: a character is smaller than one cell, a block half a cell.
@@ -19,20 +21,21 @@ namespace DungeonGuardians.Editor
         // Bump whenever the rules below change: Unity then reimports every model and texture this postprocessor touches.
         public override uint GetVersion()
         {
-            return 5;
+            return 6;
         }
 
         private void OnPreprocessTexture()
         {
             bool background = assetPath.StartsWith(BackgroundFolder);
-            if (assetPath.StartsWith(SpriteFolder) || background)
+            bool ui = assetPath.StartsWith(UiFolder);
+            if (assetPath.StartsWith(SpriteFolder) || background || ui)
             {
                 var sprite = (TextureImporter)assetImporter;
                 sprite.textureType = TextureImporterType.Sprite;
                 sprite.spriteImportMode = SpriteImportMode.Single;
                 sprite.alphaIsTransparency = true;
                 // Props are drawn small and far from pixel-perfect; mipmaps keep them from shimmering.
-                sprite.mipmapEnabled = !background;
+                sprite.mipmapEnabled = !background && !ui;
                 sprite.maxTextureSize = background ? 2048 : 512;
                 return;
             }

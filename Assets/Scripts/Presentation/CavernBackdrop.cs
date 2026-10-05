@@ -24,6 +24,11 @@ namespace DungeonGuardians.Presentation
         // Optional painted background: Assets/Resources/Backgrounds/cavern.png (or .jpg).
         private const string PaintingPath = "Backgrounds/cavern";
 
+        private SpriteRenderer painting;
+
+        // True when a painted background is shown; it already has its own side walls and floor rubble.
+        public bool HasPainting => painting != null;
+
         private static Sprite square;
         private static Sprite gradient;
 
@@ -42,13 +47,11 @@ namespace DungeonGuardians.Presentation
 
             // Painted background art, when present, replaces the procedural silhouettes. It covers the level and the
             // control strip below it, keeping its aspect ratio; the haze fills any margin on very wide screens.
-            var painting = Resources.Load<Sprite>(PaintingPath);
-            if (painting != null)
+            var art = Resources.Load<Sprite>(PaintingPath);
+            if (art != null)
             {
-                Vector2 art = painting.bounds.size;
-                var area = new Vector2(width + 6f, height + 8f);
-                float scale = Mathf.Max(area.x / art.x, area.y / art.y);
-                backdrop.Quad("Painting", painting, new Vector2((width - 1) / 2f, height / 2f - 2.5f), art * scale, Color.white, FarDepth, FarOrder);
+                // Sized to the screen by FitToView once the camera is placed.
+                backdrop.painting = backdrop.Quad("Painting", art, Vector2.zero, art.bounds.size, Color.white, FarDepth, FarOrder);
                 return backdrop;
             }
 
@@ -73,6 +76,24 @@ namespace DungeonGuardians.Presentation
             backdrop.Rect("Ground", new Vector2((left + right) / 2f, (bottom - 0.5f) / 2f), new Vector2(right - left, -0.5f - bottom),
                 GroundColor, 0.6f, GroundOrder);
             return backdrop;
+        }
+
+        // The painting fills the whole screen like the concept: the level sits over its upper part, and its rocky
+        // bottom shows under the control strip. It covers the view while keeping its proportions.
+        public void FitToView(Camera camera)
+        {
+            if (painting == null)
+            {
+                return;
+            }
+
+            float viewHeight = camera.orthographicSize * 2f;
+            float viewWidth = viewHeight * camera.aspect;
+            Vector2 art = painting.sprite.bounds.size;
+            float scale = Mathf.Max(viewWidth / art.x, viewHeight / art.y);
+            painting.transform.localScale = new Vector3(scale, scale, 1f);
+            Vector3 position = transform.InverseTransformPoint(camera.transform.position);
+            painting.transform.localPosition = new Vector3(position.x, position.y, FarDepth);
         }
 
         private void Statue(Vector2 center, float scale)

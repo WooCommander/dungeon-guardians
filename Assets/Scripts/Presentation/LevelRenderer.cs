@@ -22,7 +22,8 @@ namespace DungeonGuardians.Presentation
         // The door model is about 1.5 x 1.9; shrink it to roughly one cell wide.
         private const float DoorScale = 0.62f;
         private const float DoorDepth = 0.25f;
-        private const float GoldScale = 1.6f;
+        // Fallback 3D models (Tripo, ArtSource/Environment/import_tripo_prop.py) are already exported at cell size.
+        private const float GoldScale = 1f;
         // Painted props (tools/cutout_props.py), sized in cells.
         private const float GoldWidth = 0.55f;
         private const float GoldRestHeight = 0.04f;
@@ -41,7 +42,7 @@ namespace DungeonGuardians.Presentation
         private const int TorchRowStagger = 3;
         private const int MaxTorchLights = 8;
         // The torch model is about 0.86 tall with its fire bowl at the top; the flame sprite sits on the bowl.
-        private const float TorchScale = 0.8f;
+        private const float TorchScale = 1f;
         private const float TorchMountHeight = 0.15f;
         private const float TorchFlameHeight = 0.62f;
         private const float TorchFlameSize = 0.38f;
@@ -57,6 +58,7 @@ namespace DungeonGuardians.Presentation
         private CharacterView player;
         private LevelDefinition currentDefinition;
         private RuntimeLevelState currentState;
+        private CavernBackdrop backdrop;
 
         public void Render(DungeonSimulation simulation)
         {
@@ -121,8 +123,12 @@ namespace DungeonGuardians.Presentation
             }
 
             BuildDecor(state);
-            BuildFrameWalls(definition);
-            CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode());
+            backdrop = CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode());
+            if (!backdrop.HasPainting)
+            {
+                // The painting has its own carved side walls; the plain stand-in needs masonry beside the map.
+                BuildFrameWalls(definition);
+            }
         }
 
         private void RenderTiles(RuntimeLevelState state)
@@ -343,6 +349,10 @@ namespace DungeonGuardians.Presentation
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             camera.orthographicSize = size;
             camera.transform.position = new Vector3((definition.width - 1) * 0.5f, levelTop - size, -10f);
+            if (backdrop != null)
+            {
+                backdrop.FitToView(camera);
+            }
         }
 
         // Thick sandstone walls outside the level's left and right edges, as on the concept screen, so wide screens
