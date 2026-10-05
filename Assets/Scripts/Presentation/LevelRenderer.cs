@@ -162,6 +162,14 @@ namespace DungeonGuardians.Presentation
             cell.transform.localPosition = new Vector3(x, y - 0.5f, 0f);
             Transform parent = cell.transform;
 
+            // With the painted cavern, its carved walls frame the level: the side and top border stay solid for
+            // gameplay but are not drawn, so the painting shows inside the level as on the concept. The base row stays.
+            bool frame = x == 0 || x == currentDefinition.width - 1 || y == currentDefinition.height - 1;
+            if (frame && backdrop != null && backdrop.HasPainting)
+            {
+                return cell;
+            }
+
             switch (tile)
             {
                 case TileType.Solid:

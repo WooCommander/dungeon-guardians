@@ -83,27 +83,28 @@ def level_1():
     # "Первые залы", laid out after the approved concept screen: three tiers of sandstone (B) mixed with reinforced
     # blocks (#), ladders between the tiers, ropes under the ceiling and the door on the top right. No guardians yet:
     # the first level teaches walking, ladders, ropes, gold and the exit.
+    # 33 x 13 cells fills a 16:9 screen above the control strip, so the painted cavern shows inside the level.
     # Rows: blocks at y = 1, 5, 9; walk rows y = 2, 6, 10; ropes at y = 11 under the ceiling.
-    m = Map(25, 13)
-    m.set(8, 1, "#"); m.set(9, 1, "#")                     # reinforced stretch in the floor
-    m.row(5, 1, 23, "B")                                   # tier 2, full width
-    for x in (1, 7, 8, 14, 15, 23):
+    m = Map(33, 13)
+    m.set(10, 1, "#"); m.set(11, 1, "#")                   # reinforced stretch in the floor
+    m.row(5, 1, 31, "B")                                   # tier 2, full width
+    for x in (1, 9, 10, 19, 20, 31):
         m.set(x, 5, "#")
-    m.row(9, 1, 6, "B"); m.row(9, 12, 23, "B")             # tier 3, split by the central gap
-    for x in (1, 2, 16, 17, 23):
+    m.row(9, 1, 8, "B"); m.row(9, 16, 31, "B")             # tier 3, split by the central gap
+    for x in (1, 2, 21, 22, 31):
         m.set(x, 9, "#")
-    m.ladder(4, 2, 6)       # floor -> tier 2
-    m.ladder(11, 2, 6)      # floor -> tier 2
-    m.ladder(20, 2, 6)      # floor -> tier 2
-    m.ladder(6, 6, 10)      # tier 2 -> tier 3 left
-    m.ladder(15, 6, 10)     # tier 2 -> tier 3 right
-    m.ladder(19, 6, 10)     # tier 2 -> tier 3 right, next to the door
-    m.ladder(9, 6, 11)      # tier 2 -> ropes, rising through the central gap
-    m.ladder(13, 10, 11)    # tier 3 right -> ropes
-    m.bar(11, 3, 8); m.bar(11, 10, 12); m.bar(11, 14, 18)  # ropes under the ceiling
-    gold = [(2, 2), (13, 2), (18, 2), (11, 4), (3, 6), (17, 6), (18, 6),
-            (2, 10), (16, 10), (5, 11), (11, 11), (17, 11)]
-    save(1, "Первые залы", m, start=(6, 2), exit_=(22, 10), gold=gold)
+    m.ladder(5, 2, 6)       # floor -> tier 2
+    m.ladder(15, 2, 6)      # floor -> tier 2
+    m.ladder(27, 2, 6)      # floor -> tier 2
+    m.ladder(8, 6, 10)      # tier 2 -> tier 3 left
+    m.ladder(20, 6, 10)     # tier 2 -> tier 3 right
+    m.ladder(26, 6, 10)     # tier 2 -> tier 3 right, next to the door
+    m.ladder(12, 6, 11)     # tier 2 -> ropes, rising through the central gap
+    m.ladder(17, 10, 11)    # tier 3 right -> ropes
+    m.bar(11, 4, 11); m.bar(11, 13, 16); m.bar(11, 18, 25)  # ropes under the ceiling
+    gold = [(2, 2), (17, 2), (24, 2), (15, 4), (4, 6), (23, 6), (24, 6),
+            (2, 10), (21, 10), (7, 11), (14, 11), (22, 11)]
+    save(1, "Первые залы", m, start=(8, 2), exit_=(29, 10), gold=gold)
 
 
 def level_2():

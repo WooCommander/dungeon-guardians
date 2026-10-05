@@ -39,6 +39,7 @@ namespace DungeonGuardians.Presentation
         private Image digLeftButton;
         private Image digRightButton;
         private bool conceptControls;
+        private bool conceptTopBar;
         private static Sprite softCircle;
         private PlayerInputBridge input;
         private string messageLabel = string.Empty;
@@ -54,12 +55,12 @@ namespace DungeonGuardians.Presentation
 
         public void SetLevel(string title, int index, int count)
         {
-            levelText.text = $"{index:00}/{count:00}  {title}";
+            levelText.text = conceptTopBar ? $"УРОВЕНЬ <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
         }
 
         public void SetGold(int collected, int total)
         {
-            goldText.text = $"{collected} / {total}";
+            goldText.text = conceptTopBar ? $"<color=#FFE7B0>{collected}</color> / {total}" : $"{collected} / {total}";
         }
 
         public void SetExit(bool open)
@@ -136,6 +137,7 @@ namespace DungeonGuardians.Presentation
             messageText = AddText("Message", new Vector2(0f, 0f), TextAnchor.MiddleCenter);
             messageText.fontSize = 42;
             messageText.enabled = false;
+            conceptTopBar = BuildConceptTopBar();
 
             // Touch controls are read by PlayerInputBridge per pointer, not through uGUI events.
             conceptControls = BuildConceptControls();
@@ -144,9 +146,55 @@ namespace DungeonGuardians.Presentation
                 BuildPlainControls();
             }
 
-            Image pause = AddPanel("Pause", canvas.transform, TextAnchor.UpperRight, new Vector2(-60f, -110f), new Vector2(96f, 96f), "II");
+            if (!conceptTopBar)
+            {
+                Image pause = AddPanel("Pause", canvas.transform, TextAnchor.UpperRight, new Vector2(-60f, -110f), new Vector2(96f, 96f), "II");
+                pause.raycastTarget = true;
+                pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
+            }
+        }
+
+        // The concept's top bar: "УРОВЕНЬ 03" on a dark plate at the top left, the gold counter with a bar icon in the
+        // middle and the round pause button at the top right. Positions are concept pixel centres from the top corners.
+        private bool BuildConceptTopBar()
+        {
+            Sprite levelPlate = Resources.Load<Sprite>("UI/plate_level");
+            Sprite goldPlate = Resources.Load<Sprite>("UI/plate_gold");
+            Sprite goldIcon = Resources.Load<Sprite>("UI/gold_icon");
+            Sprite pauseSprite = Resources.Load<Sprite>("UI/pause");
+            if (levelPlate == null || goldPlate == null || goldIcon == null || pauseSprite == null)
+            {
+                return false;
+            }
+
+            Image level = AddSprite("Level Plate", levelPlate, TextAnchor.UpperLeft, new Vector2(137.5f, -37.5f));
+            PlaceLabel(levelText, level.transform, Vector2.zero, 27, TextAnchor.MiddleCenter);
+
+            Image gold = AddSprite("Gold Plate", goldPlate, TextAnchor.UpperCenter, new Vector2(0.5f, -39f));
+            Image icon = AddSprite("Gold Icon", goldIcon, TextAnchor.UpperCenter, new Vector2(-51f, -40f));
+            icon.transform.SetParent(gold.transform, true);
+            PlaceLabel(goldText, gold.transform, new Vector2(35f, 0f), 29, TextAnchor.MiddleCenter);
+
+            // The exit state is shown by the door itself on the concept.
+            exitText.enabled = false;
+
+            Image pause = AddSprite("Pause", pauseSprite, TextAnchor.UpperRight, new Vector2(-(1672f - 1619f), -48f));
             pause.raycastTarget = true;
             pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
+            return true;
+        }
+
+        // Moves an existing label onto a plate, centred at a concept-pixel offset.
+        private static void PlaceLabel(Text label, Transform plate, Vector2 conceptOffset, int fontSize, TextAnchor alignment)
+        {
+            label.transform.SetParent(plate, false);
+            label.supportRichText = true;
+            label.fontSize = fontSize;
+            label.alignment = alignment;
+            RectTransform rect = label.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = conceptOffset * ConceptToCanvas;
+            rect.sizeDelta = new Vector2(220f, 50f);
         }
 
         // The concept's control strip: a dark panel over the bottom of the background, the round d-pad on the left,
