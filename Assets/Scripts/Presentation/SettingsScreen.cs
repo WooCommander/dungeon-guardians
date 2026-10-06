@@ -94,7 +94,7 @@ namespace DungeonGuardians.Presentation
             vibration.sprite = GameSettings.Vibration ? vibrationOn : vibrationOff;
         }
 
-        // "Start over": progress is wiped and every setting goes back to its default.
+        // "Start over": progress is wiped, every setting goes back to its default and the story is shown again.
         private void StartOver()
         {
             GameSettings.Music = GameSettings.DefaultMusic;
@@ -103,6 +103,8 @@ namespace DungeonGuardians.Presentation
             GameSettings.ButtonSize = GameSettings.DefaultButtonSize;
             GameSettings.ButtonOpacity = GameSettings.DefaultButtonOpacity;
             GameSettings.Save();
+            // A fresh start tells the legend again.
+            StoryScreen.Seen = false;
             Refresh();
             ResetProgress?.Invoke();
         }

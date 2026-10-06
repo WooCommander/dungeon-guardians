@@ -21,6 +21,7 @@ namespace DungeonGuardians.Presentation
 
         private Canvas canvas;
         private SettingsScreen settings;
+        private StoryScreen story;
         private readonly System.Collections.Generic.List<(Image glow, int statue)> eyeGlows =
             new System.Collections.Generic.List<(Image glow, int statue)>();
 
@@ -36,10 +37,11 @@ namespace DungeonGuardians.Presentation
             // their painted places whatever the screen shape.
             Image picture = MenuStyle.CreatePicture(canvas.transform, "Backgrounds/menu", AspectRatioFitter.AspectMode.EnvelopeParent);
             AddEyeGlows(picture.transform);
-            MenuStyle.AddPictureButton(picture.transform, "menu_play", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", () => Play?.Invoke());
+            MenuStyle.AddPictureButton(picture.transform, "menu_play", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", StartGame);
             MenuStyle.AddPictureButton(picture.transform, "menu_settings", new Rect(659f, 617f, 351f, 79f), "НАСТРОЙКИ", OpenSettings);
 
             settings = SettingsScreen.Create(canvas.transform);
+            story = StoryScreen.Create(canvas.transform);
             settings.Changed += () => SettingsChanged?.Invoke();
             settings.ResetProgress += () => ResetProgress?.Invoke();
             Show();
@@ -89,6 +91,18 @@ namespace DungeonGuardians.Presentation
                 glow.color = new Color(EyeColor.r, EyeColor.g, EyeColor.b, level * 0.85f);
                 glow.rectTransform.localScale = Vector3.one * (0.85f + 0.3f * level);
             }
+        }
+
+        // The first game opens with the legend of the city; after that "Play" goes straight to the level.
+        private void StartGame()
+        {
+            if (StoryScreen.Seen)
+            {
+                Play?.Invoke();
+                return;
+            }
+
+            story.Open(() => Play?.Invoke());
         }
 
         private void OpenSettings()
