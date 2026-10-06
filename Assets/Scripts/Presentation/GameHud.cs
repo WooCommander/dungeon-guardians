@@ -12,7 +12,7 @@ namespace DungeonGuardians.Presentation
         public const float ControlStripHeight = 0.262f;
 
         // Share of the screen height the level must leave free at the bottom: none when the touch controls are hidden.
-        public static float BottomReserve => TouchControls.Visible ? ControlStripHeight : 0f;
+        public static float BottomReserve => GameSettings.TouchControlsVisible ? ControlStripHeight : 0f;
 
         // The control strip copies the concept screen (image.png, 1672 x 941): its sprites come from tools/cut_ui.py
         // and are placed at the concept's pixel positions, converted to the 900-unit-high canvas.
@@ -30,8 +30,12 @@ namespace DungeonGuardians.Presentation
         private static Font UiFont => uiFont != null ? uiFont : uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         private Canvas canvas;
-        // The d-pad, the dig buttons and the strip behind them, shown or hidden together (TouchControls).
+        // The d-pad, the dig buttons and the strip behind them, shown or hidden together (GameSettings).
         private GameObject controlsRoot;
+        // The d-pad and the dig buttons with their captions, scaled towards their screen corners and faded by the
+        // button size and opacity settings.
+        private RectTransform leftGroup;
+        private RectTransform rightGroup;
         private GameObject pausePanel;
         private Text levelText;
         private Text goldText;
@@ -86,9 +90,16 @@ namespace DungeonGuardians.Presentation
 
         public void RefreshControls()
         {
-            if (controlsRoot != null)
+            if (controlsRoot == null)
             {
-                controlsRoot.SetActive(TouchControls.Visible);
+                return;
+            }
+
+            controlsRoot.SetActive(GameSettings.TouchControlsVisible);
+            foreach (RectTransform group in new[] { leftGroup, rightGroup })
+            {
+                group.localScale = Vector3.one * GameSettings.ButtonScale;
+                group.GetComponent<CanvasGroup>().alpha = GameSettings.ButtonAlpha;
             }
         }
 
@@ -164,6 +175,8 @@ namespace DungeonGuardians.Presentation
             controlsRoot = new GameObject("Touch Controls", typeof(RectTransform));
             controlsRoot.transform.SetParent(canvas.transform, false);
             MenuStyle.Stretch((RectTransform)controlsRoot.transform);
+            leftGroup = AddControlGroup("Left Controls", new Vector2(0f, 0f));
+            rightGroup = AddControlGroup("Right Controls", new Vector2(1f, 0f));
             conceptControls = BuildConceptControls();
             if (!conceptControls)
             {
@@ -255,6 +268,18 @@ namespace DungeonGuardians.Presentation
             rect.sizeDelta = new Vector2(220f, 50f);
         }
 
+        // A full-screen layer whose pivot is a bottom corner, so scaling it grows the controls out of that corner.
+        private RectTransform AddControlGroup(string name, Vector2 corner)
+        {
+            var group = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup));
+            group.transform.SetParent(controlsRoot.transform, false);
+            var rect = (RectTransform)group.transform;
+            MenuStyle.Stretch(rect);
+            rect.pivot = corner;
+            group.GetComponent<CanvasGroup>().blocksRaycasts = false;
+            return rect;
+        }
+
         // The concept's control strip: a dark panel over the bottom of the background, the round d-pad on the left,
         // the two pickaxe buttons with captions on the right.
         private bool BuildConceptControls()
@@ -277,14 +302,14 @@ namespace DungeonGuardians.Presentation
             strip.rectTransform.sizeDelta = new Vector2(0f, 900f * ControlStripHeight);
 
             // Positions are the concept's pixel centres measured from the bottom-left or bottom-right corner.
-            Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f), controlsRoot.transform);
+            Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f), leftGroup);
             upArrow = AddGlow("Up", dpad.transform, new Vector2(0f, 69f));
             downArrow = AddGlow("Down", dpad.transform, new Vector2(0f, -69f));
             leftArrow = AddGlow("Left", dpad.transform, new Vector2(-73f, 0f));
             rightArrow = AddGlow("Right", dpad.transform, new Vector2(75f, 0f));
 
-            digLeftButton = AddSprite("DigLeft", digLeftSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1332f), 941f - 792f), controlsRoot.transform);
-            digRightButton = AddSprite("DigRight", digRightSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1525f), 941f - 792f), controlsRoot.transform);
+            digLeftButton = AddSprite("DigLeft", digLeftSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1332f), 941f - 792f), rightGroup);
+            digRightButton = AddSprite("DigRight", digRightSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1525f), 941f - 792f), rightGroup);
             AddCaption("UI/label_dig_left", new Vector2(-(1672f - 1333f), 941f - 887f));
             AddCaption("UI/label_dig_right", new Vector2(-(1672f - 1527f), 941f - 887f));
 
@@ -311,7 +336,7 @@ namespace DungeonGuardians.Presentation
             Sprite sprite = Resources.Load<Sprite>(path);
             if (sprite != null)
             {
-                AddSprite(sprite.name, sprite, TextAnchor.LowerRight, conceptPosition, controlsRoot.transform);
+                AddSprite(sprite.name, sprite, TextAnchor.LowerRight, conceptPosition, rightGroup);
             }
         }
 
@@ -366,15 +391,15 @@ namespace DungeonGuardians.Presentation
         // Plain stand-in controls, used when the concept sprites are missing.
         private void BuildPlainControls()
         {
-            Image dpad = AddPanel("DPad", controlsRoot.transform, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
+            Image dpad = AddPanel("DPad", leftGroup, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
             dpad.color = DPadBackColor;
             upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 78f), new Vector2(76f, 76f), "^");
             downArrow = AddPanel("Down", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, -78f), new Vector2(76f, 76f), "v");
             leftArrow = AddPanel("Left", dpad.transform, TextAnchor.MiddleCenter, new Vector2(-78f, 0f), new Vector2(76f, 76f), "<");
             rightArrow = AddPanel("Right", dpad.transform, TextAnchor.MiddleCenter, new Vector2(78f, 0f), new Vector2(76f, 76f), ">");
 
-            digLeftButton = AddPanel("DigLeft", controlsRoot.transform, TextAnchor.LowerRight, new Vector2(-280f, 112f), new Vector2(150f, 150f), "DIG L");
-            digRightButton = AddPanel("DigRight", controlsRoot.transform, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
+            digLeftButton = AddPanel("DigLeft", rightGroup, TextAnchor.LowerRight, new Vector2(-280f, 112f), new Vector2(150f, 150f), "DIG L");
+            digRightButton = AddPanel("DigRight", rightGroup, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
 
             input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
         }

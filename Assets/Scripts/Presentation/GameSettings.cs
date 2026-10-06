@@ -1,0 +1,80 @@
+using UnityEngine;
+
+namespace DungeonGuardians.Presentation
+{
+    // Player settings from the settings screen, kept in PlayerPrefs. Slider settings are stored as the slider position
+    // (0..1); the properties below turn them into what the game uses.
+    public static class GameSettings
+    {
+        private const string MusicKey = "settings_music";
+        private const string SoundKey = "settings_sound";
+        private const string VibrationKey = "settings_vibration";
+        private const string ButtonSizeKey = "settings_button_size";
+        private const string ButtonOpacityKey = "settings_button_opacity";
+
+        // Defaults as on the settings concept; buttons start at their normal size and fully opaque.
+        public const float DefaultMusic = 0.6f;
+        public const float DefaultSound = 0.8f;
+        public const float DefaultButtonSize = 0.5f;
+        public const float DefaultButtonOpacity = 1f;
+
+        private const float MinButtonScale = 0.6f;
+        private const float MaxButtonScale = 1.4f;
+        private const float MinButtonOpacity = 0.2f;
+
+        public static float Music
+        {
+            get => PlayerPrefs.GetFloat(MusicKey, DefaultMusic);
+            set => PlayerPrefs.SetFloat(MusicKey, Mathf.Clamp01(value));
+        }
+
+        public static float Sound
+        {
+            get => PlayerPrefs.GetFloat(SoundKey, DefaultSound);
+            set => PlayerPrefs.SetFloat(SoundKey, Mathf.Clamp01(value));
+        }
+
+        public static bool Vibration
+        {
+            get => PlayerPrefs.GetInt(VibrationKey, 1) != 0;
+            set => PlayerPrefs.SetInt(VibrationKey, value ? 1 : 0);
+        }
+
+        public static float ButtonSize
+        {
+            get => PlayerPrefs.GetFloat(ButtonSizeKey, DefaultButtonSize);
+            set => PlayerPrefs.SetFloat(ButtonSizeKey, Mathf.Clamp01(value));
+        }
+
+        public static float ButtonOpacity
+        {
+            get => PlayerPrefs.GetFloat(ButtonOpacityKey, DefaultButtonOpacity);
+            set => PlayerPrefs.SetFloat(ButtonOpacityKey, Mathf.Clamp01(value));
+        }
+
+        // The middle of the size slider is the normal size.
+        public static float ButtonScale => Mathf.Lerp(MinButtonScale, MaxButtonScale, ButtonSize);
+        public static float ButtonAlpha => Mathf.Lerp(MinButtonOpacity, 1f, ButtonOpacity);
+
+        // The on-screen d-pad and dig buttons are shown only on phones and tablets: on a PC the game is played with
+        // the keyboard, and the strip would only take room from the level. The Device Simulator reports a mobile
+        // platform too, so the controls show there in the editor.
+        public static bool TouchControlsVisible => Application.isMobilePlatform;
+
+        public static void Save()
+        {
+            PlayerPrefs.Save();
+        }
+
+        // A short buzz on phones, when vibration is on.
+        public static void Vibrate()
+        {
+#if UNITY_ANDROID || UNITY_IOS
+            if (Vibration)
+            {
+                Handheld.Vibrate();
+            }
+#endif
+        }
+    }
+}

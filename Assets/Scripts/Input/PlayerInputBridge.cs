@@ -298,7 +298,7 @@ namespace DungeonGuardians.Input
 
         private static bool Contains(RectTransform area, Vector2 screenPosition)
         {
-            // Hidden controls (on a PC, see TouchControls) take no input.
+            // Hidden controls (on a PC, see GameSettings) take no input.
             return area != null && area.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(area, screenPosition, null);
         }
     }

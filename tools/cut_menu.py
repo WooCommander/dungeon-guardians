@@ -1,10 +1,10 @@
 """Cuts the start screen (map-images/menu.png, 1672 x 941) into the pieces the game uses.
 
 - Backgrounds/menu.png: the whole picture, title and buttons included, shown behind the menu.
-- UI/menu_play.png, menu_levels.png, menu_settings.png: the three buttons, cut out with their chamfered corners,
+- UI/menu_play.png, menu_settings.png: the two buttons, cut out with their chamfered corners,
   laid exactly over the picture so they can darken when pressed.
-- UI/menu_plate.png: the "level select" plate with its text removed, for the buttons of the level select and
-  settings panels (sliced at runtime: the diamonds stay at the ends, the middle stretches).
+- UI/menu_plate.png: the "settings" plate with its text removed, for the buttons of the pause panel
+  (sliced at runtime: the diamonds stay at the ends, the middle stretches).
 
 Run from the repository root: python tools/cut_menu.py
 """
@@ -18,14 +18,13 @@ UI = "Assets/Resources/UI/"
 # GameMenu.cs places the buttons by the same boxes.
 BUTTONS = {
     "menu_play": ((619, 467, 1053, 591), 20),
-    "menu_levels": ((666, 618, 1006, 694), 12),
-    "menu_settings": ((675, 715, 999, 784), 12),
+    "menu_settings": ((659, 617, 1010, 696), 12),
 }
 
 # The plate: the left and right ends with their diamonds and a text-free column to stretch between them.
-PLATE_BOX = (666, 618, 1006, 694)
+PLATE_BOX = (659, 617, 1010, 696)
 PLATE_END = 60
-PLATE_FILL_COLUMN = 720
+PLATE_FILL_COLUMN = 725
 
 
 def chamfer_mask(size, corner):

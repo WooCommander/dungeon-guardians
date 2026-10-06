@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEngine;
 
 namespace DungeonGuardians.Editor
 {
@@ -12,6 +13,7 @@ namespace DungeonGuardians.Editor
         private const string BackgroundFolder = "Assets/Resources/Backgrounds/";
         // Touch controls cut from the concept screen (tools/cut_ui.py).
         private const string UiFolder = "Assets/Resources/UI/";
+        private const string AudioFolder = "Assets/Resources/Audio/";
 
         // Tripo maps (Textures/<model>_basecolor, _normal) are bound to materials at runtime by ModelTextures.
         // Source maps are up to 4K, far more than a phone needs: a character is smaller than one cell, a block half a cell.
@@ -21,7 +23,7 @@ namespace DungeonGuardians.Editor
         // Bump whenever the rules below change: Unity then reimports every model and texture this postprocessor touches.
         public override uint GetVersion()
         {
-            return 6;
+            return 8;
         }
 
         private void OnPreprocessTexture()
@@ -52,6 +54,33 @@ namespace DungeonGuardians.Editor
             {
                 importer.textureType = TextureImporterType.NormalMap;
             }
+        }
+
+        // Music tracks (music_*) are several minutes long: streamed from disk instead of being decoded into memory.
+        // Short effects such as footsteps are decoded once and kept ready, so they start without delay.
+        private void OnPreprocessAudio()
+        {
+            if (!assetPath.StartsWith(AudioFolder))
+            {
+                return;
+            }
+
+            var importer = (AudioImporter)assetImporter;
+            AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+            if (System.IO.Path.GetFileName(assetPath).StartsWith("music_"))
+            {
+                settings.loadType = AudioClipLoadType.Streaming;
+                settings.compressionFormat = AudioCompressionFormat.Vorbis;
+                settings.quality = 0.6f;
+            }
+            else
+            {
+                settings.loadType = AudioClipLoadType.DecompressOnLoad;
+                settings.compressionFormat = AudioCompressionFormat.ADPCM;
+                importer.forceToMono = true;
+            }
+
+            importer.defaultSampleSettings = settings;
         }
 
         private void OnPreprocessModel()

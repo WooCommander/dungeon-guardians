@@ -12,6 +12,8 @@ namespace DungeonGuardians.Presentation
         private LevelRenderer levelRenderer;
         private GameHud hud;
         private GameMenu menu;
+        private MusicPlayer music;
+        private FootstepPlayer footsteps;
         private BalanceConfig balance;
         private ProgressStore progressStore;
         private PlayerProgress progress;
@@ -20,16 +22,19 @@ namespace DungeonGuardians.Presentation
         private int levelIndex;
         private float accumulator;
         private bool paused;
+        private bool lossReported;
         // Dig taps are one-shot: keep them until a simulation tick consumes them, since not every frame has a tick.
         private bool pendingDigLeft;
         private bool pendingDigRight;
 
-        public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, GameMenu menu, BalanceConfig balance, ProgressStore progressStore)
+        public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, GameMenu menu, MusicPlayer music, BalanceConfig balance, ProgressStore progressStore)
         {
             this.input = input;
             this.levelRenderer = levelRenderer;
             this.hud = hud;
             this.menu = menu;
+            this.music = music;
+            footsteps = gameObject.AddComponent<FootstepPlayer>();
             this.balance = balance;
             this.progressStore = progressStore;
             progress = progressStore.Load();
@@ -41,12 +46,18 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            // The game opens on the start screen. "Play" continues from the last level reached.
+            // The game opens on the start screen; "Play" always starts from the first level.
             hud.MenuRequested += ShowMenu;
-            menu.Play += () => StartLevel(FindLevelIndex(progress.lastLevelId));
-            menu.PlayLevel += StartLevel;
+            menu.Play += () => StartLevel(0);
             menu.SettingsChanged += hud.RefreshControls;
-            menu.Initialize(catalog.Levels.Count, IsUnlocked, IsCompleted);
+            menu.ResetProgress += ResetProgress;
+            menu.Initialize();
+        }
+
+        private void ResetProgress()
+        {
+            progress = new PlayerProgress();
+            progressStore.Save(progress);
         }
 
         private void StartLevel(int index)
@@ -64,18 +75,9 @@ namespace DungeonGuardians.Presentation
             hud.SetPaused(false);
             hud.SetVisible(false);
             menu.Show();
+            music.SetMood(MusicPlayer.Mood.Menu);
         }
 
-        private bool IsUnlocked(int index)
-        {
-            string id = catalog.Levels[index].id;
-            return index == 0 || progress.unlockedLevelIds.Contains(id) || progress.completedLevelIds.Contains(id) || progress.lastLevelId == id;
-        }
-
-        private bool IsCompleted(int index)
-        {
-            return progress.completedLevelIds.Contains(catalog.Levels[index].id);
-        }
 
         private void Update()
         {
@@ -133,7 +135,14 @@ namespace DungeonGuardians.Presentation
 
                 if (simulation.State.Lost)
                 {
-                    hud.ShowMessage("Поражение");
+                    if (!lossReported)
+                    {
+                        // A lost level keeps ticking without changes; buzz only once.
+                        lossReported = true;
+                        hud.ShowMessage("Поражение");
+                        GameSettings.Vibrate();
+                    }
+
                     break;
                 }
             }
@@ -153,21 +162,25 @@ namespace DungeonGuardians.Presentation
             pendingDigLeft = false;
             pendingDigRight = false;
             hud.SetPaused(paused);
+            music.SetMood(paused ? MusicPlayer.Mood.Paused : MusicPlayer.Mood.Game);
         }
 
         private void LoadLevel(int index)
         {
             levelIndex = Mathf.Clamp(index, 0, catalog.Levels.Count - 1);
             paused = false;
+            lossReported = false;
             pendingDigLeft = false;
             pendingDigRight = false;
             accumulator = 0f;
             simulation = new DungeonSimulation(catalog.Levels[levelIndex], balance);
             simulation.StateChanged += Render;
+            footsteps.BeginLevel();
             hud.Bind(input);
             hud.RefreshControls();
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
+            music.SetMood(MusicPlayer.Mood.Game);
             hud.ShowMessage(string.Empty);
             Render();
         }
@@ -175,6 +188,7 @@ namespace DungeonGuardians.Presentation
         private void Render()
         {
             levelRenderer.Render(simulation);
+            footsteps.Track(simulation);
             hud.SetGold(simulation.State.Definition.gold.Length - simulation.State.RemainingGold.Count, simulation.State.Definition.gold.Length);
             hud.SetExit(simulation.State.ExitOpen);
         }
@@ -194,24 +208,6 @@ namespace DungeonGuardians.Presentation
             {
                 LoadLevel(nextIndex);
             }
-        }
-
-        private int FindLevelIndex(string levelId)
-        {
-            if (string.IsNullOrWhiteSpace(levelId))
-            {
-                return 0;
-            }
-
-            for (int i = 0; i < catalog.Levels.Count; i++)
-            {
-                if (catalog.Levels[i].id == levelId)
-                {
-                    return i;
-                }
-            }
-
-            return 0;
         }
 
         private static void AddUnique(List<string> values, string value)
