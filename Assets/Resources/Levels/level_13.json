@@ -50,5 +50,6 @@
     { "x": 28, "y": 10 }
   ],
   "gateMode": "latch",
-  "playerPressesPlates": false
+  "playerPressesPlates": false,
+  "background": "seal"
 }

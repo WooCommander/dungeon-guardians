@@ -53,5 +53,6 @@
     { "x": 27, "y": 10 }
   ],
   "gateMode": "hold",
-  "playerPressesPlates": true
+  "playerPressesPlates": true,
+  "background": "seal"
 }

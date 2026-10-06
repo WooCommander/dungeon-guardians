@@ -9,6 +9,12 @@ from validate_levels import reachable
 
 LEVELS = pathlib.Path(__file__).resolve().parent.parent / "Assets" / "Resources" / "Levels"
 WIDTH, HEIGHT = 36, 21
+# Painted backgrounds (Assets/Resources/Backgrounds, from map-images/fon) by level: the mine with its scaffolding and
+# chains for the working halls, the city of the pharaohs, the flooded hall for the wells and mirrored halls, the
+# cracked seal for the vault and the seal trials, the chained black heart for the dark halls deep below.
+BACKGROUNDS = {1: "cavern", 2: "mine", 3: "city", 4: "mine", 5: "city", 6: "flooded", 7: "flooded", 8: "seal",
+               9: "city", 10: "mine", 11: "heart", 12: "heart", 13: "seal", 14: "seal"}
+
 # Torches on stands along the walk rows, every TORCH_SPACING cells, shifted by TORCH_STAGGER per row.
 TORCH_SPACING, TORCH_STAGGER = 6, 3
 
@@ -105,6 +111,7 @@ def save(number, title, level, start, exit_, gold, guardians=(), altars=(), **op
     for x, y in altars:
         level.set(x, y, "A")
     torches = place_torches(level, start, exit_, gold, guardians)
+    options.setdefault("background", BACKGROUNDS.get(number, "cavern"))
     data = {
         "id": f"level_{number:02d}",
         "version": 4,

@@ -26,8 +26,9 @@ namespace DungeonGuardians.Presentation
         private static readonly Color ScaffoldColor = new Color(0.035f, 0.11f, 0.13f);
         private static readonly Color GroundColor = new Color(0.04f, 0.045f, 0.05f);
 
-        // Optional painted background: Assets/Resources/Backgrounds/cavern.png (or .jpg).
-        private const string PaintingPath = "Backgrounds/cavern";
+        // Painted backgrounds live in Assets/Resources/Backgrounds; each level names its own (LevelDefinition.background),
+        // falling back to the cavern.
+        private const string DefaultPainting = "cavern";
 
         private SpriteRenderer painting;
 
@@ -37,7 +38,7 @@ namespace DungeonGuardians.Presentation
         private static Sprite square;
         private static Sprite gradient;
 
-        public static CavernBackdrop Build(Transform parent, int width, int height, int seed)
+        public static CavernBackdrop Build(Transform parent, int width, int height, int seed, string paintingName = null)
         {
             var root = new GameObject("Cavern Backdrop");
             root.transform.SetParent(parent, false);
@@ -52,7 +53,12 @@ namespace DungeonGuardians.Presentation
 
             // Painted background art, when present, replaces the procedural silhouettes. It covers the level and the
             // control strip below it, keeping its aspect ratio; the haze fills any margin on very wide screens.
-            var art = Resources.Load<Sprite>(PaintingPath);
+            var art = Resources.Load<Sprite>("Backgrounds/" + (string.IsNullOrEmpty(paintingName) ? DefaultPainting : paintingName));
+            if (art == null)
+            {
+                art = Resources.Load<Sprite>("Backgrounds/" + DefaultPainting);
+            }
+
             if (art != null)
             {
                 // Sized to the screen by FitToView once the camera is placed.

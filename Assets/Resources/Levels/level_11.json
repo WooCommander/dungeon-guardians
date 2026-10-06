@@ -52,5 +52,6 @@
     { "x": 24, "y": 10 }
   ],
   "dark": true,
-  "lightRepelsGuardians": false
+  "lightRepelsGuardians": false,
+  "background": "heart"
 }

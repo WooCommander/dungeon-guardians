@@ -81,5 +81,6 @@
     { "x": 95, "y": 10 },
     { "x": 97, "y": 10 }
   ],
-  "view": "follow"
+  "view": "follow",
+  "background": "city"
 }

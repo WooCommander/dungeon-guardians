@@ -21,6 +21,8 @@ namespace DungeonGuardians.Core
         // "fit": the whole level on screen (puzzle halls). "follow": the camera follows the explorer at the size of
         // a 13-row hall, for long galleries and deep shafts.
         public string view = "fit";
+        // The painted background, a picture in Resources/Backgrounds (cavern, mine, city, flooded, seal, heart).
+        public string background = "cavern";
 
         public bool FollowCamera => view == "follow";
 

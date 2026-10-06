@@ -108,5 +108,6 @@
     { "x": 15, "y": 2 },
     { "x": 17, "y": 2 }
   ],
-  "view": "follow"
+  "view": "follow",
+  "background": "mine"
 }

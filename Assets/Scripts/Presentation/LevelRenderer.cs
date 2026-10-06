@@ -290,7 +290,7 @@ namespace DungeonGuardians.Presentation
             }
 
             BuildDecor(state);
-            backdrop = CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode());
+            backdrop = CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode(), definition.background);
             if (!backdrop.HasPainting)
             {
                 // The painting has its own carved side walls; the plain stand-in needs masonry beside the map.
