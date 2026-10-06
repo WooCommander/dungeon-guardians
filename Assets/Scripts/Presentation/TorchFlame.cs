@@ -13,8 +13,8 @@ namespace DungeonGuardians.Presentation
         // so the blocks in front hide it where they are.
         private const float PoolSize = 7.5f;
         private const float GlowSize = 2.4f;
-        private static readonly Color PoolColor = new Color(1f, 0.58f, 0.22f, 0.3f);
-        private static readonly Color GlowColor = new Color(1f, 0.78f, 0.4f, 0.55f);
+        private static readonly Color PoolColor = new Color(1f, 0.58f, 0.22f, 0.36f);
+        private static readonly Color GlowColor = new Color(1f, 0.8f, 0.42f, 0.7f);
 
         private static Sprite flameSprite;
 
@@ -35,7 +35,7 @@ namespace DungeonGuardians.Presentation
             var flame = root.AddComponent<TorchFlame>();
             flame.seed = Random.Range(0f, 100f);
             flame.outer = flame.AddLayer("Outer", new Color(1f, 0.45f, 0.08f, 0.85f), size, 0f);
-            flame.core = flame.AddLayer("Core", new Color(1f, 0.88f, 0.45f, 0.95f), size * 0.55f, -0.01f);
+            flame.core = flame.AddLayer("Core", new Color(1f, 0.95f, 0.65f, 1f), size * 0.55f, -0.01f);
             flame.pool = flame.AddHalo("Light Pool", size * PoolSize, 0.08f);
             flame.glow = flame.AddHalo("Glow", size * GlowSize, 0.02f);
 

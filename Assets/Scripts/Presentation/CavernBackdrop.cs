@@ -16,8 +16,9 @@ namespace DungeonGuardians.Presentation
         private const int ScaffoldOrder = -80;
                 private const int GroundOrder = -70;
 
-        // The painting is dimmed so the gold, the torch flames and their glow stand out against it.
-        private static readonly Color PaintingTint = new Color(0.68f, 0.68f, 0.72f);
+        // The painting's teal already matches the concept screen's background; it is kept at full strength so the
+        // warm blocks and gold stand out against cool depths, as on the concept.
+        private static readonly Color PaintingTint = Color.white;
         private static readonly Color FarColor = new Color(0.07f, 0.21f, 0.24f);
         private static readonly Color StatueColor = new Color(0.09f, 0.25f, 0.28f);
         private static readonly Color ScaffoldColor = new Color(0.035f, 0.11f, 0.13f);

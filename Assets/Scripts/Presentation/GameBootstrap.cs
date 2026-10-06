@@ -37,12 +37,13 @@ namespace DungeonGuardians.Presentation
             controller.Initialize(input, renderer, hud, menu, music, new BalanceConfig(), new ProgressStore());
         }
 
-        // Blocks and characters use lit materials; sprites (gold, flames, glows, the painting) are unlit. The lighting is
-        // kept low, so the gold and the torches glow against a dim dungeon and the torch light pools show on the stone.
+        // Blocks and characters use lit materials; sprites (gold, flames, glows, the painting) are unlit. A warm golden
+        // key light and warm ambient turn the sandstone the saturated orange of the concept screen (about 160, 95, 40
+        // on a lit block face) against the cool teal painting; the torches add brighter pools nearby.
         private static void EnsureLighting()
         {
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.27f, 0.29f, 0.34f);
+            RenderSettings.ambientLight = new Color(0.3f, 0.25f, 0.2f);
 
             // A scene may bring its own directional light (Unity's default is bright and from behind): it is reused
             // with the game's settings, so the dungeon is equally dim in any scene.
@@ -63,8 +64,8 @@ namespace DungeonGuardians.Presentation
             }
 
             GameObject lightObject = light.gameObject;
-            light.color = new Color(1f, 0.9f, 0.76f);
-            light.intensity = 0.7f;
+            light.color = new Color(1f, 0.85f, 0.6f);
+            light.intensity = 1.1f;
             light.shadows = LightShadows.None;
             // From the upper left and in front, so faces turned towards the camera are lit.
             lightObject.transform.rotation = Quaternion.Euler(35f, 25f, 0f);

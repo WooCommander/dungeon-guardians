@@ -66,6 +66,15 @@ namespace DungeonGuardians.Presentation
         private const float TorchMountHeight = 0.15f;
         private const float TorchFlameHeight = 0.62f;
         private const float TorchFlameSize = 0.38f;
+        // Floor torches on iron stands, as beside the concept's exit door (tools/cut_torch_stand.py). The cavern has
+        // hardly any back wall, so the torches stand on the floor, between the painting and the characters.
+        private const float TorchStandHeight = 0.85f;
+        // The cup's rim is this far up the stand sprite.
+        private const float TorchStandCup = 0.8f;
+        private const float TorchStandDepth = 0.2f;
+        private const float StandFlameSize = 0.5f;
+        // The pair beside the exit stands a little away from the door, clear of its frame.
+        private const float ExitTorchOffset = 0.25f;
 
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
@@ -252,8 +261,8 @@ namespace DungeonGuardians.Presentation
             return cell;
         }
 
-        // Torches on the back wall above walkable floor on every tier, staggered from row to row.
-        // Purely decorative: they sit behind the gameplay plane and never cover a cell's contents.
+        // Torches on stands on walkable floor on every tier, staggered from row to row, plus a pair beside the exit.
+        // Purely decorative: they stand behind the gameplay plane and never on a cell with gold.
         private void BuildDecor(RuntimeLevelState state)
         {
             var torches = new List<Vector3>();
@@ -263,10 +272,11 @@ namespace DungeonGuardians.Presentation
                 {
                     // A rope overhead is thin enough to leave room for the flame.
                     TileType above = state.Tiles[x, y + 1];
-                    bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && (above == TileType.Air || above == TileType.Bar);
+                    bool floor = state.Tiles[x, y] == TileType.Air && IsBlock(state.Tiles[x, y - 1]) && (above == TileType.Air || above == TileType.Bar)
+                        && !state.RemainingGold.Contains(new GridPoint(x, y));
                     if (floor && (x + y * TorchRowStagger) % TorchSpacing == 0)
                     {
-                        torches.Add(new Vector3(x, y - 0.5f + TorchMountHeight, BackWallDepth));
+                        torches.Add(new Vector3(x, y - 0.5f, 0f));
                     }
                 }
             }
@@ -276,10 +286,11 @@ namespace DungeonGuardians.Presentation
             foreach (int side in new[] { -1, 1 })
             {
                 int x = exit.x + side;
-                var position = new Vector3(x, exit.y - 0.5f + TorchMountHeight, BackWallDepth);
-                if (state.Tiles[x, exit.y] == TileType.Air && !torches.Contains(position))
+                var position = new Vector3(x, exit.y - 0.5f, 0f);
+                if (state.Tiles[x, exit.y] == TileType.Air)
                 {
-                    torches.Add(position);
+                    torches.Remove(position);
+                    torches.Add(position + new Vector3(side * ExitTorchOffset, 0f, 0f));
                 }
             }
 
@@ -287,17 +298,26 @@ namespace DungeonGuardians.Presentation
             int lightEvery = Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
             for (int i = 0; i < torches.Count; i++)
             {
-                // The painted holder ends at the cup; the animated flame sits on its rim.
-                GameObject holder = SpawnSprite("torch", levelRoot, torches[i], 0f, TorchHolderHeight);
+                bool lit = i % lightEvery == 0;
+                // The painted stand ends at the cup; the animated flame sits on its rim.
+                Vector3 floor = torches[i] + new Vector3(0f, 0f, TorchStandDepth);
+                if (SpawnSprite("torch_stand", levelRoot, floor, 0f, TorchStandHeight) != null)
+                {
+                    TorchFlame.Create(levelRoot, floor + new Vector3(0f, TorchStandHeight * TorchStandCup, -0.05f), StandFlameSize, lit);
+                    continue;
+                }
+
+                // Without the stand: the wall torch as before.
+                Vector3 wall = torches[i] + new Vector3(0f, TorchMountHeight, BackWallDepth);
+                GameObject holder = SpawnSprite("torch", levelRoot, wall, 0f, TorchHolderHeight);
                 float cupTop = TorchHolderHeight - 0.03f;
                 if (holder == null)
                 {
-                    Spawn("torch", levelRoot, torches[i], TorchScale, new Color(1f, 0.6f, 0.2f));
+                    Spawn("torch", levelRoot, wall, TorchScale, new Color(1f, 0.6f, 0.2f));
                     cupTop = TorchFlameHeight;
                 }
 
-                Vector3 flame = torches[i] + new Vector3(0f, cupTop, -0.05f);
-                TorchFlame.Create(levelRoot, flame, TorchFlameSize, i % lightEvery == 0);
+                TorchFlame.Create(levelRoot, wall + new Vector3(0f, cupTop, -0.05f), TorchFlameSize, lit);
             }
         }
 
