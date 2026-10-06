@@ -7,17 +7,10 @@ namespace DungeonGuardians.Presentation
 {
     public sealed class GameHud : MonoBehaviour
     {
-        // Share of the screen height taken by the control strip at the bottom. The camera keeps the level above it,
-        // so the d-pad and dig buttons never cover a walkable cell (TZ section 3).
-        public const float ControlStripHeight = 0.262f;
-
-        // Share of the screen height the level must leave free at the bottom: none when the touch controls are hidden.
-        public static float BottomReserve => GameSettings.TouchControlsVisible ? ControlStripHeight : 0f;
-
-        // The control strip copies the concept screen (image.png, 1672 x 941): its sprites come from tools/cut_ui.py
-        // and are placed at the concept's pixel positions, converted to the 900-unit-high canvas.
+        // The touch controls float over the level, which fills the whole screen; the following camera keeps the
+        // explorer above them (LevelRenderer). Their sprites come from the concept screen (image.png, 1672 x 941,
+        // tools/cut_ui.py) and are placed at the concept's pixel positions, converted to the 900-unit-high canvas.
         private const float ConceptToCanvas = 900f / 941f;
-        private static readonly Color StripColor = new Color(0.02f, 0.025f, 0.03f, 0.78f);
         private static readonly Color HighlightColor = new Color(1f, 0.85f, 0.55f, 0.3f);
         private static readonly Color PressedButtonColor = new Color(0.78f, 0.78f, 0.78f, 1f);
 
@@ -48,6 +41,9 @@ namespace DungeonGuardians.Presentation
         private Text livesText;
         // The level's name, shown large when the level starts and fading away.
         private Text titleBanner;
+        private Text keyboardHint;
+        // The keyboard hint stays a little longer than the title.
+        private const float HintHold = 5f;
         private float titleShownAt = -100f;
         private const float TitleHold = 2.2f;
         private const float TitleFade = 0.8f;
@@ -170,6 +166,9 @@ namespace DungeonGuardians.Presentation
             float alpha = 1f - Mathf.Clamp01((shown - TitleHold) / TitleFade);
             titleBanner.enabled = alpha > 0f;
             titleBanner.color = new Color(titleBanner.color.r, titleBanner.color.g, titleBanner.color.b, alpha);
+            float hintAlpha = GameSettings.TouchControlsVisible ? 0f : 1f - Mathf.Clamp01((shown - HintHold) / TitleFade);
+            keyboardHint.enabled = hintAlpha > 0f;
+            keyboardHint.color = new Color(keyboardHint.color.r, keyboardHint.color.g, keyboardHint.color.b, hintAlpha * 0.85f);
 
             var held = input.HeldDirections;
             if (conceptControls)
@@ -239,6 +238,21 @@ namespace DungeonGuardians.Presentation
             BuildPausePanel();
             BuildDefeatPanel();
             BuildVictoryPanel();
+            BuildKeyboardHint();
+            // Everything above keeps clear of a phone's camera cutout and rounded corners.
+            SafeArea.Wrap(canvas.transform);
+        }
+
+        // On a PC, where there are no touch controls, the keys are shown at the bottom when a level starts.
+        private void BuildKeyboardHint()
+        {
+            keyboardHint = MenuStyle.AddLabel(canvas.transform,
+                "← → ↑ ↓ или WASD — движение     Q / E — копать влево / вправо     R — заново     Esc — пауза", 26);
+            keyboardHint.color = new Color(1f, 0.92f, 0.75f);
+            keyboardHint.rectTransform.anchorMin = keyboardHint.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+            keyboardHint.rectTransform.sizeDelta = new Vector2(1500f, 50f);
+            keyboardHint.rectTransform.anchoredPosition = new Vector2(0f, 40f);
+            keyboardHint.enabled = false;
         }
 
         private void BuildVictoryPanel()
@@ -425,8 +439,8 @@ namespace DungeonGuardians.Presentation
             return rect;
         }
 
-        // The concept's control strip: a dark panel over the bottom of the background, the round d-pad on the left,
-        // the two pickaxe buttons with captions on the right.
+        // The concept's touch controls, over the level: the round d-pad on the left, the two pickaxe buttons with
+        // captions on the right.
         private bool BuildConceptControls()
         {
             Sprite dpadSprite = Resources.Load<Sprite>("UI/dpad");
@@ -436,15 +450,6 @@ namespace DungeonGuardians.Presentation
             {
                 return false;
             }
-
-            var strip = new GameObject("Control Strip").AddComponent<Image>();
-            strip.transform.SetParent(controlsRoot.transform, false);
-            strip.color = StripColor;
-            strip.raycastTarget = false;
-            strip.rectTransform.anchorMin = Vector2.zero;
-            strip.rectTransform.anchorMax = new Vector2(1f, 0f);
-            strip.rectTransform.pivot = new Vector2(0.5f, 0f);
-            strip.rectTransform.sizeDelta = new Vector2(0f, 900f * ControlStripHeight);
 
             // Positions are the concept's pixel centres measured from the bottom-left or bottom-right corner.
             Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f), leftGroup);

@@ -131,10 +131,19 @@ namespace DungeonGuardians.Presentation
         private static readonly Color PlatePressed = new Color(1.6f, 1.35f, 0.8f);
         // Following camera (LevelDefinition.view = "follow").
         private const int FollowRows = 13;
+        // On a phone a whole 13-row hall is too small to play: every level is followed by the camera, showing
+        // this many rows (and nearly the whole width of a 33-column hall on a wide phone).
+        private const int MobileRows = 8;
+        // Cells of the view's bottom kept clear of the level's floor on a phone (the touch controls' height).
+        private const float ControlsMargin = 2.5f;
+
+        private bool Follow => currentDefinition != null && (currentDefinition.FollowCamera || GameSettings.TouchControlsVisible);
+        private int ViewRows => GameSettings.TouchControlsVisible ? MobileRows : FollowRows;
         private const float FollowSmoothTime = 0.25f;
         private const float LookAhead = 2.5f;
         private const float FallLookDown = 2.5f;
-        // Where the explorer sits in the visible height above the control strip (0 bottom, 1 top).
+        // Where the explorer sits in the visible height (0 bottom, 1 top): a little below the middle, above the
+        // touch controls in the bottom corners.
         private const float FollowAnchor = 0.42f;
         private const float LightRefreshInterval = 0.3f;
         private Vector3 cameraVelocity;
@@ -492,7 +501,7 @@ namespace DungeonGuardians.Presentation
         {
             // Real-time lights are costly on phones: light an even spread of torches, the rest only glow. With a
             // following camera every torch gets a light and LateUpdate keeps only those nearest the camera on.
-            bool follow = currentDefinition != null && currentDefinition.FollowCamera;
+            bool follow = Follow;
             int lightEvery = follow ? 1 : Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
             for (int i = 0; i < torches.Count; i++)
             {
@@ -651,19 +660,19 @@ namespace DungeonGuardians.Presentation
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.02f, 0.05f, 0.06f);
 
-            if (definition.FollowCamera)
+            if (Follow)
             {
-                // The same cell size as a 13-row hall; LateUpdate moves the camera after the explorer.
-                camera.orthographicSize = (FollowRows + HudTopMargin) / (2f * (1f - GameHud.BottomReserve));
+                // The cell size of a 13-row hall (8 rows on a phone); LateUpdate moves the camera after the explorer.
+                camera.orthographicSize = (ViewRows + HudTopMargin) / 2f;
                 return;
             }
 
-            // The whole level sits above the control strip (when the touch controls are shown), with a little room at
-            // the top for the HUD text.
+            // The whole level on screen (a PC, where there are no touch controls), with a little room at the top for
+            // the HUD text.
             // On narrow screens the width decides the size; the extra height then goes below the level.
             float levelTop = definition.height - 0.5f + HudTopMargin;
             float levelBottom = -0.5f;
-            float sizeForHeight = (levelTop - levelBottom) / (2f * (1f - GameHud.BottomReserve));
+            float sizeForHeight = (levelTop - levelBottom) / 2f;
             float sizeForWidth = (definition.width + 0.4f) / (2f * camera.aspect);
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             camera.orthographicSize = size;
@@ -682,7 +691,7 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            if (currentDefinition.FollowCamera && player != null)
+            if (Follow && player != null)
             {
                 FollowExplorer(camera);
                 if (Time.time >= lightRefreshAt)
@@ -737,9 +746,9 @@ namespace DungeonGuardians.Presentation
             LevelDefinition definition = currentDefinition;
             float size = camera.orthographicSize;
             float halfWidth = size * camera.aspect;
-            float reserve = GameHud.BottomReserve;
-            // The playfield is the view above the control strip and below the HUD margin.
-            float fieldBottom = -size + 2f * size * reserve;
+
+            // The playfield is the view below the HUD margin.
+            float fieldBottom = -size;
             float fieldTop = size - HudTopMargin;
 
             Vector3 explorer = player.transform.position;
@@ -754,7 +763,9 @@ namespace DungeonGuardians.Presentation
             float minX = -0.5f + halfWidth;
             float maxX = definition.width - 0.5f - halfWidth;
             x = minX > maxX ? (definition.width - 1) * 0.5f : Mathf.Clamp(x, minX, maxX);
-            float minY = -0.5f - fieldBottom;
+            // With touch controls over the level, the camera may go a little below the floor, so the bottom tier
+            // is not hidden under the d-pad and the dig buttons.
+            float minY = -0.5f - fieldBottom - (GameSettings.TouchControlsVisible ? ControlsMargin : 0f);
             float maxY = definition.height - 0.5f - fieldTop;
             y = minY > maxY ? maxY : Mathf.Clamp(y, minY, maxY);
 

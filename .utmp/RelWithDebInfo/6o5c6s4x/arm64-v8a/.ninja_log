@@ -1,0 +1,12 @@
+# ninja log v5
+28	170	8130262287876260	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	9d4a3a212549620d
+171	285	8130262288909075	C:/Users/User/Documents/projects/games/dungeon-guardians/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/6o5c6s4x/obj/arm64-v8a/libswappywrapper.so	bdcfebf87c169a97
+13	703	8130262293170946	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	f95c37d93e433107
+7	706	8130262293218695	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	3261e62b3c88b0d8
+17	716	8130262293330994	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	29cda1283fd79060
+21	719	8130262293356155	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	129a839f42f709dd
+24	766	8130262293813358	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	4893903a1eee2a5b
+4	787	8130262294019920	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	c028c20931c16a62
+10	898	8130262295147492	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	43cb959504f01715
+0	959	8130262295731651	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	ea0c226f1661de90
+960	1031	8130262296439832	C:/Users/User/Documents/projects/games/dungeon-guardians/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/6o5c6s4x/obj/arm64-v8a/libgame.so	d791e322a7ecbb68

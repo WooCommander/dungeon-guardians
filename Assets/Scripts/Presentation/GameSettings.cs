@@ -12,11 +12,12 @@ namespace DungeonGuardians.Presentation
         private const string ButtonSizeKey = "settings_button_size";
         private const string ButtonOpacityKey = "settings_button_opacity";
 
-        // Defaults as on the settings concept; buttons start at their normal size and fully opaque.
+        // Defaults as on the settings concept; buttons start at their normal size.
         public const float DefaultMusic = 0.6f;
         public const float DefaultSound = 0.8f;
         public const float DefaultButtonSize = 0.5f;
-        public const float DefaultButtonOpacity = 1f;
+        // The buttons lie over the level, so by default the level shows through them a little.
+        public const float DefaultButtonOpacity = 0.7f;
 
         private const float MinButtonScale = 0.6f;
         private const float MaxButtonScale = 1.4f;

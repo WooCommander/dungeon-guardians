@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
@@ -42,6 +43,7 @@ namespace DungeonGuardians.Presentation
 
             settings = SettingsScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
+            AddQuitButton(picture.transform);
             settings.Changed += () => SettingsChanged?.Invoke();
             settings.ResetProgress += () => ResetProgress?.Invoke();
             Show();
@@ -77,11 +79,12 @@ namespace DungeonGuardians.Presentation
         // Each statue's eyes smoulder unevenly, now and then flaring or almost dying away.
         private void Update()
         {
-            if (eyeGlows.Count == 0 || !canvas.gameObject.activeInHierarchy)
+            if (!canvas.gameObject.activeInHierarchy)
             {
                 return;
             }
 
+            HandleBack();
             float time = Time.unscaledTime;
             foreach ((Image glow, int statue) in eyeGlows)
             {
@@ -90,6 +93,41 @@ namespace DungeonGuardians.Presentation
                 float level = Mathf.Clamp01(0.15f + 1.1f * slow * (0.7f + 0.3f * fast));
                 glow.color = new Color(EyeColor.r, EyeColor.g, EyeColor.b, level * 0.85f);
                 glow.rectTransform.localScale = Vector3.one * (0.85f + 0.3f * level);
+            }
+        }
+
+        // A PC game needs a way out; on a phone the system's own navigation closes the app.
+        private void AddQuitButton(Transform picture)
+        {
+            if (Application.isMobilePlatform)
+            {
+                return;
+            }
+
+            Button quit = MenuStyle.CreatePlateButton(canvas.transform, "ВЫХОД", new Vector2(240f, 64f), Application.Quit);
+            var rect = (RectTransform)quit.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
+            rect.anchoredPosition = new Vector2(-150f, 60f);
+            // Above the picture but under the settings and story screens, which open over it.
+            rect.SetSiblingIndex(picture.GetSiblingIndex() + 1);
+        }
+
+        // Android's back button (Esc on a keyboard): closes the settings, and on the start screen leaves the game.
+        private void HandleBack()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard.escapeKey.wasPressedThisFrame || story.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            if (settings.gameObject.activeSelf)
+            {
+                settings.Close();
+            }
+            else if (Application.platform == RuntimePlatform.Android)
+            {
+                Application.Quit();
             }
         }
 

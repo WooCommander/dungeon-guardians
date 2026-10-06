@@ -51,8 +51,8 @@ namespace DungeonGuardians.Presentation
             backdrop.Quad("Haze", GetGradient(), new Vector2((left + right) / 2f, (bottom + top) / 2f),
                 new Vector2(right - left, top - bottom), Color.white, GradientDepth, GradientOrder);
 
-            // Painted background art, when present, replaces the procedural silhouettes. It covers the level and the
-            // control strip below it, keeping its aspect ratio; the haze fills any margin on very wide screens.
+            // Painted background art, when present, replaces the procedural silhouettes. It covers the view, keeping
+            // its aspect ratio; the haze fills any margin on very wide screens.
             var art = Resources.Load<Sprite>("Backgrounds/" + (string.IsNullOrEmpty(paintingName) ? DefaultPainting : paintingName));
             if (art == null)
             {
@@ -83,14 +83,12 @@ namespace DungeonGuardians.Presentation
             backdrop.Scaffold(new Vector2(width * 0.62f, height * 0.28f), width * 0.4f, random);
 
 
-            // Dark rock under the level, behind the control strip.
+            // Dark rock under the level.
             backdrop.Rect("Ground", new Vector2((left + right) / 2f, (bottom - 0.5f) / 2f), new Vector2(right - left, -0.5f - bottom),
                 GroundColor, 0.6f, GroundOrder);
             return backdrop;
         }
 
-        // The painting fills the whole screen like the concept: the level sits over its upper part, and its rocky
-        // bottom shows under the control strip. It covers the view while keeping its proportions.
         // The painting covers the camera's view. parallax (-1..1 on each axis) shows where the camera is within a
         // level larger than the screen: the painting is then drawn a little larger and shifted the other way, so the
         // distant cavern seems to drift slowly behind the level.
