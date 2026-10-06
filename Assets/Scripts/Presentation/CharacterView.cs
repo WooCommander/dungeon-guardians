@@ -55,6 +55,9 @@ namespace DungeonGuardians.Presentation
         // Height in cells the model was fitted to.
         public float Height => height;
 
+        // The way the character last walked: 1 right, -1 left.
+        public int Facing => facing;
+
         // walkPlayback scales the Walk and Climb clips so the steps keep up with the movement speed.
         public static CharacterView Create(string modelName, Transform parent, float height, float speed, Color fallbackColor, float walkPlayback = 1f)
         {

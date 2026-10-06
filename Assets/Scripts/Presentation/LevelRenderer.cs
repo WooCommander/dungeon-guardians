@@ -121,6 +121,30 @@ namespace DungeonGuardians.Presentation
         private Transform levelRoot;
         private CharacterView player;
         private AltarWarning altarWarning;
+        // Seal trial pieces: the plates glow while pressed.
+        private readonly List<SpriteRenderer> plates = new List<SpriteRenderer>();
+        private const float GateHeight = 1.25f;
+        private static readonly Color PlateIdle = new Color(0.85f, 0.85f, 0.85f);
+        private static readonly Color PlatePressed = new Color(1.6f, 1.35f, 0.8f);
+        // Following camera (LevelDefinition.view = "follow").
+        private const int FollowRows = 13;
+        private const float FollowSmoothTime = 0.25f;
+        private const float LookAhead = 2.5f;
+        private const float FallLookDown = 2.5f;
+        // Where the explorer sits in the visible height above the control strip (0 bottom, 1 top).
+        private const float FollowAnchor = 0.42f;
+        private const float LightRefreshInterval = 0.3f;
+        private Vector3 cameraVelocity;
+        private bool snapCamera = true;
+        private float lastPlayerY;
+        private float lookDown;
+        private float lightRefreshAt;
+        private readonly List<TorchFlame> torchFlames = new List<TorchFlame>();
+        // Dark halls (LevelDefinition.dark).
+        private DarknessOverlay darkness;
+        private readonly List<(Vector3 head, int facing)?> guardianHeads = new List<(Vector3 head, int facing)?>();
+        // Between the guardian's eyes, as a share of its height.
+        private const float GuardianEyeHeight = 0.8f;
         // Ticks before a guardian's return during which its altar glows (1.5 s at 30 Hz).
         private const int RespawnWarningTicks = 45;
         // Explorers caught earlier in this attempt, left standing as stone statues.
@@ -141,7 +165,32 @@ namespace DungeonGuardians.Presentation
             RenderGold(state);
             RenderActors(simulation);
             RenderAltarWarning(simulation);
+            RenderPlates(state);
             PositionCamera(state.Definition);
+        }
+
+        private void RenderPlates(RuntimeLevelState state)
+        {
+            plates.RemoveAll(plate => plate == null);
+            foreach (SpriteRenderer plate in plates)
+            {
+                plate.color = state.PlatePressed ? PlatePressed : PlateIdle;
+                // Pressed plates sink a little into the floor.
+                Vector3 position = plate.transform.localPosition;
+                plate.transform.localPosition = new Vector3(position.x, state.PlatePressed ? -0.04f : 0f, position.z);
+            }
+        }
+
+        private static SpriteRenderer AddSealSprite(Transform parent, Sprite sprite, Vector3 bottomCentre, Vector2 size)
+        {
+            var item = new GameObject(sprite.name);
+            item.transform.SetParent(parent, false);
+            item.transform.localPosition = bottomCentre;
+            Vector2 native = sprite.bounds.size;
+            item.transform.localScale = new Vector3(size.x / native.x, size.y / native.y, 1f);
+            var renderer = item.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            return renderer;
         }
 
         // A guardian about to return: its altar glows for the last RespawnWarningTicks of the wait, and for as long
@@ -200,6 +249,9 @@ namespace DungeonGuardians.Presentation
             }
 
             guardians.Clear();
+            torchFlames.Clear();
+            plates.Clear();
+            snapCamera = true;
             goldPieces.Clear();
             goldRestY.Clear();
             goldHalos.Clear();
@@ -210,6 +262,16 @@ namespace DungeonGuardians.Presentation
 
             levelRoot = new GameObject("Level").transform;
             levelRoot.SetParent(transform, false);
+            if (darkness != null)
+            {
+                Destroy(darkness.gameObject);
+                darkness = null;
+            }
+
+            if (definition.dark)
+            {
+                darkness = DarknessOverlay.Create(transform);
+            }
             cellObjects = new GameObject[definition.width, definition.height];
             cellTypes = new TileType[definition.width, definition.height];
 
@@ -221,6 +283,10 @@ namespace DungeonGuardians.Presentation
                 goldPieces[point] = gold;
                 goldRestY[point] = gold.transform.localPosition.y;
                 goldHalos[point] = AddGoldHalo(gold);
+                if (definition.dark)
+                {
+                    DarknessOverlay.AddGlint(gold);
+                }
             }
 
             BuildDecor(state);
@@ -316,6 +382,16 @@ namespace DungeonGuardians.Presentation
                 case TileType.Altar:
                     SpawnLocal("altar", parent, new Vector3(0f, 0f, 0.15f), 1f, new Color(0.2f, 0.58f, 0.66f));
                     break;
+                case TileType.PressurePlate:
+                    plates.Add(AddSealSprite(parent, SealArt.Plate(), new Vector3(0f, 0f, 0.04f), new Vector2(0.9f, 0.12f)));
+                    break;
+                case TileType.GateClosed:
+                    AddSealSprite(parent, SealArt.Gate(), new Vector3(0f, 0f, 0.08f), new Vector2(0.92f, GateHeight));
+                    break;
+                case TileType.GateOpen:
+                    // Raised into the ceiling of the cell: only its spiked lower edge still shows at the top.
+                    AddSealSprite(parent, SealArt.Gate(), new Vector3(0f, GateHeight * 0.8f, 0.08f), new Vector2(0.92f, GateHeight));
+                    break;
             }
 
             return cell;
@@ -374,8 +450,10 @@ namespace DungeonGuardians.Presentation
 
         private void SpawnTorches(List<Vector3> torches)
         {
-            // Real-time lights are costly on phones: light an even spread of torches, the rest only glow.
-            int lightEvery = Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
+            // Real-time lights are costly on phones: light an even spread of torches, the rest only glow. With a
+            // following camera every torch gets a light and LateUpdate keeps only those nearest the camera on.
+            bool follow = currentDefinition != null && currentDefinition.FollowCamera;
+            int lightEvery = follow ? 1 : Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
             for (int i = 0; i < torches.Count; i++)
             {
                 bool lit = i % lightEvery == 0;
@@ -383,7 +461,7 @@ namespace DungeonGuardians.Presentation
                 Vector3 floor = torches[i] + new Vector3(0f, 0f, TorchStandDepth);
                 if (SpawnSprite("torch_stand", levelRoot, floor, 0f, TorchStandHeight) != null)
                 {
-                    TorchFlame.Create(levelRoot, floor + new Vector3(0f, TorchStandHeight * TorchStandCup, -0.05f), StandFlameSize, lit);
+                    torchFlames.Add(TorchFlame.Create(levelRoot, floor + new Vector3(0f, TorchStandHeight * TorchStandCup, -0.05f), StandFlameSize, lit));
                     continue;
                 }
 
@@ -397,7 +475,7 @@ namespace DungeonGuardians.Presentation
                     cupTop = TorchFlameHeight;
                 }
 
-                TorchFlame.Create(levelRoot, wall + new Vector3(0f, cupTop, -0.05f), TorchFlameSize, lit);
+                torchFlames.Add(TorchFlame.Create(levelRoot, wall + new Vector3(0f, cupTop, -0.05f), TorchFlameSize, lit));
             }
         }
 
@@ -415,6 +493,10 @@ namespace DungeonGuardians.Presentation
             BalanceConfig balance = simulation.Balance;
             bool newRun = currentState != state;
             currentState = state;
+            if (newRun)
+            {
+                snapCamera = true;
+            }
 
             if (player == null)
             {
@@ -520,6 +602,13 @@ namespace DungeonGuardians.Presentation
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.02f, 0.05f, 0.06f);
 
+            if (definition.FollowCamera)
+            {
+                // The same cell size as a 13-row hall; LateUpdate moves the camera after the explorer.
+                camera.orthographicSize = (FollowRows + HudTopMargin) / (2f * (1f - GameHud.BottomReserve));
+                return;
+            }
+
             // The whole level sits above the control strip (when the touch controls are shown), with a little room at
             // the top for the HUD text.
             // On narrow screens the width decides the size; the extra height then goes below the level.
@@ -533,6 +622,124 @@ namespace DungeonGuardians.Presentation
             if (backdrop != null)
             {
                 backdrop.FitToView(camera);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            Camera camera = Camera.main;
+            if (currentDefinition == null || camera == null)
+            {
+                return;
+            }
+
+            if (currentDefinition.FollowCamera && player != null)
+            {
+                FollowExplorer(camera);
+                if (Time.time >= lightRefreshAt)
+                {
+                    lightRefreshAt = Time.time + LightRefreshInterval;
+                    LightNearestTorches(camera.transform.position);
+                }
+            }
+
+            if (darkness != null)
+            {
+                UpdateDarkness(camera);
+            }
+        }
+
+        private void UpdateDarkness(Camera camera)
+        {
+            Vector3? lamp = null;
+            if (player != null && player.gameObject.activeInHierarchy && PlayerLamp != null && PlayerLamp.Level > 0.05f)
+            {
+                lamp = PlayerLamp.transform.position;
+            }
+
+            guardianHeads.Clear();
+            foreach (CharacterView view in guardians)
+            {
+                if (!view.gameObject.activeInHierarchy)
+                {
+                    guardianHeads.Add(null);
+                    continue;
+                }
+
+                // Eyes show when the face is towards the camera or in profile, not from behind on a ladder.
+                Vector3 forward = view.transform.forward;
+                if (forward.z > 0.5f)
+                {
+                    guardianHeads.Add(null);
+                    continue;
+                }
+
+                int facing = forward.z < -0.5f ? 0 : (forward.x > 0f ? 1 : -1);
+                guardianHeads.Add((view.transform.position + Vector3.up * GuardianHeight * GuardianEyeHeight, facing));
+            }
+
+            darkness.UpdateView(camera, lamp, torchFlames, guardianHeads);
+        }
+
+        // Keeps the explorer a little below the middle of the playfield, looks ahead in the walking direction and
+        // down while falling, and never shows beyond the level's edges.
+        private void FollowExplorer(Camera camera)
+        {
+            LevelDefinition definition = currentDefinition;
+            float size = camera.orthographicSize;
+            float halfWidth = size * camera.aspect;
+            float reserve = GameHud.BottomReserve;
+            // The playfield is the view above the control strip and below the HUD margin.
+            float fieldBottom = -size + 2f * size * reserve;
+            float fieldTop = size - HudTopMargin;
+
+            Vector3 explorer = player.transform.position;
+            float falling = explorer.y < lastPlayerY - 0.001f ? 1f : 0f;
+            lastPlayerY = explorer.y;
+            lookDown = Mathf.MoveTowards(lookDown, falling * FallLookDown, Time.deltaTime * 6f);
+            float facing = player.Facing;
+
+            float x = explorer.x + facing * LookAhead;
+            float y = explorer.y - lookDown - (fieldBottom + (fieldTop - fieldBottom) * FollowAnchor);
+
+            float minX = -0.5f + halfWidth;
+            float maxX = definition.width - 0.5f - halfWidth;
+            x = minX > maxX ? (definition.width - 1) * 0.5f : Mathf.Clamp(x, minX, maxX);
+            float minY = -0.5f - fieldBottom;
+            float maxY = definition.height - 0.5f - fieldTop;
+            y = minY > maxY ? maxY : Mathf.Clamp(y, minY, maxY);
+
+            var target = new Vector3(x, y, -10f);
+            if (snapCamera)
+            {
+                snapCamera = false;
+                cameraVelocity = Vector3.zero;
+                camera.transform.position = target;
+            }
+            else
+            {
+                camera.transform.position = Vector3.SmoothDamp(camera.transform.position, target, ref cameraVelocity, FollowSmoothTime);
+            }
+
+            if (backdrop != null)
+            {
+                Vector3 position = camera.transform.position;
+                var parallax = new Vector2(
+                    minX < maxX ? Mathf.InverseLerp(minX, maxX, position.x) * 2f - 1f : 0f,
+                    minY < maxY ? Mathf.InverseLerp(minY, maxY, position.y) * 2f - 1f : 0f);
+                backdrop.FitToView(camera, parallax == Vector2.zero ? new Vector2(0.0001f, 0f) : parallax);
+            }
+        }
+
+        // Only the torches nearest the camera keep a real-time light.
+        private void LightNearestTorches(Vector3 centre)
+        {
+            torchFlames.RemoveAll(flame => flame == null);
+            torchFlames.Sort((a, b) =>
+                ((Vector2)(a.transform.position - centre)).sqrMagnitude.CompareTo(((Vector2)(b.transform.position - centre)).sqrMagnitude));
+            for (int i = 0; i < torchFlames.Count; i++)
+            {
+                torchFlames[i].SetLightEnabled(i < MaxTorchLights);
             }
         }
 

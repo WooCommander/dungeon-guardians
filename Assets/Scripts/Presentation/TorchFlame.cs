@@ -86,6 +86,17 @@ namespace DungeonGuardians.Presentation
             return renderer;
         }
 
+        // Long levels have more torches than a phone can light: only those near the camera keep their light.
+        public bool HasLight => flameLight != null;
+
+        public void SetLightEnabled(bool value)
+        {
+            if (flameLight != null)
+            {
+                flameLight.enabled = value;
+            }
+        }
+
         private Transform AddLayer(string name, Color color, float size, float depth)
         {
             var layer = new GameObject(name);

@@ -45,6 +45,8 @@ namespace DungeonGuardians.Presentation
             return lamp;
         }
 
+        public float Level => level;
+
         // 1 = fully lit, 0 = out.
         public void SetLevel(float value)
         {

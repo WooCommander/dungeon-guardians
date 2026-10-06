@@ -136,9 +136,36 @@ namespace DungeonGuardians.Input
                         return i;
                     }
                 }
+
+                // 0 is level 10.
+                if (keyboard.digit0Key.wasPressedThisFrame)
+                {
+                    return 9;
+                }
             }
 #endif
             return -1;
+        }
+
+        // Debug shortcut: Page Down / Page Up step to the next / previous level. Returns +1, -1 or 0.
+        public int ReadLevelStep()
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.pageDownKey.wasPressedThisFrame)
+                {
+                    return 1;
+                }
+
+                if (keyboard.pageUpKey.wasPressedThisFrame)
+                {
+                    return -1;
+                }
+            }
+#endif
+            return 0;
         }
 
         public void Restart() => restartRequested = true;

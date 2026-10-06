@@ -10,10 +10,12 @@ import sys
 from collections import deque
 
 LEVELS = pathlib.Path(__file__).resolve().parent.parent / "Assets" / "Resources" / "Levels"
-KNOWN = set("#BH-EA. ")
+KNOWN = set("#BH-EA. _|")
 SOLID = set("#B")
 # The exit is a doorway: walked past while closed, the level is won by entering it once open.
-PASSABLE = set(".H-AE ")
+# Plates ('_') are floor; gates ('|') are assumed open: whether a guardian can be lured onto the plate in time is a
+# matter for play-testing, not for this check.
+PASSABLE = set(".H-AE _|")
 
 
 def load(path):

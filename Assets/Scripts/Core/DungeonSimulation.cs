@@ -22,7 +22,32 @@ namespace DungeonGuardians.Core
         {
             this.balance = balance;
             State = new RuntimeLevelState(level);
+            if (level.dark && level.lightRepelsGuardians && level.torches != null)
+            {
+                foreach (GridPoint torch in level.torches)
+                {
+                    for (int dx = -TorchLightCells; dx <= TorchLightCells; dx++)
+                    {
+                        for (int dy = -TorchLightCells; dy <= TorchLightCells; dy++)
+                        {
+                            litCells.Add(new GridPoint(torch.x + dx, torch.y + dy));
+                        }
+                    }
+                }
+            }
+
             CollectGold();
+        }
+
+        // Cells around each torch (this many in every direction) that guardians will not step into when the level's
+        // light repels them. Falling into the light cannot be helped.
+        private const int TorchLightCells = 1;
+        private readonly HashSet<GridPoint> litCells = new HashSet<GridPoint>();
+
+        // A cell a guardian refuses to step into because it is lit.
+        public bool IsSafeLight(GridPoint point)
+        {
+            return litCells.Contains(point);
         }
 
         // A life lost but not the level: the explorer starts again from the start cell, the guardians from theirs.
@@ -73,6 +98,7 @@ namespace DungeonGuardians.Core
 
             UpdateHoles();
             UpdateGuardians();
+            UpdateSeals();
             CollectGold();
             CheckExit();
             CheckDefeat();
@@ -277,7 +303,7 @@ namespace DungeonGuardians.Core
             // This is how it drops into a freshly dug hole in its path.
             if (!HasSupport(guardian.Position))
             {
-                return TryMoveGuardian(guardian, GridPoint.Down);
+                return TryMoveGuardian(guardian, GridPoint.Down, true);
             }
 
             // The route is re-planned before every step, a couple of times a second rather than every frame,
@@ -370,7 +396,7 @@ namespace DungeonGuardians.Core
             if (!PlannedSupport(point))
             {
                 // Falling cannot be steered.
-                AddMove(point + GridPoint.Down, ref count);
+                AddMove(point + GridPoint.Down, ref count, false);
                 return count;
             }
 
@@ -390,9 +416,9 @@ namespace DungeonGuardians.Core
             return count;
         }
 
-        private void AddMove(GridPoint point, ref int count)
+        private void AddMove(GridPoint point, ref int count, bool steered = true)
         {
-            if (InBounds(point) && IsPassable(PlannedTile(point)))
+            if (InBounds(point) && IsPassable(PlannedTile(point)) && !(steered && litCells.Contains(point)))
             {
                 searchMoves[count++] = point;
             }
@@ -432,7 +458,8 @@ namespace DungeonGuardians.Core
 
         private static bool IsPassable(TileType tile)
         {
-            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar;
+            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar
+                || tile == TileType.PressurePlate || tile == TileType.GateOpen;
         }
 
         private static int Distance(GridPoint a, GridPoint b)
@@ -440,10 +467,10 @@ namespace DungeonGuardians.Core
             return Math.Abs(a.x - b.x) + Math.Abs(a.y - b.y);
         }
 
-        private bool TryMoveGuardian(GuardianState guardian, GridPoint direction)
+        private bool TryMoveGuardian(GuardianState guardian, GridPoint direction, bool falling = false)
         {
             GridPoint next = guardian.Position + direction;
-            if (!CanOccupy(next))
+            if (!CanOccupy(next) || (!falling && litCells.Contains(next)))
             {
                 return false;
             }
@@ -536,7 +563,8 @@ namespace DungeonGuardians.Core
             }
 
             TileType tile = GetTile(point);
-            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar;
+            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar
+                || tile == TileType.PressurePlate || tile == TileType.GateOpen;
         }
 
         private bool IsActorAt(GridPoint point)
@@ -549,6 +577,72 @@ namespace DungeonGuardians.Core
             foreach (GuardianState guardian in State.Guardians)
             {
                 if (guardian.RespawnTicks <= 0 && guardian.Position.Equals(point))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Ticks the gates of a "hold" level stay open after the plate is released (3 s at 30 Hz): time to run through.
+        private const int GateHoldTicks = 90;
+
+        // Seal trial: plates pressed by a guardian (or by the explorer, if the level allows) open the gates.
+        private void UpdateSeals()
+        {
+            LevelDefinition level = State.Definition;
+            bool pressed = false;
+            foreach (GuardianState guardian in State.Guardians)
+            {
+                pressed |= guardian.RespawnTicks <= 0 && GetTile(guardian.Position) == TileType.PressurePlate;
+            }
+
+            pressed |= level.playerPressesPlates && GetTile(State.PlayerPosition) == TileType.PressurePlate;
+            State.PlatePressed = pressed;
+
+            bool open;
+            if (level.GatesLatch)
+            {
+                open = State.GatesOpen || pressed;
+            }
+            else
+            {
+                State.GateOpenTicks = pressed ? GateHoldTicks : Math.Max(0, State.GateOpenTicks - 1);
+                open = State.GateOpenTicks > 0;
+            }
+
+            if (open == State.GatesOpen)
+            {
+                return;
+            }
+
+            for (int x = 0; x < level.width; x++)
+            {
+                for (int y = 0; y < level.height; y++)
+                {
+                    var cell = new GridPoint(x, y);
+                    TileType tile = State.Tiles[x, y];
+                    if (open && tile == TileType.GateClosed)
+                    {
+                        State.Tiles[x, y] = TileType.GateOpen;
+                    }
+                    else if (!open && tile == TileType.GateOpen && !IsActorAt(cell))
+                    {
+                        // A gate never comes down on someone standing in it; it closes once they have passed.
+                        State.Tiles[x, y] = TileType.GateClosed;
+                    }
+                }
+            }
+
+            State.GatesOpen = open || AnyGateOpen();
+        }
+
+        private bool AnyGateOpen()
+        {
+            foreach (TileType tile in State.Tiles)
+            {
+                if (tile == TileType.GateOpen)
                 {
                     return true;
                 }

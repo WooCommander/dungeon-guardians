@@ -1,4 +1,4 @@
-# Builds Assets/Resources/Levels/level_01..08.json from compact descriptions (platforms, ladders, bars),
+# Builds Assets/Resources/Levels/level_01..14.json from compact descriptions (platforms, ladders, bars),
 # so wide maps stay easy to edit without counting characters. y counts from the bottom, as in the game.
 #   python tools/build_levels.py && python tools/validate_levels.py --map
 import json
@@ -100,7 +100,7 @@ def place_torches(level, start, exit_, gold, guardians):
     return torches
 
 
-def save(number, title, level, start, exit_, gold, guardians=(), altars=()):
+def save(number, title, level, start, exit_, gold, guardians=(), altars=(), **options):
     level.set(exit_[0], exit_[1], "E")
     for x, y in altars:
         level.set(x, y, "A")
@@ -118,6 +118,7 @@ def save(number, title, level, start, exit_, gold, guardians=(), altars=()):
         "guardians": [point(*g) for g in guardians],
         "altars": [point(*a) for a in altars],
         "torches": [point(*t) for t in torches],
+        **options,
     }
     text = json.dumps(data, ensure_ascii=False, indent=2)
     # Keep coordinates on one line, as in hand-written levels.
@@ -342,6 +343,127 @@ def level_8():
          guardians=[(3, 6), (29, 6), (10, 10)], altars=[(5, 10), (27, 10)])
 
 
+# Levels with a following camera (view = "follow"): larger than one screen, shown at the cell size of a 13-row hall.
+
+def level_9():
+    # "Длинная галерея": three screens wide. Rooms are cut off from each other by walls on different tiers, so the
+    # way on alternates between the floor, the middle tier and the top; guardians wait further along.
+    m = Map(99, 13)
+    # Room 1: the middle tier, a wall on the floor and the middle tier at x 25: over the top.
+    m.row(5, 1, 22, "B"); m.row(9, 14, 40, "B")
+    m.column(25, 2, 8, "#")
+    m.ladder(3, 2, 6); m.ladder(19, 2, 6); m.ladder(16, 6, 11)
+    m.ladder(34, 2, 10)                                     # down the far side of the wall
+    # Room 2: the middle tier split by a gap with a rope.
+    m.row(5, 27, 38, "B"); m.row(5, 47, 62, "B")
+    m.bar(6, 39, 46)
+    m.ladder(30, 2, 6); m.ladder(58, 2, 6)
+    # Room 3: a floor wall at x 64 (pass over on the middle tier), a pocket of gold under the middle tier.
+    m.column(64, 2, 4, "#")
+    m.row(5, 63, 80, "B")
+    m.column(68, 2, 4, "#"); m.column(72, 2, 4, "#"); m.row(5, 68, 72, "#"); m.set(70, 5, "B"); m.ladder(70, 2, 4)
+    m.row(9, 52, 76, "B")
+    m.ladder(55, 6, 11); m.ladder(75, 2, 6)
+    # Room 4: an upper wall at x 82 (pass along the floor), the exit on the top tier at the end.
+    m.column(82, 6, 11, "#")
+    m.row(5, 84, 97, "B"); m.row(9, 86, 97, "B")
+    m.ladder(85, 2, 6); m.ladder(90, 6, 10); m.ladder(79, 6, 10)
+    m.bar(11, 17, 33); m.bar(11, 56, 74)                    # ropes under the ceiling
+    m.ladder(37, 10, 11)
+    gold = [(8, 2), (12, 6), (22, 10), (28, 11), (38, 2), (43, 6), (50, 2), (60, 6), (66, 10), (69, 3),
+            (71, 3), (78, 6), (84, 2), (93, 6), (95, 2), (88, 10)]
+    save(9, "Длинная галерея", m, start=(2, 2), exit_=(96, 10), gold=gold,
+         guardians=[(45, 2), (70, 10), (92, 2)], altars=[(52, 2), (87, 2)], view="follow")
+
+
+def level_10():
+    # "Шахта": three screens deep. The explorer starts at the top; every floor has a gap at alternating ends to drop
+    # through and a ladder to climb back for gold that was passed. The exit is at the bottom.
+    m = Map(33, 37)
+    tiers = list(range(33, 4, -4))                          # block rows y = 33, 29, ..., 5
+    for i, y in enumerate(tiers):
+        m.row(y, 1, 31, "B")
+        gap = (26, 28) if i % 2 == 0 else (4, 6)
+        m.row(y, gap[0], gap[1], ".")
+        m.set(gap[0] - 1, y, "#"); m.set(gap[1] + 1, y, "#")  # reinforced lips around the gap
+        ladder = 10 if i % 2 == 0 else 22
+        m.ladder(ladder, y - 3, y + 1)                      # from the tier below up through this floor
+    m.bar(31, 12, 20); m.bar(19, 12, 20)                   # ropes in two of the halls
+    gold = [(16, 34), (29, 30), (3, 30), (14, 26), (27, 22), (8, 18), (16, 19), (24, 14), (5, 10),
+            (18, 6), (28, 2), (12, 2)]
+    save(10, "Шахта", m, start=(4, 34), exit_=(16, 2), gold=gold,
+         guardians=[(20, 22), (8, 10)], altars=[(30, 26), (2, 14)], view="follow")
+
+
+# Dark halls: only the helmet lamp and the torches light the way. Levels 11 and 12 share one map, to compare the two
+# rules: in "Тёмный зал" the light only shows the way; in "Островки света" guardians will not step into torchlight,
+# so the cells around a torch are safe islands to wait in.
+
+def dark_hall(number, title, repel):
+    m = Map(33, 13)
+    m.row(5, 1, 14, "B"); m.row(5, 18, 31, "B")
+    for x in (1, 14, 18, 31):
+        m.set(x, 5, "#")
+    m.row(9, 4, 12, "B"); m.row(9, 20, 28, "B")
+    m.column(16, 6, 9, "#")                                 # a pillar between the halves of the upper tiers
+    m.ladder(3, 2, 6); m.ladder(12, 2, 6); m.ladder(20, 2, 6); m.ladder(29, 2, 6)
+    m.ladder(6, 6, 10); m.ladder(26, 6, 10)
+    m.ladder(10, 6, 11); m.ladder(22, 6, 11)
+    m.bar(11, 11, 21)                                       # over the pillar
+    m.bar(6, 15, 17)                                        # across the middle gap... into the pillar's side
+    gold = [(8, 2), (16, 2), (24, 2), (2, 6), (9, 6), (23, 6), (30, 6), (5, 10), (11, 10), (21, 10), (27, 10),
+            (16, 11)]
+    save(number, title, m, start=(16, 2), exit_=(28, 10), gold=gold,
+         guardians=[(4, 10), (30, 2)], altars=[(2, 2), (25, 6)], dark=True, lightRepelsGuardians=repel)
+
+
+def level_11():
+    dark_hall(11, "Тёмный зал", repel=False)
+
+
+def level_12():
+    dark_hall(12, "Островки света", repel=True)
+
+
+# Seal trials: pressure plates ('_') open gates ('|'). Two rules to compare: in "Испытание печати" only a guardian's
+# weight moves the plate and the gate stays open for good ("latch"); in "Тяжёлая плита" the explorer can press it too,
+# but the gate only stays up while the plate is pressed and a few seconds after ("hold").
+
+def level_13():
+    # The exit waits in a chamber on the top right behind a gate. The plate lies on the middle tier, on the only
+    # way down for the guardian of the top left: lead it there, and the seal breaks.
+    m = Map(33, 13)
+    m.row(5, 1, 14, "B"); m.row(5, 18, 31, "B")
+    m.row(9, 1, 13, "B"); m.row(9, 19, 31, "B")
+    for x in (1, 13, 19, 31):
+        m.set(x, 9, "#")
+    m.column(26, 10, 11, "#"); m.set(26, 10, "|")          # the gate into the exit chamber
+    m.ladder(6, 6, 10)                                      # top left -> middle tier: the guardian comes this way
+    m.ladder(12, 2, 6)                                      # middle tier left -> floor
+    m.ladder(20, 2, 6); m.ladder(29, 2, 6)
+    m.ladder(22, 6, 10)                                     # middle right -> top right, in front of the gate
+    m.set(9, 6, "_")                                        # the plate, between the guardian's two ladders
+    m.bar(6, 15, 17)                                        # rope over the middle gap
+    gold = [(4, 2), (16, 2), (26, 2), (3, 6), (16, 6), (25, 6), (30, 6), (20, 10), (24, 10), (10, 10)]
+    save(13, "Испытание печати", m, start=(24, 2), exit_=(29, 10), gold=gold,
+         guardians=[(3, 10)], altars=[(11, 10)], gateMode="latch", playerPressesPlates=False)
+
+
+def level_14():
+    # A wall splits the hall; its only door is a gate on the floor. The plate is six cells before it: step on it
+    # and run. Gold on both sides, the exit on the far side, a guardian on each side.
+    m = Map(33, 13)
+    m.column(17, 2, 11, "#"); m.set(17, 2, "|")            # the dividing wall and its gate
+    m.row(5, 1, 14, "B"); m.row(5, 20, 31, "B")
+    m.row(9, 4, 16, "B"); m.row(9, 18, 28, "B")
+    m.ladder(3, 2, 6); m.ladder(13, 2, 6); m.ladder(8, 6, 10)
+    m.ladder(21, 2, 6); m.ladder(30, 2, 6); m.ladder(26, 6, 10)
+    m.set(11, 2, "_")                                       # the plate, six cells from the gate
+    gold = [(5, 2), (2, 6), (10, 6), (6, 10), (14, 10), (20, 2), (28, 2), (24, 6), (19, 10), (23, 10)]
+    save(14, "Тяжёлая плита", m, start=(4, 2), exit_=(28, 10), gold=gold,
+         guardians=[(12, 10), (25, 2)], altars=[(15, 10), (31, 6)], gateMode="hold", playerPressesPlates=True)
+
+
 if __name__ == "__main__":
     level_1()
     level_2()
@@ -351,3 +473,9 @@ if __name__ == "__main__":
     level_6()
     level_7()
     level_8()
+    level_9()
+    level_10()
+    level_11()
+    level_12()
+    level_13()
+    level_14()

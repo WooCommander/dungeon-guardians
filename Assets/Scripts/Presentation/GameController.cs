@@ -122,6 +122,12 @@ namespace DungeonGuardians.Presentation
             }
 
             int hotkeyLevel = input.ReadLevelHotkey();
+            int step = input.ReadLevelStep();
+            if (step != 0)
+            {
+                hotkeyLevel = Mathf.Clamp(levelIndex + step, 0, catalog.Levels.Count - 1);
+            }
+
             if (hotkeyLevel >= 0 && hotkeyLevel < catalog.Levels.Count)
             {
                 LoadLevel(hotkeyLevel);

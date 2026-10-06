@@ -16,6 +16,8 @@ namespace DungeonGuardians.Presentation
         private const int ScaffoldOrder = -80;
                 private const int GroundOrder = -70;
 
+        // How much larger than the view the painting is drawn when it drifts behind a level larger than the screen.
+        private const float ParallaxMargin = 0.12f;
         // The painting's teal already matches the concept screen's background; it is kept at full strength so the
         // warm blocks and gold stand out against cool depths, as on the concept.
         private static readonly Color PaintingTint = Color.white;
@@ -83,7 +85,10 @@ namespace DungeonGuardians.Presentation
 
         // The painting fills the whole screen like the concept: the level sits over its upper part, and its rocky
         // bottom shows under the control strip. It covers the view while keeping its proportions.
-        public void FitToView(Camera camera)
+        // The painting covers the camera's view. parallax (-1..1 on each axis) shows where the camera is within a
+        // level larger than the screen: the painting is then drawn a little larger and shifted the other way, so the
+        // distant cavern seems to drift slowly behind the level.
+        public void FitToView(Camera camera, Vector2 parallax = default)
         {
             if (painting == null)
             {
@@ -93,10 +98,12 @@ namespace DungeonGuardians.Presentation
             float viewHeight = camera.orthographicSize * 2f;
             float viewWidth = viewHeight * camera.aspect;
             Vector2 art = painting.sprite.bounds.size;
-            float scale = Mathf.Max(viewWidth / art.x, viewHeight / art.y);
+            float margin = parallax == Vector2.zero ? 0f : ParallaxMargin;
+            float scale = Mathf.Max(viewWidth / art.x, viewHeight / art.y) * (1f + margin);
             painting.transform.localScale = new Vector3(scale, scale, 1f);
             Vector3 position = transform.InverseTransformPoint(camera.transform.position);
-            painting.transform.localPosition = new Vector3(position.x, position.y, FarDepth);
+            Vector2 slack = (art * scale - new Vector2(viewWidth, viewHeight)) * 0.5f;
+            painting.transform.localPosition = new Vector3(position.x - parallax.x * slack.x, position.y - parallax.y * slack.y, FarDepth);
         }
 
         private void Statue(Vector2 center, float scale)

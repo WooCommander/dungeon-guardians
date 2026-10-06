@@ -9,6 +9,10 @@ namespace DungeonGuardians.Core
         Bar,
         ExitClosed,
         ExitOpen,
-        Altar
+        Altar,
+        // Seal trial: a pressure plate in the floor, and the gates it opens.
+        PressurePlate,
+        GateClosed,
+        GateOpen
     }
 }

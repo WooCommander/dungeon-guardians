@@ -25,6 +25,11 @@ namespace DungeonGuardians.Core
         // -1 for left, 1 for right.
         public int PlayerDigDirection;
         public bool ExitOpen;
+        // Seal trial: a plate is pressed this tick; the gates are open.
+        public bool PlatePressed;
+        public bool GatesOpen;
+        // In "hold" mode: ticks the gates stay open after the plate is released.
+        public int GateOpenTicks;
         public bool Won;
         public bool Lost;
         public LossCause LossCause;

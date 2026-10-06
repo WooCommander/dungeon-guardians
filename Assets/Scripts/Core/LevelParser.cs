@@ -64,6 +64,10 @@ namespace DungeonGuardians.Core
                     return TileType.ExitClosed;
                 case 'A':
                     return TileType.Altar;
+                case '_':
+                    return TileType.PressurePlate;
+                case '|':
+                    return TileType.GateClosed;
                 case '.':
                 case ' ':
                     return TileType.Air;
