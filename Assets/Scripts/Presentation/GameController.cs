@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using DungeonGuardians.Core;
 using DungeonGuardians.Input;
@@ -24,6 +25,10 @@ namespace DungeonGuardians.Presentation
         private float accumulator;
         private bool paused;
         private bool lossReported;
+        private bool winReported;
+        private Coroutine victoryDelay;
+        // A short pause on the threshold before the victory panel.
+        private const float VictoryDelay = 0.8f;
         // Catches the explorer survives on one attempt at a level; each leaves a stone statue behind.
         private const int Lives = 3;
         private int livesLeft;
@@ -53,6 +58,7 @@ namespace DungeonGuardians.Presentation
 
             // The game opens on the start screen; "Play" always starts from the first level.
             hud.MenuRequested += ShowMenu;
+            hud.NextRequested += () => LoadLevel(levelIndex + 1);
             menu.Play += () => StartLevel(0);
             menu.SettingsChanged += hud.RefreshControls;
             menu.ResetProgress += ResetProgress;
@@ -73,14 +79,14 @@ namespace DungeonGuardians.Presentation
         }
 
         // The stone explorer stays where it was caught; a new one sets out from the start.
-        private void NextLife()
+        private void NextLife(bool buried)
         {
             if (simulation == null)
             {
                 return;
             }
 
-            levelRenderer.LeaveStatue();
+            levelRenderer.LeaveStatue(!buried);
             lossReported = false;
             hud.ShowMessage(string.Empty);
             simulation.RevivePlayer();
@@ -92,7 +98,9 @@ namespace DungeonGuardians.Presentation
             simulation = null;
             paused = false;
             defeat.Stop();
+            StopVictoryDelay();
             hud.HideDefeat();
+            hud.HideVictory();
             hud.SetPaused(false);
             hud.SetVisible(false);
             menu.Show();
@@ -150,7 +158,12 @@ namespace DungeonGuardians.Presentation
 
                 if (simulation.State.Won)
                 {
-                    CompleteLevel();
+                    if (!winReported)
+                    {
+                        winReported = true;
+                        CompleteLevel();
+                    }
+
                     break;
                 }
 
@@ -162,14 +175,16 @@ namespace DungeonGuardians.Presentation
                         lossReported = true;
                         livesLeft--;
                         hud.SetLives(livesLeft, Lives);
+                        bool buried = simulation.State.LossCause == LossCause.Buried;
                         if (livesLeft > 0)
                         {
                             hud.ShowMessage(livesLeft == 1 ? "Осталась последняя жизнь" : $"Осталось жизней: {livesLeft}");
-                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, NextLife);
+                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, buried, () => NextLife(buried));
                         }
                         else
                         {
-                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, hud.ShowDefeat);
+                            string title = buried ? "Тебя замуровало в камне" : "Хранитель остановил тебя";
+                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, buried, () => hud.ShowDefeat(title));
                         }
                     }
 
@@ -200,6 +215,8 @@ namespace DungeonGuardians.Presentation
             levelIndex = Mathf.Clamp(index, 0, catalog.Levels.Count - 1);
             paused = false;
             lossReported = false;
+            winReported = false;
+            StopVictoryDelay();
             livesLeft = Lives;
             defeat.Stop();
             pendingDigLeft = false;
@@ -213,6 +230,7 @@ namespace DungeonGuardians.Presentation
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
             hud.HideDefeat();
+            hud.HideVictory();
             hud.SetLives(livesLeft, Lives);
             music.SetMood(MusicPlayer.Mood.Game);
             hud.ShowMessage(string.Empty);
@@ -236,11 +254,36 @@ namespace DungeonGuardians.Presentation
             AddUnique(progress.unlockedLevelIds, catalog.Levels[nextIndex].id);
             progress.lastLevelId = catalog.Levels[nextIndex].id;
             progressStore.Save(progress);
-            hud.ShowMessage(levelIndex + 1 >= catalog.Levels.Count ? "Все уровни пройдены" : "Выход открыт");
 
-            if (levelIndex + 1 < catalog.Levels.Count)
+            StopVictoryDelay();
+            victoryDelay = StartCoroutine(ShowVictoryLater());
+        }
+
+        // The explorer steps through the door; a moment later the victory panel. After the last level it closes the
+        // story instead of offering the next one.
+        private IEnumerator ShowVictoryLater()
+        {
+            yield return new WaitForSeconds(VictoryDelay);
+            victoryDelay = null;
+            LevelDefinition level = catalog.Levels[levelIndex];
+            bool hasNext = levelIndex + 1 < catalog.Levels.Count;
+            if (hasNext)
             {
-                LoadLevel(nextIndex);
+                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", true);
+            }
+            else
+            {
+                hud.ShowVictory("Все залы пройдены",
+                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", false);
+            }
+        }
+
+        private void StopVictoryDelay()
+        {
+            if (victoryDelay != null)
+            {
+                StopCoroutine(victoryDelay);
+                victoryDelay = null;
             }
         }
 

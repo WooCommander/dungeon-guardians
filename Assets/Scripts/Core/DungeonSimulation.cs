@@ -30,6 +30,7 @@ namespace DungeonGuardians.Core
         public void RevivePlayer()
         {
             State.Lost = false;
+            State.LossCause = LossCause.None;
             State.PlayerPosition = State.Definition.playerStart;
             State.PlayerDigTicks = 0;
             playerMoveBudget = 1f;
@@ -186,6 +187,7 @@ namespace DungeonGuardians.Core
                 if (State.PlayerPosition.Equals(hole.Position))
                 {
                     State.Lost = true;
+                    State.LossCause = LossCause.Buried;
                 }
 
                 for (int g = 0; g < State.Guardians.Count; g++)
@@ -236,6 +238,13 @@ namespace DungeonGuardians.Core
             {
                 if (guardian.RespawnTicks > 0)
                 {
+                    // Never appear on top of the explorer: while the explorer is within RespawnClearance cells of
+                    // the altar, the guardian waits (TZ section 7); the altar keeps glowing as a warning meanwhile.
+                    if (guardian.RespawnTicks == 1 && IsNearPlayer(FindRespawnPoint(), RespawnClearance))
+                    {
+                        continue;
+                    }
+
                     guardian.RespawnTicks--;
                     if (guardian.RespawnTicks == 0)
                     {
@@ -474,6 +483,7 @@ namespace DungeonGuardians.Core
                 if (guardian.RespawnTicks <= 0 && !guardian.Trapped && guardian.Position.Equals(State.PlayerPosition))
                 {
                     State.Lost = true;
+                    State.LossCause = LossCause.Guardian;
                     return;
                 }
             }
@@ -547,7 +557,8 @@ namespace DungeonGuardians.Core
             return false;
         }
 
-        private GridPoint FindRespawnPoint()
+        // Where a dead guardian will appear next: the first altar nobody stands on.
+        public GridPoint FindRespawnPoint()
         {
             IReadOnlyList<GridPoint> altars = State.Definition.altars;
             if (altars != null)
@@ -564,6 +575,14 @@ namespace DungeonGuardians.Core
             return State.Definition.guardians != null && State.Definition.guardians.Length > 0
                 ? State.Definition.guardians[0]
                 : State.PlayerPosition;
+        }
+
+        // Within this many cells (horizontally and vertically) the explorer holds back a guardian's return.
+        private const int RespawnClearance = 2;
+
+        private bool IsNearPlayer(GridPoint point, int cells)
+        {
+            return Math.Abs(point.x - State.PlayerPosition.x) < cells && Math.Abs(point.y - State.PlayerPosition.y) < cells;
         }
 
         private bool InBounds(GridPoint point)

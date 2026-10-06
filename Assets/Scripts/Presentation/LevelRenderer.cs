@@ -84,10 +84,19 @@ namespace DungeonGuardians.Presentation
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
         // The petrified explorer stays on the level as a statue; the next Render makes a new one at the start.
-        public void LeaveStatue()
+        // A buried explorer is sealed inside the block and leaves nothing to see.
+        public void LeaveStatue(bool keep = true)
         {
             if (player == null)
             {
+                return;
+            }
+
+            if (!keep)
+            {
+                Destroy(player.gameObject);
+                player = null;
+                PlayerLamp = null;
                 return;
             }
 
@@ -111,6 +120,9 @@ namespace DungeonGuardians.Presentation
         private TileType[,] cellTypes;
         private Transform levelRoot;
         private CharacterView player;
+        private AltarWarning altarWarning;
+        // Ticks before a guardian's return during which its altar glows (1.5 s at 30 Hz).
+        private const int RespawnWarningTicks = 45;
         // Explorers caught earlier in this attempt, left standing as stone statues.
         private readonly List<CharacterView> statues = new List<CharacterView>();
         private LevelDefinition currentDefinition;
@@ -128,7 +140,30 @@ namespace DungeonGuardians.Presentation
             RenderTiles(state);
             RenderGold(state);
             RenderActors(simulation);
+            RenderAltarWarning(simulation);
             PositionCamera(state.Definition);
+        }
+
+        // A guardian about to return: its altar glows for the last RespawnWarningTicks of the wait, and for as long
+        // as the explorer stands too close and holds it back.
+        private void RenderAltarWarning(DungeonSimulation simulation)
+        {
+            if (altarWarning == null)
+            {
+                altarWarning = AltarWarning.Create(transform);
+            }
+
+            foreach (GuardianState guardian in simulation.State.Guardians)
+            {
+                if (guardian.RespawnTicks > 0 && guardian.RespawnTicks <= RespawnWarningTicks)
+                {
+                    GridPoint altar = simulation.FindRespawnPoint();
+                    altarWarning.Show(new Vector3(altar.x, altar.y, ActorDepth + 0.3f));
+                    return;
+                }
+            }
+
+            altarWarning.Hide();
         }
 
         private void Update()
@@ -399,7 +434,8 @@ namespace DungeonGuardians.Presentation
 
             if (newRun)
             {
-                // A new attempt: the explorer is flesh again and the lamp burns.
+                // A new attempt: the explorer is flesh again (and visible, if it was buried) and the lamp burns.
+                player.SetVisible(true);
                 player.ClearStone();
                 PlayerLamp.SetLevel(1f);
                 player.SnapNextMove();

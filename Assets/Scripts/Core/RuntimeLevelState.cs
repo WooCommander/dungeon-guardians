@@ -3,6 +3,15 @@ using System.Collections.Generic;
 
 namespace DungeonGuardians.Core
 {
+    public enum LossCause
+    {
+        None,
+        // Touched by an active guardian.
+        Guardian,
+        // A hole closed while the explorer was inside it.
+        Buried
+    }
+
     public sealed class RuntimeLevelState
     {
         public readonly LevelDefinition Definition;
@@ -18,6 +27,7 @@ namespace DungeonGuardians.Core
         public bool ExitOpen;
         public bool Won;
         public bool Lost;
+        public LossCause LossCause;
 
         public RuntimeLevelState(LevelDefinition definition)
         {

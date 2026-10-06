@@ -38,6 +38,11 @@ namespace DungeonGuardians.Presentation
         private RectTransform rightGroup;
         private GameObject pausePanel;
         private GameObject defeatPanel;
+        private Text defeatTitle;
+        private GameObject victoryPanel;
+        private Text victoryTitle;
+        private Text victorySubtitle;
+        private GameObject nextButton;
         private Text levelText;
         private Text goldText;
         private Text livesText;
@@ -61,6 +66,7 @@ namespace DungeonGuardians.Presentation
         private string messageLabel = string.Empty;
 
         public event Action MenuRequested;
+        public event Action NextRequested;
 
         public void Bind(PlayerInputBridge bridge)
         {
@@ -232,14 +238,70 @@ namespace DungeonGuardians.Presentation
 
             BuildPausePanel();
             BuildDefeatPanel();
+            BuildVictoryPanel();
         }
 
-        // After the explorer has turned to stone (DefeatSequence).
-        public void ShowDefeat()
+        private void BuildVictoryPanel()
+        {
+            var overlay = new GameObject("Victory Panel").AddComponent<Image>();
+            overlay.transform.SetParent(canvas.transform, false);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.55f);
+            MenuStyle.Stretch(overlay.rectTransform);
+
+            victoryTitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 60);
+            victoryTitle.color = new Color(1f, 0.85f, 0.42f);
+            victoryTitle.rectTransform.anchorMin = victoryTitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            victoryTitle.rectTransform.sizeDelta = new Vector2(1300f, 100f);
+            victoryTitle.rectTransform.anchoredPosition = new Vector2(0f, 200f);
+
+            victorySubtitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 32);
+            victorySubtitle.color = new Color(1f, 0.92f, 0.78f);
+            victorySubtitle.horizontalOverflow = HorizontalWrapMode.Wrap;
+            victorySubtitle.rectTransform.anchorMin = victorySubtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            victorySubtitle.rectTransform.sizeDelta = new Vector2(1100f, 110f);
+            victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 105f);
+
+            Button next = MenuStyle.CreatePlateButton(overlay.transform, "ДАЛЕЕ", new Vector2(400f, 84f), () => NextRequested?.Invoke());
+            var nextRect = (RectTransform)next.transform;
+            nextRect.anchorMin = nextRect.anchorMax = new Vector2(0.5f, 0.5f);
+            nextRect.anchoredPosition = new Vector2(0f, -10f);
+            nextButton = next.gameObject;
+            AddPauseButton(overlay.transform, "ЕЩЁ РАЗ", -115f, () => input.Restart());
+            AddPauseButton(overlay.transform, "В МЕНЮ", -210f, () => MenuRequested?.Invoke());
+
+            victoryPanel = overlay.gameObject;
+            victoryPanel.SetActive(false);
+        }
+
+        // After the last life is lost (DefeatSequence); the title names what happened.
+        public void ShowDefeat(string title)
         {
             if (defeatPanel != null)
             {
+                defeatTitle.text = title;
                 defeatPanel.SetActive(true);
+            }
+        }
+
+        // The level is won. Without a next level the "next" button is hidden and the subtitle closes the story.
+        public void ShowVictory(string title, string subtitle, bool hasNext)
+        {
+            if (victoryPanel == null)
+            {
+                return;
+            }
+
+            victoryTitle.text = title;
+            victorySubtitle.text = subtitle;
+            nextButton.SetActive(hasNext);
+            victoryPanel.SetActive(true);
+        }
+
+        public void HideVictory()
+        {
+            if (victoryPanel != null)
+            {
+                victoryPanel.SetActive(false);
             }
         }
 
@@ -259,7 +321,8 @@ namespace DungeonGuardians.Presentation
             overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.55f);
             MenuStyle.Stretch(overlay.rectTransform);
 
-            Text title = MenuStyle.AddLabel(overlay.transform, "Хранитель остановил тебя", 56);
+            Text title = MenuStyle.AddLabel(overlay.transform, string.Empty, 56);
+            defeatTitle = title;
             title.color = new Color(1f, 0.8f, 0.4f);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             title.rectTransform.sizeDelta = new Vector2(1200f, 100f);

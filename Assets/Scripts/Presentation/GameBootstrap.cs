@@ -24,6 +24,12 @@ namespace DungeonGuardians.Presentation
         private void Awake()
         {
             Application.targetFrameRate = 60;
+            // Landscape only (TZ section 9), turning with the phone between its two landscape sides.
+            Screen.autorotateToPortrait = false;
+            Screen.autorotateToPortraitUpsideDown = false;
+            Screen.autorotateToLandscapeLeft = true;
+            Screen.autorotateToLandscapeRight = true;
+            Screen.orientation = ScreenOrientation.AutoRotation;
             EnsureCamera();
             EnsureLighting();
 

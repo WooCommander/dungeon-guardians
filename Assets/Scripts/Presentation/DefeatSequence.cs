@@ -20,15 +20,17 @@ namespace DungeonGuardians.Presentation
         private const float LampOut = 1.85f;
         private const float SandAt = 1.75f;
         private const float PanelAt = 2.6f;
+        // Buried: the block slams shut over the explorer, sand spills from it, and the panel follows sooner.
+        private const float BuriedPanelAt = 1.4f;
 
         private AudioSource source;
         private AudioClip thud;
         private Coroutine running;
 
-        public void Play(CharacterView explorer, HeadLamp lamp, Action finished)
+        public void Play(CharacterView explorer, HeadLamp lamp, bool buried, Action finished)
         {
             Stop();
-            running = StartCoroutine(Run(explorer, lamp, finished));
+            running = StartCoroutine(buried ? RunBuried(explorer, finished) : Run(explorer, lamp, finished));
         }
 
         public void Stop()
@@ -76,6 +78,27 @@ namespace DungeonGuardians.Presentation
                     SandBurst.Spawn(explorer.transform.parent, explorer.transform.position, explorer.Height);
                 }
 
+                yield return null;
+            }
+
+            running = null;
+            finished?.Invoke();
+        }
+
+        private IEnumerator RunBuried(CharacterView explorer, Action finished)
+        {
+            if (thud != null)
+            {
+                source.pitch = ThudPitch * 0.85f;
+                source.PlayOneShot(thud, GameSettings.Sound);
+            }
+
+            GameSettings.Vibrate();
+            // The explorer is inside the closed block now; only the sand shows where.
+            SandBurst.Spawn(explorer.transform.parent, explorer.transform.position, explorer.Height);
+            explorer.SetVisible(false);
+            for (float time = 0f; time < BuriedPanelAt; time += Time.deltaTime)
+            {
                 yield return null;
             }
 
