@@ -2,18 +2,27 @@ using UnityEngine;
 
 namespace DungeonGuardians.Presentation
 {
-    // A burning torch flame: two soft teardrop sprites (orange outside, yellow core) that sway and flicker,
-    // plus an optional point light flickering in step. Purely decorative; it never affects gameplay.
+    // A burning torch flame: two soft teardrop sprites (orange outside, yellow core) that sway and flicker, a warm pool
+    // of light on the wall around it and a bright glow round the fire, plus an optional point light that lights the
+    // stone nearby. All flicker in step. Purely decorative; it never affects gameplay.
     public sealed class TorchFlame : MonoBehaviour
     {
         private const float FlickerSpeed = 6f;
         private const float SwaySpeed = 2.3f;
+        // Light pool on the wall, in cells and relative to the flame size; it sits just behind the torch holder,
+        // so the blocks in front hide it where they are.
+        private const float PoolSize = 7.5f;
+        private const float GlowSize = 2.4f;
+        private static readonly Color PoolColor = new Color(1f, 0.58f, 0.22f, 0.3f);
+        private static readonly Color GlowColor = new Color(1f, 0.78f, 0.4f, 0.55f);
 
         private static Sprite flameSprite;
 
         private Transform outer;
         private Transform core;
         private Light flameLight;
+        private SpriteRenderer pool;
+        private SpriteRenderer glow;
         private float baseIntensity;
         private float seed;
 
@@ -27,6 +36,8 @@ namespace DungeonGuardians.Presentation
             flame.seed = Random.Range(0f, 100f);
             flame.outer = flame.AddLayer("Outer", new Color(1f, 0.45f, 0.08f, 0.85f), size, 0f);
             flame.core = flame.AddLayer("Core", new Color(1f, 0.88f, 0.45f, 0.95f), size * 0.55f, -0.01f);
+            flame.pool = flame.AddHalo("Light Pool", size * PoolSize, 0.08f);
+            flame.glow = flame.AddHalo("Glow", size * GlowSize, 0.02f);
 
             if (withLight)
             {
@@ -37,8 +48,8 @@ namespace DungeonGuardians.Presentation
                 flame.flameLight = lightObject.AddComponent<Light>();
                 flame.flameLight.type = LightType.Point;
                 flame.flameLight.color = new Color(1f, 0.62f, 0.3f);
-                flame.flameLight.range = 3.5f;
-                flame.flameLight.intensity = flame.baseIntensity = 1.4f;
+                flame.flameLight.range = 4.5f;
+                flame.flameLight.intensity = flame.baseIntensity = 2f;
             }
 
             return flame;
@@ -55,10 +66,24 @@ namespace DungeonGuardians.Presentation
             core.localScale = new Vector3(1f, 0.8f + 0.4f * Mathf.PerlinNoise(seed + 11f, time * FlickerSpeed * 1.3f), 1f);
             core.localRotation = Quaternion.Euler(0f, 0f, sway * 5f);
 
+            pool.color = new Color(PoolColor.r, PoolColor.g, PoolColor.b, PoolColor.a * (0.75f + 0.35f * flicker));
+            glow.color = new Color(GlowColor.r, GlowColor.g, GlowColor.b, GlowColor.a * (0.7f + 0.4f * flicker));
             if (flameLight != null)
             {
                 flameLight.intensity = baseIntensity * (0.75f + 0.5f * flicker);
             }
+        }
+
+        // A soft round glow centred a little above the flame's base, where the fire is widest.
+        private SpriteRenderer AddHalo(string name, float size, float depth)
+        {
+            var halo = new GameObject(name);
+            halo.transform.SetParent(transform, false);
+            halo.transform.localPosition = new Vector3(0f, size * 0.04f, depth);
+            halo.transform.localScale = Vector3.one * size;
+            var renderer = halo.AddComponent<SpriteRenderer>();
+            renderer.sprite = ExitGlow.GetHaloSprite();
+            return renderer;
         }
 
         private Transform AddLayer(string name, Color color, float size, float depth)

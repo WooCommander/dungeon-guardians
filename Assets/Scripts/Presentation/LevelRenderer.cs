@@ -21,12 +21,25 @@ namespace DungeonGuardians.Presentation
         private const float LadderDepth = 0.1f;
         // Bars hang near the top of the cell, at hand height of a hanging character.
         private const float BarHeight = 0.38f;
+        // The painted rope (tools/cutout_props.py): two seamless twisted pieces per cell, a wall bracket with the rope
+        // wound round it at each end of a bar. The bracket is drawn at the rope's scale (121 x 80 px against the
+        // rope's 38 px thickness) with the rope 61 px below its top, so the rope runs straight into the wrap.
+        private const float RopeThickness = 0.17f;
+        private const float RopeDepth = 0.02f;
+        private const float RopeBracketHeight = RopeThickness * 121f / 38f;
+        private const float RopeBracketCentre = (121f - 61f) / 121f;
+        private const float RopeBracketWidth = RopeBracketHeight * 80f / 121f;
+        // How far the bracket's inner edge reaches into the bar's end cell.
+        private const float RopeBracketInset = 0.1f;
         // The door model is about 1.5 x 1.9; shrink it to roughly one cell wide.
         private const float DoorScale = 0.62f;
         private const float DoorDepth = 0.25f;
+        // The painted door from the concept (tools/cut_door.py), standing on the exit cell's floor and rising above
+        // it like the concept's tall arched door.
+        private const float DoorHeight = 1.7f;
         // The scaled door is about 0.95 x 1.2 cells; the glow is centred on it and spills well past its edges.
-        private const float ExitGlowHeight = 0.6f;
-        private const float ExitGlowSize = 2.4f;
+        private const float ExitGlowHeight = 0.85f;
+        private const float ExitGlowSize = 3f;
         // Fallback 3D models (Tripo, ArtSource/Environment/import_tripo_prop.py) are already exported at cell size.
         private const float GoldScale = 1f;
         // Painted props (tools/cutout_props.py), sized in cells.
@@ -57,6 +70,8 @@ namespace DungeonGuardians.Presentation
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
+        // The map being drawn, for cells whose look depends on their neighbours (the ends of a rope).
+        private TileType[,] currentTiles;
         private readonly Dictionary<GridPoint, float> goldRestY = new Dictionary<GridPoint, float>();
         private readonly Dictionary<GridPoint, SpriteRenderer> goldHalos = new Dictionary<GridPoint, SpriteRenderer>();
         private readonly List<CharacterView> guardians = new List<CharacterView>();
@@ -150,6 +165,7 @@ namespace DungeonGuardians.Presentation
 
         private void RenderTiles(RuntimeLevelState state)
         {
+            currentTiles = state.Tiles;
             for (int y = 0; y < state.Definition.height; y++)
             {
                 for (int x = 0; x < state.Definition.width; x++)
@@ -206,13 +222,25 @@ namespace DungeonGuardians.Presentation
 
                     break;
                 case TileType.Bar:
-                    SpawnLocal("rope_section", parent, new Vector3(0f, 0.5f + BarHeight, 0f), 1f, new Color(0.7f, 0.55f, 0.3f));
+                    if (!BuildRope(parent, x, y))
+                    {
+                        SpawnLocal("rope_section", parent, new Vector3(0f, 0.5f + BarHeight, 0f), 1f, new Color(0.7f, 0.55f, 0.3f));
+                    }
+
                     break;
                 case TileType.ExitClosed:
-                    SpawnLocal("door_closed", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.35f, 0.22f, 0.12f));
+                    if (SpawnSprite("door_closed", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight) == null)
+                    {
+                        SpawnLocal("door_closed", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.35f, 0.22f, 0.12f));
+                    }
+
                     break;
                 case TileType.ExitOpen:
-                    SpawnLocal("door_open", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.18f, 0.82f, 0.75f));
+                    if (SpawnSprite("door_open", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight) == null)
+                    {
+                        SpawnLocal("door_open", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.18f, 0.82f, 0.75f));
+                    }
+
                     // All gold is collected: the door glows. The halo sits behind the door, centred on its middle.
                     ExitGlow.Create(parent, new Vector3(0f, ExitGlowHeight, DoorDepth + 0.15f), ExitGlowSize);
                     break;
@@ -399,6 +427,39 @@ namespace DungeonGuardians.Presentation
                     }
                 }
             }
+        }
+
+        // The rope across a bar cell, with a wall bracket where the bar ends on either side.
+        private bool BuildRope(Transform parent, int x, int y)
+        {
+            float centre = 0.5f + BarHeight;
+            float bottom = centre - RopeThickness * 0.5f;
+            // Slightly wider than half a cell, so neighbouring pieces overlap instead of leaving a hairline gap.
+            if (SpawnSprite("rope", parent, new Vector3(-0.25f, bottom, RopeDepth), 0.505f, RopeThickness) == null)
+            {
+                return false;
+            }
+
+            SpawnSprite("rope", parent, new Vector3(0.25f, bottom, RopeDepth), 0.505f, RopeThickness);
+            float bracketBottom = centre - RopeBracketHeight * RopeBracketCentre;
+            foreach (int side in new[] { -1, 1 })
+            {
+                int neighbour = x + side;
+                if (neighbour >= 0 && neighbour < currentTiles.GetLength(0) && currentTiles[neighbour, y] == TileType.Bar)
+                {
+                    continue;
+                }
+
+                float bracketX = side * (0.5f - RopeBracketInset + RopeBracketWidth * 0.5f);
+                GameObject bracket = SpawnSprite("rope_bracket", parent, new Vector3(bracketX, bracketBottom, RopeDepth + 0.01f), 0f, RopeBracketHeight);
+                if (bracket != null)
+                {
+                    // The cut-out is the left bracket; the right end of a bar mirrors it.
+                    bracket.GetComponent<SpriteRenderer>().flipX = side > 0;
+                }
+            }
+
+            return true;
         }
 
         // A painted cut-out from Resources/Sprites standing on bottomCenter. Give the width or the height (0 keeps the

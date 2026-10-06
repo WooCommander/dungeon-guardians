@@ -16,6 +16,8 @@ namespace DungeonGuardians.Presentation
         private const int ScaffoldOrder = -80;
                 private const int GroundOrder = -70;
 
+        // The painting is dimmed so the gold, the torch flames and their glow stand out against it.
+        private static readonly Color PaintingTint = new Color(0.68f, 0.68f, 0.72f);
         private static readonly Color FarColor = new Color(0.07f, 0.21f, 0.24f);
         private static readonly Color StatueColor = new Color(0.09f, 0.25f, 0.28f);
         private static readonly Color ScaffoldColor = new Color(0.035f, 0.11f, 0.13f);
@@ -51,7 +53,7 @@ namespace DungeonGuardians.Presentation
             if (art != null)
             {
                 // Sized to the screen by FitToView once the camera is placed.
-                backdrop.painting = backdrop.Quad("Painting", art, Vector2.zero, art.bounds.size, Color.white, FarDepth, FarOrder);
+                backdrop.painting = backdrop.Quad("Painting", art, Vector2.zero, art.bounds.size, PaintingTint, FarDepth, FarOrder);
                 return backdrop;
             }
 

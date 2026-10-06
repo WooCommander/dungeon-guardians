@@ -18,7 +18,7 @@ def is_background(pixel):
     return max(r, g, b) - min(r, g, b) < 22 and 110 < (r + g + b) / 3 < 245
 
 
-def cut_out(name, enclosed_gaps=False, saturated=False):
+def cut_out(name, enclosed_gaps=False, saturated=False, crop=True):
     image = Image.open(SOURCE / f"{name}_front.png").convert("RGBA")
     width, height = image.size
     pixels = image.load()
@@ -27,7 +27,7 @@ def cut_out(name, enclosed_gaps=False, saturated=False):
     # Props with holes framed on all sides (the ladder) clear every background-coloured pixel instead.
     if enclosed_gaps:
         background = {(x, y) for x in range(width) for y in range(height) if is_background(pixels[x, y])}
-        return finish(image, background, saturated)
+        return finish(image, background, saturated, crop)
     background = set()
     queue = deque((x, y) for x in range(width) for y in (0, height - 1))
     queue.extend((x, y) for y in range(height) for x in (0, width - 1))
@@ -37,10 +37,10 @@ def cut_out(name, enclosed_gaps=False, saturated=False):
             continue
         background.add((x, y))
         queue.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
-    return finish(image, background, saturated)
+    return finish(image, background, saturated, crop)
 
 
-def finish(image, background, saturated):
+def finish(image, background, saturated, crop=True):
     alpha = Image.new("L", image.size, 255)
     alpha_pixels = alpha.load()
     for x, y in background:
@@ -58,7 +58,7 @@ def finish(image, background, saturated):
     # Shrink by a pixel to drop the grey fringe, then soften the edge.
     alpha = alpha.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
     image.putalpha(alpha)
-    return image.crop(image.getbbox())
+    return image.crop(image.getbbox()) if crop else image
 
 
 def ladder_tile(image):
@@ -99,6 +99,38 @@ def torch_holder(image):
     return holder
 
 
+# The rope reference: a twisted rope between two wall brackets. Its twist repeats every ~28 px.
+ROPE_BAND = (86, 124)
+ROPE_START = 140
+ROPE_TWISTS = 4
+ROPE_TWIST = 28
+ROPE_BLEND = 14
+ROPE_BRACKET = (44, 44, 124, 165)
+
+
+def rope_tile(image):
+    # A run of whole twists from the free middle of the rope; its end is cross-faded into its start so tiles laid
+    # side by side continue the twist without a seam.
+    length = ROPE_TWISTS * ROPE_TWIST
+    top, bottom = ROPE_BAND
+    piece = image.crop((ROPE_START, top, ROPE_START + length + ROPE_BLEND, bottom))
+    tile = piece.crop((0, 0, length, piece.height))
+    tail = piece.crop((length, 0, length + ROPE_BLEND, piece.height))
+    head = tile.crop((0, 0, ROPE_BLEND, piece.height))
+    mask = Image.linear_gradient("L").rotate(90, expand=True).resize((ROPE_BLEND, piece.height))
+    tile.paste(Image.composite(head, tail, mask), (0, 0))
+    print(f"rope: tile {tile.size}")
+    return tile
+
+
+def rope_bracket(image):
+    # The left wall bracket with the rope wrapped round it, cut where the free rope begins; the right end of a bar
+    # uses it mirrored. Same scale as the rope tile, so the rope runs straight into the wrap.
+    bracket = image.crop(ROPE_BRACKET)
+    print(f"rope bracket: {bracket.size}, rope centre at {(ROPE_BAND[0] + ROPE_BAND[1]) / 2 - ROPE_BRACKET[1]:.0f}px")
+    return bracket
+
+
 def brighten_gold(image):
     # The concept's gold is a bright, warm yellow that reads at a glance; the studio render is darker and browner.
     alpha = image.getchannel("A")
@@ -121,6 +153,10 @@ def main():
     print(f"gold: {gold.size}")
     ladder_tile(cut_out("ladder", enclosed_gaps=True)).save(TARGET / "ladder.png")
     torch_holder(cut_out("torch")).save(TARGET / "torch.png")
+    # Uncropped, so the rope is cut by the reference's own pixel coordinates.
+    rope = cut_out("rope", crop=False)
+    rope_tile(rope).save(TARGET / "rope.png")
+    rope_bracket(rope).save(TARGET / "rope_bracket.png")
 
 
 main()

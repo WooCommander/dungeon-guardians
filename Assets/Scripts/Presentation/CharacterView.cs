@@ -21,6 +21,9 @@ namespace DungeonGuardians.Presentation
         // Models face +Z; the camera looks along +Z, so yaw 0 shows the back and 180 the front.
         private const float SideYaw = 125f;
         private const float BackYaw = 0f;
+        private const float FrontYaw = 180f;
+        // Standing still this long on the ground, a character turns to face the player.
+        private const float FaceFrontDelay = 0.25f;
         private const float TurnSpeed = 900f;
         private const float CrossFade = 0.12f;
         // Keeps Walk playing through the short pauses between cell steps.
@@ -35,6 +38,8 @@ namespace DungeonGuardians.Presentation
         private bool snapNext = true;
         private float lastMoveTime = -1f;
         private int facing = 1;
+        // A ladder cell is only climbed after an up or down move; walking through one keeps the walking look.
+        private bool climbing;
         private CharacterPose pose;
         private string currentClip;
 
@@ -53,9 +58,18 @@ namespace DungeonGuardians.Presentation
         // position is the bottom centre of the occupied cell.
         public void SetTarget(Vector3 position)
         {
-            if (!snapNext && Mathf.Abs(position.x - target.x) > 0.01f)
+            if (snapNext)
+            {
+                climbing = false;
+            }
+            else if (Mathf.Abs(position.x - target.x) > 0.01f)
             {
                 facing = position.x > target.x ? 1 : -1;
+                climbing = false;
+            }
+            else if (Mathf.Abs(position.y - target.y) > 0.01f)
+            {
+                climbing = true;
             }
 
             target = position;
@@ -115,25 +129,35 @@ namespace DungeonGuardians.Presentation
             }
 
             bool moving = Time.time - lastMoveTime < MoveGrace;
-            UpdateFacing();
-            UpdateAnimation(moving);
+            CharacterPose shown = pose == CharacterPose.Ladder && !climbing ? CharacterPose.Ground : pose;
+            UpdateFacing(shown);
+            UpdateAnimation(shown, moving);
         }
 
-        private void UpdateFacing()
+        private void UpdateFacing(CharacterPose shown)
         {
-            float yaw = pose == CharacterPose.Ladder ? BackYaw : SideYaw * facing;
+            float yaw = SideYaw * facing;
+            if (shown == CharacterPose.Ladder)
+            {
+                yaw = BackYaw;
+            }
+            else if (shown == CharacterPose.Ground && Time.time - lastMoveTime > FaceFrontDelay)
+            {
+                yaw = FrontYaw;
+            }
+
             Quaternion wanted = Quaternion.Euler(0f, yaw, 0f);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, wanted, TurnSpeed * Time.deltaTime);
         }
 
-        private void UpdateAnimation(bool moving)
+        private void UpdateAnimation(CharacterPose shown, bool moving)
         {
             if (animationPlayer == null)
             {
                 return;
             }
 
-            switch (pose)
+            switch (shown)
             {
                 case CharacterPose.Ground:
                     Play(moving ? "Walk" : "Idle", moving ? walkPlayback : 1f);

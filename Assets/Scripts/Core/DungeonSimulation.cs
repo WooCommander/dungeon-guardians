@@ -72,7 +72,13 @@ namespace DungeonGuardians.Core
             {
                 direction = GridPoint.Down;
             }
-            // On a ladder vertical input wins when the move is possible; elsewhere horizontal wins.
+            // Walking past a ladder never climbs it: while left or right is held and that way is open, the player
+            // walks on, even if a diagonal on the d-pad also reports up or down. Climbing takes up or down alone, or
+            // a sideways push against a wall.
+            else if (wantsHorizontal && CanOccupy(State.PlayerPosition + horizontal))
+            {
+                direction = horizontal;
+            }
             else if (onLadder && wantsUp && CanOccupy(State.PlayerPosition + GridPoint.Up))
             {
                 direction = GridPoint.Up;
