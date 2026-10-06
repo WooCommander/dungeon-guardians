@@ -11,6 +11,7 @@ namespace DungeonGuardians.Presentation
         private PlayerInputBridge input;
         private LevelRenderer levelRenderer;
         private GameHud hud;
+        private GameMenu menu;
         private BalanceConfig balance;
         private ProgressStore progressStore;
         private PlayerProgress progress;
@@ -23,11 +24,12 @@ namespace DungeonGuardians.Presentation
         private bool pendingDigLeft;
         private bool pendingDigRight;
 
-        public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, BalanceConfig balance, ProgressStore progressStore)
+        public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, GameMenu menu, BalanceConfig balance, ProgressStore progressStore)
         {
             this.input = input;
             this.levelRenderer = levelRenderer;
             this.hud = hud;
+            this.menu = menu;
             this.balance = balance;
             this.progressStore = progressStore;
             progress = progressStore.Load();
@@ -39,8 +41,40 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            levelIndex = FindLevelIndex(progress.lastLevelId);
-            LoadLevel(levelIndex);
+            // The game opens on the start screen. "Play" continues from the last level reached.
+            hud.MenuRequested += ShowMenu;
+            menu.Play += () => StartLevel(FindLevelIndex(progress.lastLevelId));
+            menu.PlayLevel += StartLevel;
+            menu.SettingsChanged += hud.RefreshControls;
+            menu.Initialize(catalog.Levels.Count, IsUnlocked, IsCompleted);
+        }
+
+        private void StartLevel(int index)
+        {
+            menu.Hide();
+            hud.SetVisible(true);
+            LoadLevel(index);
+        }
+
+        private void ShowMenu()
+        {
+            // The level stops; it stays built behind the opaque start screen until the next one replaces it.
+            simulation = null;
+            paused = false;
+            hud.SetPaused(false);
+            hud.SetVisible(false);
+            menu.Show();
+        }
+
+        private bool IsUnlocked(int index)
+        {
+            string id = catalog.Levels[index].id;
+            return index == 0 || progress.unlockedLevelIds.Contains(id) || progress.completedLevelIds.Contains(id) || progress.lastLevelId == id;
+        }
+
+        private bool IsCompleted(int index)
+        {
+            return progress.completedLevelIds.Contains(catalog.Levels[index].id);
         }
 
         private void Update()
@@ -131,6 +165,7 @@ namespace DungeonGuardians.Presentation
             simulation = new DungeonSimulation(catalog.Levels[levelIndex], balance);
             simulation.StateChanged += Render;
             hud.Bind(input);
+            hud.RefreshControls();
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
             hud.ShowMessage(string.Empty);

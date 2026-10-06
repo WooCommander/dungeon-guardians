@@ -1,7 +1,6 @@
+using System;
 using DungeonGuardians.Input;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace DungeonGuardians.Presentation
@@ -11,6 +10,9 @@ namespace DungeonGuardians.Presentation
         // Share of the screen height taken by the control strip at the bottom. The camera keeps the level above it,
         // so the d-pad and dig buttons never cover a walkable cell (TZ section 3).
         public const float ControlStripHeight = 0.262f;
+
+        // Share of the screen height the level must leave free at the bottom: none when the touch controls are hidden.
+        public static float BottomReserve => TouchControls.Visible ? ControlStripHeight : 0f;
 
         // The control strip copies the concept screen (image.png, 1672 x 941): its sprites come from tools/cut_ui.py
         // and are placed at the concept's pixel positions, converted to the 900-unit-high canvas.
@@ -28,6 +30,9 @@ namespace DungeonGuardians.Presentation
         private static Font UiFont => uiFont != null ? uiFont : uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         private Canvas canvas;
+        // The d-pad, the dig buttons and the strip behind them, shown or hidden together (TouchControls).
+        private GameObject controlsRoot;
+        private GameObject pausePanel;
         private Text levelText;
         private Text goldText;
         private Text exitText;
@@ -43,6 +48,8 @@ namespace DungeonGuardians.Presentation
         private static Sprite softCircle;
         private PlayerInputBridge input;
         private string messageLabel = string.Empty;
+
+        public event Action MenuRequested;
 
         public void Bind(PlayerInputBridge bridge)
         {
@@ -69,8 +76,30 @@ namespace DungeonGuardians.Presentation
             exitText.color = open ? new Color(0.42f, 1f, 0.82f) : new Color(1f, 0.74f, 0.28f);
         }
 
+        public void SetVisible(bool visible)
+        {
+            if (canvas != null)
+            {
+                canvas.gameObject.SetActive(visible);
+            }
+        }
+
+        public void RefreshControls()
+        {
+            if (controlsRoot != null)
+            {
+                controlsRoot.SetActive(TouchControls.Visible);
+            }
+        }
+
         public void SetPaused(bool paused)
         {
+            if (pausePanel != null)
+            {
+                pausePanel.SetActive(paused);
+                return;
+            }
+
             if (paused)
             {
                 ShowMessage("PAUSE");
@@ -118,18 +147,10 @@ namespace DungeonGuardians.Presentation
 
         private void Build()
         {
-            EnsureEventSystem();
 
-            var canvasObject = new GameObject("HUD");
-            canvasObject.transform.SetParent(transform, false);
-            canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            // Landscape phones vary mostly in width, so scale by height to keep the controls the same physical size.
-            scaler.referenceResolution = new Vector2(1600f, 900f);
-            scaler.matchWidthOrHeight = 1f;
-            canvasObject.AddComponent<GraphicRaycaster>();
+            // Landscape phones vary mostly in width, so the canvas scales by height to keep the controls the same
+            // physical size.
+            canvas = MenuStyle.CreateCanvas("HUD", transform, 0);
 
             levelText = AddText("Level", new Vector2(24f, -24f), TextAnchor.UpperLeft);
             goldText = AddText("Gold", new Vector2(0f, -24f), TextAnchor.UpperCenter);
@@ -140,11 +161,16 @@ namespace DungeonGuardians.Presentation
             conceptTopBar = BuildConceptTopBar();
 
             // Touch controls are read by PlayerInputBridge per pointer, not through uGUI events.
+            controlsRoot = new GameObject("Touch Controls", typeof(RectTransform));
+            controlsRoot.transform.SetParent(canvas.transform, false);
+            MenuStyle.Stretch((RectTransform)controlsRoot.transform);
             conceptControls = BuildConceptControls();
             if (!conceptControls)
             {
                 BuildPlainControls();
             }
+
+            RefreshControls();
 
             if (!conceptTopBar)
             {
@@ -152,6 +178,38 @@ namespace DungeonGuardians.Presentation
                 pause.raycastTarget = true;
                 pause.gameObject.AddComponent<Button>().onClick.AddListener(() => input.TogglePause());
             }
+
+            BuildPausePanel();
+        }
+
+        // Over the frozen level: continue, start the level again or go back to the start screen.
+        private void BuildPausePanel()
+        {
+            var overlay = new GameObject("Pause Panel").AddComponent<Image>();
+            overlay.transform.SetParent(canvas.transform, false);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.7f);
+            MenuStyle.Stretch(overlay.rectTransform);
+
+            Text title = MenuStyle.AddLabel(overlay.transform, "ПАУЗА", 54);
+            title.color = new Color(1f, 0.8f, 0.4f);
+            title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            title.rectTransform.sizeDelta = new Vector2(600f, 90f);
+            title.rectTransform.anchoredPosition = new Vector2(0f, 190f);
+
+            AddPauseButton(overlay.transform, "ПРОДОЛЖИТЬ", 70f, () => input.TogglePause());
+            AddPauseButton(overlay.transform, "ЗАНОВО", -30f, () => input.Restart());
+            AddPauseButton(overlay.transform, "В МЕНЮ", -130f, () => MenuRequested?.Invoke());
+
+            pausePanel = overlay.gameObject;
+            pausePanel.SetActive(false);
+        }
+
+        private static void AddPauseButton(Transform parent, string label, float y, Action onClick)
+        {
+            Button button = MenuStyle.CreatePlateButton(parent, label, new Vector2(360f, 76f), onClick);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(0f, y);
         }
 
         // The concept's top bar: "УРОВЕНЬ 03" on a dark plate at the top left, the gold counter with a bar icon in the
@@ -210,7 +268,7 @@ namespace DungeonGuardians.Presentation
             }
 
             var strip = new GameObject("Control Strip").AddComponent<Image>();
-            strip.transform.SetParent(canvas.transform, false);
+            strip.transform.SetParent(controlsRoot.transform, false);
             strip.color = StripColor;
             strip.raycastTarget = false;
             strip.rectTransform.anchorMin = Vector2.zero;
@@ -219,14 +277,14 @@ namespace DungeonGuardians.Presentation
             strip.rectTransform.sizeDelta = new Vector2(0f, 900f * ControlStripHeight);
 
             // Positions are the concept's pixel centres measured from the bottom-left or bottom-right corner.
-            Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f));
+            Image dpad = AddSprite("DPad", dpadSprite, TextAnchor.LowerLeft, new Vector2(180f, 941f - 806f), controlsRoot.transform);
             upArrow = AddGlow("Up", dpad.transform, new Vector2(0f, 69f));
             downArrow = AddGlow("Down", dpad.transform, new Vector2(0f, -69f));
             leftArrow = AddGlow("Left", dpad.transform, new Vector2(-73f, 0f));
             rightArrow = AddGlow("Right", dpad.transform, new Vector2(75f, 0f));
 
-            digLeftButton = AddSprite("DigLeft", digLeftSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1332f), 941f - 792f));
-            digRightButton = AddSprite("DigRight", digRightSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1525f), 941f - 792f));
+            digLeftButton = AddSprite("DigLeft", digLeftSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1332f), 941f - 792f), controlsRoot.transform);
+            digRightButton = AddSprite("DigRight", digRightSprite, TextAnchor.LowerRight, new Vector2(-(1672f - 1525f), 941f - 792f), controlsRoot.transform);
             AddCaption("UI/label_dig_left", new Vector2(-(1672f - 1333f), 941f - 887f));
             AddCaption("UI/label_dig_right", new Vector2(-(1672f - 1527f), 941f - 887f));
 
@@ -235,10 +293,10 @@ namespace DungeonGuardians.Presentation
         }
 
         // Concept pixel position (centre) and native size become canvas units.
-        private Image AddSprite(string name, Sprite sprite, TextAnchor anchor, Vector2 conceptPosition)
+        private Image AddSprite(string name, Sprite sprite, TextAnchor anchor, Vector2 conceptPosition, Transform parent = null)
         {
             var image = new GameObject(name).AddComponent<Image>();
-            image.transform.SetParent(canvas.transform, false);
+            image.transform.SetParent(parent != null ? parent : canvas.transform, false);
             image.sprite = sprite;
             image.raycastTarget = false;
             RectTransform rect = image.rectTransform;
@@ -253,7 +311,7 @@ namespace DungeonGuardians.Presentation
             Sprite sprite = Resources.Load<Sprite>(path);
             if (sprite != null)
             {
-                AddSprite(sprite.name, sprite, TextAnchor.LowerRight, conceptPosition);
+                AddSprite(sprite.name, sprite, TextAnchor.LowerRight, conceptPosition, controlsRoot.transform);
             }
         }
 
@@ -308,15 +366,15 @@ namespace DungeonGuardians.Presentation
         // Plain stand-in controls, used when the concept sprites are missing.
         private void BuildPlainControls()
         {
-            Image dpad = AddPanel("DPad", canvas.transform, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
+            Image dpad = AddPanel("DPad", controlsRoot.transform, TextAnchor.LowerLeft, new Vector2(150f, 121f), new Vector2(232f, 232f), string.Empty);
             dpad.color = DPadBackColor;
             upArrow = AddPanel("Up", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, 78f), new Vector2(76f, 76f), "^");
             downArrow = AddPanel("Down", dpad.transform, TextAnchor.MiddleCenter, new Vector2(0f, -78f), new Vector2(76f, 76f), "v");
             leftArrow = AddPanel("Left", dpad.transform, TextAnchor.MiddleCenter, new Vector2(-78f, 0f), new Vector2(76f, 76f), "<");
             rightArrow = AddPanel("Right", dpad.transform, TextAnchor.MiddleCenter, new Vector2(78f, 0f), new Vector2(76f, 76f), ">");
 
-            digLeftButton = AddPanel("DigLeft", canvas.transform, TextAnchor.LowerRight, new Vector2(-280f, 112f), new Vector2(150f, 150f), "DIG L");
-            digRightButton = AddPanel("DigRight", canvas.transform, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
+            digLeftButton = AddPanel("DigLeft", controlsRoot.transform, TextAnchor.LowerRight, new Vector2(-280f, 112f), new Vector2(150f, 150f), "DIG L");
+            digRightButton = AddPanel("DigRight", controlsRoot.transform, TextAnchor.LowerRight, new Vector2(-105f, 112f), new Vector2(150f, 150f), "DIG R");
 
             input.BindTouchAreas(dpad.rectTransform, digLeftButton.rectTransform, digRightButton.rectTransform);
         }
@@ -403,18 +461,6 @@ namespace DungeonGuardians.Presentation
                 default:
                     return new Vector2(0.5f, 0.5f);
             }
-        }
-
-        private static void EnsureEventSystem()
-        {
-            if (FindObjectOfType<EventSystem>() != null)
-            {
-                return;
-            }
-
-            var eventSystem = new GameObject("EventSystem");
-            eventSystem.AddComponent<EventSystem>();
-            eventSystem.AddComponent<InputSystemUIInputModule>();
         }
     }
 }

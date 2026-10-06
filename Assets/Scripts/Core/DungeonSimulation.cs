@@ -9,6 +9,11 @@ namespace DungeonGuardians.Core
         // Accumulates speed per tick; the player steps one cell each time it reaches 1. Starts full so the first step is immediate.
         private float playerMoveBudget = 1f;
 
+        // Reused buffers for the guardians' route search.
+        private readonly Queue<int> searchQueue = new Queue<int>();
+        private readonly GridPoint[] searchMoves = new GridPoint[4];
+        private int[] searchPrevious;
+
         public RuntimeLevelState State { get; private set; }
         public BalanceConfig Balance => balance;
         public event Action StateChanged;
@@ -232,19 +237,171 @@ namespace DungeonGuardians.Core
 
         private bool StepGuardian(GuardianState guardian)
         {
-            if (GetTile(guardian.Position) == TileType.Air && !HasSupport(guardian.Position))
+            // Gravity comes first: with nothing underneath, the guardian falls wherever its route leads.
+            // This is how it drops into a freshly dug hole in its path.
+            if (!HasSupport(guardian.Position))
             {
                 return TryMoveGuardian(guardian, GridPoint.Down);
             }
 
-            int horizontal = Math.Sign(State.PlayerPosition.x - guardian.Position.x);
-            if (horizontal != 0 && TryMoveGuardian(guardian, new GridPoint(horizontal, 0)))
+            // The route is re-planned before every step, a couple of times a second rather than every frame,
+            // so it follows the player as soon as the player changes tier.
+            if (!NextGuardianStep(guardian.Position, out GridPoint next))
+            {
+                return false;
+            }
+
+            return TryMoveGuardian(guardian, new GridPoint(next.x - guardian.Position.x, next.y - guardian.Position.y));
+        }
+
+        // Breadth-first search over every move a guardian can make (TZ section 7): walking, climbing, hanging on bars,
+        // dropping off them and one-way falls. Gives the first step of a shortest route to the player; when the player
+        // cannot be reached, the route leads to the reachable cell closest to the player, where the guardian waits.
+        // Neighbours are always tried in the same order, so equal routes are chosen the same way every time.
+        // Dug holes are planned as the blocks they were: a guardian does not see the trap and walks straight into it.
+        private bool NextGuardianStep(GridPoint from, out GridPoint next)
+        {
+            int width = State.Definition.width;
+            int height = State.Definition.height;
+            if (searchPrevious == null || searchPrevious.Length != width * height)
+            {
+                searchPrevious = new int[width * height];
+            }
+
+            for (int i = 0; i < searchPrevious.Length; i++)
+            {
+                searchPrevious[i] = -1;
+            }
+
+            GridPoint target = State.PlayerPosition;
+            int start = from.y * width + from.x;
+            int goal = target.y * width + target.x;
+            int best = start;
+            int bestDistance = Distance(from, target);
+            searchPrevious[start] = start;
+            searchQueue.Clear();
+            searchQueue.Enqueue(start);
+
+            while (searchQueue.Count > 0)
+            {
+                int current = searchQueue.Dequeue();
+                var point = new GridPoint(current % width, current / width);
+                if (current == goal)
+                {
+                    best = current;
+                    break;
+                }
+
+                int distance = Distance(point, target);
+                if (distance < bestDistance)
+                {
+                    best = current;
+                    bestDistance = distance;
+                }
+
+                int moves = GuardianMoves(point);
+                for (int m = 0; m < moves; m++)
+                {
+                    int index = searchMoves[m].y * width + searchMoves[m].x;
+                    if (searchPrevious[index] == -1)
+                    {
+                        searchPrevious[index] = current;
+                        searchQueue.Enqueue(index);
+                    }
+                }
+            }
+
+            next = from;
+            if (best == start)
+            {
+                return false;
+            }
+
+            int step = best;
+            while (searchPrevious[step] != start)
+            {
+                step = searchPrevious[step];
+            }
+
+            next = new GridPoint(step % width, step / width);
+            return true;
+        }
+
+        // The cells a guardian can move to from point in one step, written to searchMoves in a fixed order.
+        private int GuardianMoves(GridPoint point)
+        {
+            int count = 0;
+            if (!PlannedSupport(point))
+            {
+                // Falling cannot be steered.
+                AddMove(point + GridPoint.Down, ref count);
+                return count;
+            }
+
+            TileType tile = PlannedTile(point);
+            AddMove(point + GridPoint.Left, ref count);
+            AddMove(point + GridPoint.Right, ref count);
+            if (tile == TileType.Ladder)
+            {
+                AddMove(point + GridPoint.Up, ref count);
+            }
+
+            if (tile == TileType.Ladder || tile == TileType.Bar)
+            {
+                AddMove(point + GridPoint.Down, ref count);
+            }
+
+            return count;
+        }
+
+        private void AddMove(GridPoint point, ref int count)
+        {
+            if (InBounds(point) && IsPassable(PlannedTile(point)))
+            {
+                searchMoves[count++] = point;
+            }
+        }
+
+        // The map as the guardians plan on it: an open hole still counts as the block it was dug from.
+        private TileType PlannedTile(GridPoint point)
+        {
+            foreach (HoleState hole in State.Holes)
+            {
+                if (hole.Position.Equals(point))
+                {
+                    return hole.RestoresTo;
+                }
+            }
+
+            return GetTile(point);
+        }
+
+        private bool PlannedSupport(GridPoint point)
+        {
+            TileType current = PlannedTile(point);
+            if (current == TileType.Ladder || current == TileType.Bar)
             {
                 return true;
             }
 
-            int vertical = Math.Sign(State.PlayerPosition.y - guardian.Position.y);
-            return vertical != 0 && GetTile(guardian.Position) == TileType.Ladder && TryMoveGuardian(guardian, new GridPoint(0, vertical));
+            GridPoint below = point + GridPoint.Down;
+            TileType ground = PlannedTile(below);
+            return !InBounds(below) || IsSolid(ground) || IsTrappedGuardianAt(below);
+        }
+
+        private static bool IsSolid(TileType tile)
+        {
+            return tile == TileType.Solid || tile == TileType.Brick || tile == TileType.ExitClosed || tile == TileType.ExitOpen;
+        }
+
+        private static bool IsPassable(TileType tile)
+        {
+            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitOpen || tile == TileType.Altar;
+        }
+
+        private static int Distance(GridPoint a, GridPoint b)
+        {
+            return Math.Abs(a.x - b.x) + Math.Abs(a.y - b.y);
         }
 
         private bool TryMoveGuardian(GuardianState guardian, GridPoint direction)

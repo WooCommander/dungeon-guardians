@@ -30,9 +30,10 @@ namespace DungeonGuardians.Presentation
             var input = gameObject.AddComponent<PlayerInputBridge>();
             var renderer = gameObject.AddComponent<LevelRenderer>();
             var hud = gameObject.AddComponent<GameHud>();
+            var menu = gameObject.AddComponent<GameMenu>();
 
             controller = gameObject.AddComponent<GameController>();
-            controller.Initialize(input, renderer, hud, new BalanceConfig(), new ProgressStore());
+            controller.Initialize(input, renderer, hud, menu, new BalanceConfig(), new ProgressStore());
         }
 
         // Character models use lit materials; tiles are unlit sprites and are not affected.

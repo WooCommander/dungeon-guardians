@@ -24,6 +24,9 @@ namespace DungeonGuardians.Presentation
         // The door model is about 1.5 x 1.9; shrink it to roughly one cell wide.
         private const float DoorScale = 0.62f;
         private const float DoorDepth = 0.25f;
+        // The scaled door is about 0.95 x 1.2 cells; the glow is centred on it and spills well past its edges.
+        private const float ExitGlowHeight = 0.6f;
+        private const float ExitGlowSize = 2.4f;
         // Fallback 3D models (Tripo, ArtSource/Environment/import_tripo_prop.py) are already exported at cell size.
         private const float GoldScale = 1f;
         // Painted props (tools/cutout_props.py), sized in cells.
@@ -31,6 +34,8 @@ namespace DungeonGuardians.Presentation
         private const float GoldRestHeight = 0.04f;
         private const float GoldBobHeight = 0.06f;
         private const float GoldBobSpeed = 2.2f;
+        private static readonly Vector2 GoldHaloSize = new Vector2(1.15f, 0.8f);
+        private static readonly Color GoldHaloColor = new Color(1f, 0.82f, 0.3f, 0.6f);
         // Just behind the characters, so the explorer passes in front of the bar he picks up.
         private const float GoldDepth = 0.05f;
         private const float LadderWidth = 0.78f;
@@ -53,6 +58,7 @@ namespace DungeonGuardians.Presentation
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
         private readonly Dictionary<GridPoint, float> goldRestY = new Dictionary<GridPoint, float>();
+        private readonly Dictionary<GridPoint, SpriteRenderer> goldHalos = new Dictionary<GridPoint, SpriteRenderer>();
         private readonly List<CharacterView> guardians = new List<CharacterView>();
         private GameObject[,] cellObjects;
         private TileType[,] cellTypes;
@@ -84,7 +90,14 @@ namespace DungeonGuardians.Presentation
                 if (gold.Value.activeSelf)
                 {
                     float phase = gold.Key.x * 0.9f + gold.Key.y * 1.7f;
-                    float lift = GoldBobHeight * (0.5f + 0.5f * Mathf.Sin(Time.time * GoldBobSpeed + phase));
+                    float wave = 0.5f + 0.5f * Mathf.Sin(Time.time * GoldBobSpeed + phase);
+                    float lift = GoldBobHeight * wave;
+                    if (goldHalos.TryGetValue(gold.Key, out SpriteRenderer halo))
+                    {
+                        // The glow swells as the bar rises.
+                        halo.color = new Color(GoldHaloColor.r, GoldHaloColor.g, GoldHaloColor.b, GoldHaloColor.a * (0.7f + 0.3f * wave));
+                    }
+
                     Vector3 position = gold.Value.transform.localPosition;
                     position.y = goldRestY[gold.Key] + lift;
                     gold.Value.transform.localPosition = position;
@@ -105,6 +118,7 @@ namespace DungeonGuardians.Presentation
             guardians.Clear();
             goldPieces.Clear();
             goldRestY.Clear();
+            goldHalos.Clear();
             if (levelRoot != null)
             {
                 Destroy(levelRoot.gameObject);
@@ -122,6 +136,7 @@ namespace DungeonGuardians.Presentation
                     ?? Spawn("gold", levelRoot, bottom, GoldScale, new Color(1f, 0.78f, 0.14f));
                 goldPieces[point] = gold;
                 goldRestY[point] = gold.transform.localPosition.y;
+                goldHalos[point] = AddGoldHalo(gold);
             }
 
             BuildDecor(state);
@@ -198,6 +213,8 @@ namespace DungeonGuardians.Presentation
                     break;
                 case TileType.ExitOpen:
                     SpawnLocal("door_open", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.18f, 0.82f, 0.75f));
+                    // All gold is collected: the door glows. The halo sits behind the door, centred on its middle.
+                    ExitGlow.Create(parent, new Vector3(0f, ExitGlowHeight, DoorDepth + 0.15f), ExitGlowSize);
                     break;
                 case TileType.Altar:
                     SpawnLocal("altar", parent, new Vector3(0f, 0f, 0.15f), 1f, new Color(0.2f, 0.58f, 0.66f));
@@ -350,11 +367,12 @@ namespace DungeonGuardians.Presentation
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.02f, 0.05f, 0.06f);
 
-            // The whole level sits above the control strip, with a little room at the top for the HUD text.
+            // The whole level sits above the control strip (when the touch controls are shown), with a little room at
+            // the top for the HUD text.
             // On narrow screens the width decides the size; the extra height then goes below the level.
             float levelTop = definition.height - 0.5f + HudTopMargin;
             float levelBottom = -0.5f;
-            float sizeForHeight = (levelTop - levelBottom) / (2f * (1f - GameHud.ControlStripHeight));
+            float sizeForHeight = (levelTop - levelBottom) / (2f * (1f - GameHud.BottomReserve));
             float sizeForWidth = (definition.width + 0.4f) / (2f * camera.aspect);
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             camera.orthographicSize = size;
@@ -414,6 +432,21 @@ namespace DungeonGuardians.Presentation
             var renderer = item.AddComponent<SpriteRenderer>();
             renderer.sprite = sprite;
             return item;
+        }
+
+        // A warm glow behind a gold bar, as on the concept, so the bars stand out against the dark cavern.
+        // It is a child of the bar, so it bobs and disappears with it.
+        private static SpriteRenderer AddGoldHalo(GameObject gold)
+        {
+            var haloObject = new GameObject("Glow");
+            haloObject.transform.SetParent(gold.transform, false);
+            Vector3 barScale = gold.transform.localScale;
+            haloObject.transform.localScale = new Vector3(GoldHaloSize.x / barScale.x, GoldHaloSize.y / barScale.y, 1f);
+            haloObject.transform.localPosition = new Vector3(0f, 0f, 0.05f);
+            var halo = haloObject.AddComponent<SpriteRenderer>();
+            halo.sprite = ExitGlow.GetHaloSprite();
+            halo.color = GoldHaloColor;
+            return halo;
         }
 
         private GameObject Spawn(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)

@@ -5,7 +5,7 @@
 import pathlib
 from collections import deque
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "map-images"
@@ -99,9 +99,24 @@ def torch_holder(image):
     return holder
 
 
+def brighten_gold(image):
+    # The concept's gold is a bright, warm yellow that reads at a glance; the studio render is darker and browner.
+    alpha = image.getchannel("A")
+    rgb = image.convert("RGB")
+    rgb = ImageEnhance.Brightness(rgb).enhance(1.35)
+    rgb = ImageEnhance.Color(rgb).enhance(1.2)
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.08)
+    # Shift the hue from orange towards the concept's yellow gold by lifting the green channel.
+    r, g, b = rgb.split()
+    rgb = Image.merge("RGB", (r, g.point(lambda v: min(255, int(v * 1.14))), b))
+    result = rgb.convert("RGBA")
+    result.putalpha(alpha)
+    return result
+
+
 def main():
     TARGET.mkdir(parents=True, exist_ok=True)
-    gold = cut_out("gold", saturated=True)
+    gold = brighten_gold(cut_out("gold", saturated=True))
     gold.save(TARGET / "gold.png")
     print(f"gold: {gold.size}")
     ladder_tile(cut_out("ladder", enclosed_gaps=True)).save(TARGET / "ladder.png")
