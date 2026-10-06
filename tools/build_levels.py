@@ -160,71 +160,46 @@ def level_1():
 
 
 def level_2():
-    # "Пробуждение стража": the player starts in a sealed upper hall and must dig through its floor to get out,
-    # so digging is learned where the guardian cannot reach. Then a chase down and back up to the exit.
-    m = Map()
-    m.row(18, 1, 14, "#"); m.column(15, 18, 19, "#")      # sealed upper hall (walk row 19, x 1..14)
-    m.set(8, 18, "B")                                     # the only way out: dig here
-    m.row(14, 3, 7, "B"); m.row(14, 9, 14, "B")           # tier 3 left, around the landing ladder
-    m.row(14, 19, 33, "B")                                # tier 3 right
-    m.row(18, 22, 34, "B")                                # tier 4 right, with the exit
-    m.row(10, 1, 13, "B"); m.row(10, 17, 27, "B")         # tier 2
-    m.row(6, 4, 16, "B"); m.row(6, 20, 31, "B")           # tier 1
-    m.ladder(8, 11, 17)     # landing ladder under the dug block
-    m.ladder(2, 2, 11)      # floor -> tier 2 left
-    m.ladder(18, 2, 11)     # floor -> tier 2 right
-    m.ladder(32, 2, 7)      # floor -> tier 1 right
-    m.ladder(25, 7, 11)     # tier 1 right -> tier 2 right
-    m.ladder(21, 11, 15)    # tier 2 right -> tier 3 right
-    m.ladder(33, 15, 19)    # tier 3 right -> tier 4 right
-    m.ladder(12, 2, 7)      # floor -> tier 1 left
-    m.ladder(28, 2, 7)      # floor -> tier 1 right
-    m.ladder(5, 7, 11)      # tier 1 left -> tier 2 left
-    m.ladder(11, 11, 15)    # tier 2 left -> tier 3 left
-    m.ladder(30, 15, 19)    # tier 3 right -> tier 4 right
-    m.bar(11, 14, 16)       # tier 2 left -> right
-    m.bar(15, 15, 18)       # tier 3 left -> right
-    gold = [(3, 19), (12, 19), (8, 13), (5, 15), (12, 15), (6, 11), (22, 11), (10, 7), (27, 7),
-            (14, 2), (28, 2), (26, 15), (24, 19),
-            (6, 2), (20, 2), (13, 7), (23, 7), (3, 11), (19, 11), (23, 15), (31, 15), (27, 19), (32, 19)]
-    save(2, "Пробуждение стража", m, start=(4, 19), exit_=(34, 19), gold=gold,
-         guardians=[(24, 2)], altars=[(29, 2)])
+    # "Пробуждение стража", 33 x 13: the explorer starts in a sealed hall on the top left that no guardian can reach,
+    # and gets out only by digging its single sandstone floor block, so digging is learned in safety. Then the
+    # guardian wakes on the floor, and the way to the exit on the top right leads past it.
+    m = Map(33, 13)
+    m.row(9, 1, 12, "#"); m.column(13, 9, 11, "#")         # the sealed hall (walk row 10, x 1..12)
+    m.set(7, 9, "B")                                        # its only way out: dig here
+    m.row(5, 1, 31, "B")                                    # middle tier, full width
+    for x in (1, 14, 15, 31):
+        m.set(x, 5, "#")
+    m.row(9, 17, 31, "B")                                   # top right tier with the exit
+    m.set(31, 9, "#")
+    m.ladder(3, 2, 6); m.ladder(18, 2, 6); m.ladder(28, 2, 6)
+    m.ladder(23, 6, 10)                                     # middle tier -> top right
+    m.bar(11, 18, 22)                                       # a rope for the gold over the top tier
+    m.ladder(19, 10, 11)
+    gold = [(3, 10), (10, 10), (5, 6), (11, 6), (21, 6), (29, 6), (8, 2), (14, 2), (24, 2), (21, 11), (26, 10)]
+    save(2, "Пробуждение стража", m, start=(4, 10), exit_=(30, 10), gold=gold,
+         guardians=[(25, 2)], altars=[(30, 2)])
 
 
 def level_3():
-    # "Древний тайник": two guardians, several routes. The treasure chamber (x 14..18 on walk row 7) has a brick roof
-    # and walls: dig in from above, leave over the ledge at x 19 and drop to the floor.
-    m = Map()
-    m.row(6, 1, 9, "B"); m.row(6, 13, 19, "B"); m.row(6, 26, 34, "B")     # tier 1; x 13..19 is the chamber floor
-    m.column(13, 7, 9, "#"); m.column(19, 8, 9, "#")                       # chamber walls, open at (19, 7)
-    m.row(10, 4, 18, "B"); m.row(10, 22, 31, "B")                          # tier 2; x 14..18 is the chamber roof
-    m.row(14, 1, 10, "B"); m.row(14, 14, 23, "B"); m.row(14, 27, 34, "B")  # tier 3
-    m.row(18, 5, 30, "B")                                                  # tier 4
-    m.ladder(2, 2, 7)
-    m.ladder(11, 2, 11)
-    m.ladder(24, 2, 11)
-    m.ladder(33, 2, 7)
-    m.ladder(6, 11, 15)
-    m.ladder(29, 11, 15)
-    m.ladder(12, 15, 19)
-    m.ladder(25, 15, 19)
-    m.ladder(8, 2, 7)       # floor -> tier 1 left
-    m.ladder(28, 2, 7)      # floor -> tier 1 right
-    m.ladder(15, 15, 19)    # tier 3 middle -> tier 4
-    m.ladder(21, 11, 15)    # tier 2 bar -> tier 3 middle
-    m.bar(11, 19, 21)                     # tier 2 left -> right
-    m.bar(15, 11, 13); m.bar(15, 24, 26)  # tier 3 to the upper ladders
-    m.bar(19, 1, 4); m.bar(19, 31, 34)    # top corners
-    gold = [(16, 7), (5, 7), (30, 7), (8, 11), (27, 11), (16, 11), (3, 15), (32, 15), (18, 15),
-            (10, 19), (26, 19), (2, 19), (33, 19), (6, 2), (29, 2), (21, 2),
-            (12, 2), (25, 2), (30, 11), (13, 15), (22, 15), (6, 19), (20, 19), (29, 19)]
-    save(3, "Древний тайник", m, start=(3, 2), exit_=(18, 19), gold=gold,
-         guardians=[(30, 2), (20, 15)], altars=[(9, 15)])
+    # "Древний тайник", 33 x 13: two guardians and several routes. The treasure chamber in the middle tier
+    # (x 14..18) has reinforced walls and floor and a sandstone roof: dig in from the top tier, leave over the
+    # open ledge on its right and drop to the floor.
+    m = Map(33, 13)
+    m.row(5, 1, 12, "B"); m.row(5, 23, 31, "B")            # middle tier left and right of the chamber
+    m.row(5, 13, 19, "#")                                   # chamber floor
+    m.column(13, 6, 8, "#"); m.column(19, 7, 8, "#")       # chamber walls, open at (19, 6)
+    m.row(9, 4, 28, "B")                                    # top tier; x 14..18 is the chamber roof
+    for x in (4, 13, 19, 28):
+        m.set(x, 9, "#")
+    m.ladder(2, 2, 6); m.ladder(9, 2, 6); m.ladder(26, 2, 6); m.ladder(30, 2, 6)
+    m.ladder(6, 6, 10); m.ladder(24, 6, 10)
+    m.bar(11, 1, 5); m.bar(11, 27, 31)                     # ropes in the top corners
+    m.ladder(5, 10, 11); m.ladder(27, 10, 11)
+    gold = [(15, 6), (16, 6), (17, 6), (5, 2), (20, 2), (28, 2), (3, 6), (11, 6), (29, 6),
+            (8, 10), (22, 10), (2, 11), (30, 11)]
+    save(3, "Древний тайник", m, start=(3, 2), exit_=(16, 10), gold=gold,
+         guardians=[(30, 2), (21, 10)], altars=[(10, 6)])
 
-
-# Levels 4..8 use the concept-sized 33 x 13 map of level 1: blocks at y = 1, 5, 9, walk rows y = 2, 6, 10 and
-# ropes at y = 11 under the ceiling. Each adds one idea: ropes over gaps, two guardians, gold sealed in pockets
-# that must be dug into, shafts between tiers and finally three guardians around a vault.
 
 def level_4():
     # "Канатная галерея": the middle tier is split by a wide gap crossed only by a rope; the top tier is reached
