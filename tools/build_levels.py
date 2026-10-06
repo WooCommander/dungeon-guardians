@@ -1,4 +1,4 @@
-# Builds Assets/Resources/Levels/level_01..14.json from compact descriptions (platforms, ladders, bars),
+# Builds Assets/Resources/Levels/level_01..18.json from compact descriptions (platforms, ladders, bars),
 # so wide maps stay easy to edit without counting characters. y counts from the bottom, as in the game.
 #   python tools/build_levels.py && python tools/validate_levels.py --map
 import json
@@ -13,7 +13,8 @@ WIDTH, HEIGHT = 36, 21
 # chains for the working halls, the city of the pharaohs, the flooded hall for the wells and mirrored halls, the
 # cracked seal for the vault and the seal trials, the chained black heart for the dark halls deep below.
 BACKGROUNDS = {1: "cavern", 2: "mine", 3: "city", 4: "mine", 5: "city", 6: "flooded", 7: "flooded", 8: "seal",
-               9: "city", 10: "mine", 11: "heart", 12: "heart", 13: "seal", 14: "seal"}
+               9: "city", 10: "mine", 11: "heart", 12: "heart", 13: "seal", 14: "seal",
+               15: "city", 16: "mine", 17: "flooded", 18: "heart"}
 
 # Torches on stands along the walk rows, every TORCH_SPACING cells, shifted by TORCH_STAGGER per row.
 TORCH_SPACING, TORCH_STAGGER = 6, 3
@@ -446,6 +447,91 @@ def level_14():
          guardians=[(12, 10), (25, 2)], altars=[(15, 10), (31, 6)], gateMode="hold", playerPressesPlates=True)
 
 
+# Guardian kinds, one level each to meet them (guardianKinds, matched to guardians by index):
+# wardens keep to their beats, a heavy guardian breaks plank floors ('~'), listeners go to noises, the infected lunge.
+
+def warden(left, right):
+    return {"kind": "warden", "patrolLeft": left, "patrolRight": right}
+
+
+def level_15():
+    # "Пост стража": two wardens walk their beats, one on the middle tier, one on the top. They see along their own
+    # row and close by; slip past behind their backs, and if one gives chase, get far enough and it goes back.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B")
+    for x in (1, 16, 31):
+        m.set(x, 5, "#")
+    m.row(9, 4, 28, "B")
+    for x in (4, 28):
+        m.set(x, 9, "#")
+    m.ladder(2, 2, 6); m.ladder(16, 2, 6); m.ladder(30, 2, 6)
+    m.ladder(5, 6, 10); m.ladder(27, 6, 10)
+    m.bar(11, 6, 26); m.ladder(15, 10, 11)
+    gold = [(9, 6), (12, 6), (21, 6), (24, 6), (10, 10), (14, 10), (19, 10), (23, 10), (8, 2), (24, 2), (11, 11), (21, 11)]
+    save(15, "Пост стража", m, start=(16, 2), exit_=(31, 6), gold=gold,
+         guardians=[(8, 6), (20, 10)], altars=[(3, 10), (29, 10)],
+         guardianKinds=[warden(4, 14), warden(7, 25)])
+
+
+def level_16():
+    # "Хрупкий настил": plank bridges ('~') over gaps in the middle and top tiers. They hold the explorer; the heavy
+    # guardian breaks through them for good, falling to the tier below. Lure it onto a bridge to drop it out of
+    # the way, but mind that the bridge is gone afterwards. No gold lies on the planks, so none can be lost.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B"); m.row(5, 12, 20, "~")
+    for x in (1, 11, 21, 31):
+        m.set(x, 5, "#")
+    m.row(9, 5, 27, "B"); m.row(9, 13, 19, "~")
+    for x in (12, 20):
+        m.set(x, 9, "#")
+    m.ladder(3, 2, 6); m.ladder(29, 2, 6); m.ladder(16, 2, 4)
+    m.ladder(6, 6, 10); m.ladder(26, 6, 10)
+    gold = [(9, 6), (23, 6), (10, 10), (21, 10), (16, 2), (8, 2), (24, 2), (4, 6), (28, 6), (8, 10), (24, 10)]
+    save(16, "Хрупкий настил", m, start=(2, 2), exit_=(27, 10), gold=gold,
+         guardians=[(7, 10), (30, 2)], altars=[(22, 10)],
+         guardianKinds=[{"kind": "heavy"}, {"kind": "chaser"}])
+
+
+def level_17():
+    # "Тишина": three listeners see only a couple of cells, but every dig, every gold bar taken and every hard landing
+    # calls them. Two bars lie in pockets under the middle tier that must be dug into.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B")
+    for x0 in (7, 21):
+        m.column(x0, 2, 4, "#"); m.column(x0 + 4, 2, 4, "#")
+        m.row(5, x0, x0 + 4, "#")
+        m.set(x0 + 2, 5, "B")
+        m.ladder(x0 + 2, 2, 4)
+    m.row(9, 3, 29, "B")
+    for x in (3, 16, 29):
+        m.set(x, 9, "#")
+    m.ladder(3, 2, 6); m.ladder(16, 2, 6); m.ladder(29, 2, 6)
+    m.ladder(5, 6, 10); m.ladder(27, 6, 10)
+    gold = [(8, 3), (22, 3), (2, 2), (30, 2), (14, 2), (18, 2), (12, 6), (20, 6), (8, 10), (24, 10), (16, 10)]
+    save(17, "Тишина", m, start=(16, 6), exit_=(16, 2), gold=gold,
+         guardians=[(4, 10), (28, 10), (19, 2)], altars=[(10, 10), (22, 10)],
+         guardianKinds=[{"kind": "listener"}, {"kind": "listener"}, {"kind": "listener"}])
+
+
+def level_18():
+    # "Чёрные трещины": two infected guardians stand still, then lunge four cells at speed; their cracks flare red
+    # just before. Read the flare, step aside, and run while they rest.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B")
+    for x in (1, 10, 22, 31):
+        m.set(x, 5, "#")
+    m.row(9, 1, 13, "B"); m.row(9, 19, 31, "B")
+    for x in (1, 31):
+        m.set(x, 9, "#")
+    m.ladder(4, 2, 6); m.ladder(16, 2, 6); m.ladder(28, 2, 6)
+    m.ladder(8, 6, 10); m.ladder(24, 6, 10)
+    m.bar(10, 14, 18)
+    gold = [(2, 2), (10, 2), (22, 2), (30, 2), (6, 6), (13, 6), (19, 6), (26, 6), (3, 10), (11, 10), (21, 10), (29, 10), (16, 10)]
+    save(18, "Чёрные трещины", m, start=(16, 2), exit_=(18, 6), gold=gold,
+         guardians=[(5, 10), (27, 10)], altars=[(2, 6), (30, 6)],
+         guardianKinds=[{"kind": "infected"}, {"kind": "infected"}])
+
+
 if __name__ == "__main__":
     level_1()
     level_2()
@@ -461,3 +547,7 @@ if __name__ == "__main__":
     level_12()
     level_13()
     level_14()
+    level_15()
+    level_16()
+    level_17()
+    level_18()

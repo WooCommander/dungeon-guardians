@@ -13,6 +13,8 @@ namespace DungeonGuardians.Core
         // Seal trial: a pressure plate in the floor, and the gates it opens.
         PressurePlate,
         GateClosed,
-        GateOpen
+        GateOpen,
+        // Wooden planks: they hold the explorer and ordinary guardians, but give way under a heavy one.
+        FragileFloor
     }
 }

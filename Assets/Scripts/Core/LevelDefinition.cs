@@ -2,6 +2,17 @@ using System;
 
 namespace DungeonGuardians.Core
 {
+    // How one guardian behaves; matched to LevelDefinition.guardians by index (missing entries are plain chasers).
+    [Serializable]
+    public sealed class GuardianSpec
+    {
+        // "chaser", "warden", "listener", "heavy" or "infected".
+        public string kind = "chaser";
+        // A warden's beat: the columns it walks between on the row it starts on.
+        public int patrolLeft = -1;
+        public int patrolRight = -1;
+    }
+
     [Serializable]
     public sealed class LevelDefinition
     {
@@ -15,6 +26,7 @@ namespace DungeonGuardians.Core
         public GridPoint exit;
         public GridPoint[] gold = Array.Empty<GridPoint>();
         public GridPoint[] guardians = Array.Empty<GridPoint>();
+        public GuardianSpec[] guardianKinds = Array.Empty<GuardianSpec>();
         public GridPoint[] altars = Array.Empty<GridPoint>();
         // Torch stands (decoration); the level builder puts an indestructible block under each one.
         public GridPoint[] torches = Array.Empty<GridPoint>();

@@ -126,6 +126,23 @@ namespace DungeonGuardians.Presentation
             snapNext = true;
         }
 
+        // Tints the whole model (multiplying its colours) without touching the shared material.
+        public void SetTint(Color tint)
+        {
+            if (model == null)
+            {
+                return;
+            }
+
+            var block = new MaterialPropertyBlock();
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
+            {
+                renderer.GetPropertyBlock(block);
+                block.SetColor("_Color", tint);
+                renderer.SetPropertyBlock(block);
+            }
+        }
+
         // A bone of the model by name (e.g. "Head"), or null.
         public Transform FindBone(string name)
         {

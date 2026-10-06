@@ -123,6 +123,9 @@ namespace DungeonGuardians.Presentation
         private AltarWarning altarWarning;
         // Seal trial pieces: the plates glow while pressed.
         private readonly List<SpriteRenderer> plates = new List<SpriteRenderer>();
+        // Guardian kinds: the red glow of each infected guardian (null for the others); the last noise shown.
+        private readonly List<InfectedGlow> infectedGlows = new List<InfectedGlow>();
+        private int shownNoiseTick = -1;
         private const float GateHeight = 1.25f;
         private static readonly Color PlateIdle = new Color(0.85f, 0.85f, 0.85f);
         private static readonly Color PlatePressed = new Color(1.6f, 1.35f, 0.8f);
@@ -166,7 +169,33 @@ namespace DungeonGuardians.Presentation
             RenderActors(simulation);
             RenderAltarWarning(simulation);
             RenderPlates(state);
+            RenderNoise(state);
             PositionCamera(state.Definition);
+        }
+
+        // Where the explorer made a noise, a ring spreads, in levels where someone listens.
+        private void RenderNoise(RuntimeLevelState state)
+        {
+            if (state.NoiseTick == shownNoiseTick)
+            {
+                return;
+            }
+
+            bool fresh = state.NoiseTick > shownNoiseTick;
+            shownNoiseTick = state.NoiseTick;
+            if (!fresh || state.NoiseTick < 0)
+            {
+                return;
+            }
+
+            foreach (GuardianState guardian in state.Guardians)
+            {
+                if (guardian.Kind == GuardianKind.Listener)
+                {
+                    NoiseRipple.Spawn(transform, new Vector3(state.NoisePoint.x, state.NoisePoint.y, -0.5f));
+                    return;
+                }
+            }
         }
 
         private void RenderPlates(RuntimeLevelState state)
@@ -249,6 +278,7 @@ namespace DungeonGuardians.Presentation
             }
 
             guardians.Clear();
+            infectedGlows.Clear();
             torchFlames.Clear();
             plates.Clear();
             snapCamera = true;
@@ -317,6 +347,12 @@ namespace DungeonGuardians.Presentation
                         Destroy(cellObjects[x, y]);
                     }
 
+                    // Planks broken by a heavy guardian scatter splinters.
+                    if (cellTypes[x, y] == TileType.FragileFloor && tile == TileType.Air && cellObjects[x, y] != null)
+                    {
+                        SandBurst.Spawn(levelRoot, new Vector3(x, y - 0.5f, 0f), 1f);
+                    }
+
                     cellTypes[x, y] = tile;
                     cellObjects[x, y] = BuildCell(tile, x, y);
                 }
@@ -381,6 +417,10 @@ namespace DungeonGuardians.Presentation
                     break;
                 case TileType.Altar:
                     SpawnLocal("altar", parent, new Vector3(0f, 0f, 0.15f), 1f, new Color(0.2f, 0.58f, 0.66f));
+                    break;
+                case TileType.FragileFloor:
+                    // A board floor across the top of the cell, where the walk row above stands on it.
+                    AddSealSprite(parent, SealArt.Planks(), new Vector3(0f, 0.62f, 0.02f), new Vector2(1.02f, 0.38f));
                     break;
                 case TileType.PressurePlate:
                     plates.Add(AddSealSprite(parent, SealArt.Plate(), new Vector3(0f, 0f, 0.04f), new Vector2(0.9f, 0.12f)));
@@ -541,7 +581,12 @@ namespace DungeonGuardians.Presentation
 
             while (guardians.Count < state.Guardians.Count)
             {
-                guardians.Add(CharacterView.Create("guardian", transform, GuardianHeight, balance.GuardianSpeed, new Color(0.23f, 0.78f, 0.86f)));
+                GuardianKind kind = state.Guardians[guardians.Count].Kind;
+                CharacterView view = CharacterView.Create("guardian", transform, GuardianHeight * GuardianMarks.HeightScale(kind),
+                    balance.GuardianSpeed * GuardianMarks.SpeedScale(kind), new Color(0.23f, 0.78f, 0.86f));
+                view.SetTint(GuardianMarks.Tint(kind));
+                infectedGlows.Add(kind == GuardianKind.Infected ? InfectedGlow.Attach(view) : null);
+                guardians.Add(view);
             }
 
             for (int i = 0; i < guardians.Count; i++)
@@ -570,6 +615,10 @@ namespace DungeonGuardians.Presentation
                 }
 
                 view.SetTarget(guardianWorld);
+                if (infectedGlows[i] != null)
+                {
+                    infectedGlows[i].SetFlaring(DungeonSimulation.IsAboutToLunge(guardian));
+                }
                 view.SetPose(guardian.Trapped ? CharacterPose.Struggle : MovementPose(simulation, guardian.Position));
             }
         }
@@ -675,7 +724,7 @@ namespace DungeonGuardians.Presentation
                 }
 
                 int facing = forward.z < -0.5f ? 0 : (forward.x > 0f ? 1 : -1);
-                guardianHeads.Add((view.transform.position + Vector3.up * GuardianHeight * GuardianEyeHeight, facing));
+                guardianHeads.Add((view.transform.position + Vector3.up * view.Height * GuardianEyeHeight, facing));
             }
 
             darkness.UpdateView(camera, lamp, torchFlames, guardianHeads);

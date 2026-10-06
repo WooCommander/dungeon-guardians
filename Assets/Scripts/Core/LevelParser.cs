@@ -68,6 +68,8 @@ namespace DungeonGuardians.Core
                     return TileType.PressurePlate;
                 case '|':
                     return TileType.GateClosed;
+                case '~':
+                    return TileType.FragileFloor;
                 case '.':
                 case ' ':
                     return TileType.Air;

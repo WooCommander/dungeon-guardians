@@ -2,12 +2,50 @@ using UnityEngine;
 
 namespace DungeonGuardians.Presentation
 {
-    // Sprites for the seal trial, drawn in code: a sandstone pressure plate with a golden rune, and an iron portcullis
-    // with a golden seal in its middle. Generated once.
+    // Sprites drawn in code, generated once: the seal trial's sandstone pressure plate with a golden rune and its iron
+    // portcullis with a golden seal, and the worn planks of a fragile floor.
     public static class SealArt
     {
         private static Sprite plate;
         private static Sprite gate;
+        private static Sprite planks;
+
+        // 64 x 24: three worn boards on two cross beams, with cracks: a floor that will not hold much.
+        public static Sprite Planks()
+        {
+            if (planks != null)
+            {
+                return planks;
+            }
+
+            const int width = 64;
+            const int height = 24;
+            var texture = NewTexture(width, height, "Fragile Planks");
+            var wood = new Color(0.52f, 0.34f, 0.18f);
+            var dark = new Color(0.22f, 0.13f, 0.07f);
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    bool seam = x % 21 == 0 || y == 0 || y == height - 1;
+                    bool beam = (x >= 6 && x <= 10) || (x >= 53 && x <= 57);
+                    float grain = 0.85f + 0.15f * Mathf.Sin(y * 1.7f + Mathf.Sin(x * 0.3f) * 2f);
+                    Color color = seam ? dark : wood * grain * (beam ? 0.8f : 1f);
+                    // A few dark cracks.
+                    if (Mathf.Abs(y - 12 - 6f * Mathf.Sin(x * 0.25f)) < 0.6f && x > 24 && x < 44)
+                    {
+                        color = dark;
+                    }
+
+                    color.a = 1f;
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+            planks = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0f), width);
+            return planks;
+        }
 
         // 64 x 12: a flat slab, darker at its edges, a golden rune line across its face.
         public static Sprite Plate()

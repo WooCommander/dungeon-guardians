@@ -8,6 +8,7 @@ namespace DungeonGuardians.Core
         private readonly BalanceConfig balance;
         // Accumulates speed per tick; the player steps one cell each time it reaches 1. Starts full so the first step is immediate.
         private float playerMoveBudget = 1f;
+        private int playerFallCells;
 
         // Reused buffers for the guardians' route search.
         private readonly Queue<int> searchQueue = new Queue<int>();
@@ -67,6 +68,7 @@ namespace DungeonGuardians.Core
                 guardian.Trapped = false;
                 guardian.RespawnTicks = 0;
                 guardian.MoveBudget = 0f;
+                guardian.ResetBehaviour();
             }
 
             StateChanged?.Invoke();
@@ -78,6 +80,10 @@ namespace DungeonGuardians.Core
             {
                 return;
             }
+
+            State.Ticks++;
+            GridPoint before = State.PlayerPosition;
+            bool wasFalling = !HasSupport(before);
 
             if (State.PlayerDigTicks > 0)
             {
@@ -94,6 +100,22 @@ namespace DungeonGuardians.Core
             else
             {
                 MovePlayer(input);
+            }
+
+            // A fall of two cells or more lands with a thud the listeners hear.
+            if (wasFalling && !State.PlayerPosition.Equals(before))
+            {
+                playerFallCells++;
+            }
+
+            if (HasSupport(State.PlayerPosition))
+            {
+                if (playerFallCells >= 2)
+                {
+                    MakeNoise(State.PlayerPosition);
+                }
+
+                playerFallCells = 0;
             }
 
             UpdateHoles();
@@ -190,6 +212,7 @@ namespace DungeonGuardians.Core
 
             State.Tiles[target.x, target.y] = TileType.Air;
             State.Holes.Add(new HoleState(target, TileType.Brick, balance.HoleTicks));
+            MakeNoise(target);
             State.PlayerDigTicks = balance.DigTicks;
             State.PlayerDigDirection = horizontalOffset;
         }
@@ -202,7 +225,12 @@ namespace DungeonGuardians.Core
                 hole.RemainingTicks--;
                 if (hole.RemainingTicks == balance.GuardianClimbOutTicks)
                 {
-                    ClimbOut(hole);
+                    ClimbOut(hole, false);
+                }
+
+                if (hole.RemainingTicks == HeavyClimbOutTicks)
+                {
+                    ClimbOut(hole, true);
                 }
 
                 if (hole.RemainingTicks > 0)
@@ -233,10 +261,15 @@ namespace DungeonGuardians.Core
 
         // Just before the hole closes, a trapped guardian climbs onto the cell above one of its edges: towards the
         // explorer first, then the other way. With both sides blocked it stays and is buried when the hole closes.
-        private void ClimbOut(HoleState hole)
+        private void ClimbOut(HoleState hole, bool heavy)
         {
             foreach (GuardianState guardian in State.Guardians)
             {
+                if ((guardian.Kind == GuardianKind.Heavy) != heavy)
+                {
+                    continue;
+                }
+
                 if (guardian.RespawnTicks > 0 || !guardian.Trapped || !guardian.Position.Equals(hole.Position))
                 {
                     continue;
@@ -287,13 +320,166 @@ namespace DungeonGuardians.Core
                     continue;
                 }
 
-                guardian.MoveBudget += step;
+                // An infected guardian stands still between lunges (unless it is falling).
+                if (guardian.Kind == GuardianKind.Infected && guardian.RestTicks > 0 && HasSupport(guardian.Position))
+                {
+                    guardian.RestTicks--;
+                    if (guardian.RestTicks == 0)
+                    {
+                        guardian.LungeCells = InfectedLungeCells;
+                        guardian.MoveBudget = 1f;
+                    }
+
+                    continue;
+                }
+
+                guardian.MoveBudget += step * SpeedFactor(guardian);
                 if (guardian.MoveBudget < 1f)
                 {
                     continue;
                 }
 
-                guardian.MoveBudget = StepGuardian(guardian) ? guardian.MoveBudget - 1f : 1f;
+                bool moved = StepGuardian(guardian);
+                guardian.MoveBudget = moved ? guardian.MoveBudget - 1f : 1f;
+                if (guardian.Kind == GuardianKind.Infected && HasSupport(guardian.Position) && (!moved || --guardian.LungeCells <= 0))
+                {
+                    guardian.RestTicks = InfectedRestTicks;
+                    guardian.MoveBudget = 0f;
+                }
+
+                BreakFragileFloor(guardian);
+            }
+        }
+
+        // Guardian kinds (TZ section 7 adds the plain chaser; the others come from the level design).
+        private const float HeavySpeed = 0.7f;
+        private const float WardenPatrolSpeed = 0.55f;
+        private const float InfectedLungeSpeed = 2.6f;
+        private const int InfectedLungeCells = 4;
+        // Standing still between lunges (1.2 s); the last InfectedWarningTicks of it its cracks flare.
+        private const int InfectedRestTicks = 36;
+        public const int InfectedWarningTicks = 14;
+        // A heavy guardian climbs out of a hole this many ticks before it closes (0.2 s instead of 0.5 s).
+        private const int HeavyClimbOutTicks = 6;
+        // A warden sees the explorer this far along its own row, or this close in any direction; it gives up
+        // the chase beyond WardenLoseRange.
+        private const int WardenSightRow = 7;
+        private const int WardenSightNear = 3;
+        private const int WardenLoseRange = 9;
+        // A listener sees only this close, and hears noises within this many cells.
+        private const int ListenerSight = 2;
+        private const int ListenerHearing = 16;
+
+        private float SpeedFactor(GuardianState guardian)
+        {
+            switch (guardian.Kind)
+            {
+                case GuardianKind.Heavy:
+                    return HeavySpeed;
+                case GuardianKind.Warden:
+                    return guardian.Alerted ? 1f : WardenPatrolSpeed;
+                case GuardianKind.Infected:
+                    return InfectedLungeSpeed;
+                default:
+                    return 1f;
+            }
+        }
+
+        // An infected guardian about to lunge: its cracks flare (for the renderer).
+        public static bool IsAboutToLunge(GuardianState guardian)
+        {
+            return guardian.Kind == GuardianKind.Infected && guardian.RestTicks > 0 && guardian.RestTicks <= InfectedWarningTicks;
+        }
+
+        // Where the guardian is heading this step, or null to stand still.
+        private GridPoint? GoalFor(GuardianState guardian)
+        {
+            GridPoint player = State.PlayerPosition;
+            switch (guardian.Kind)
+            {
+                case GuardianKind.Warden:
+                {
+                    int dx = Math.Abs(guardian.Position.x - player.x);
+                    int dy = Math.Abs(guardian.Position.y - player.y);
+                    if (guardian.Alerted && Math.Max(dx, dy) > WardenLoseRange)
+                    {
+                        guardian.Alerted = false;
+                    }
+
+                    if (!guardian.Alerted && ((dy == 0 && dx <= WardenSightRow) || Math.Max(dx, dy) <= WardenSightNear))
+                    {
+                        guardian.Alerted = true;
+                    }
+
+                    if (guardian.Alerted)
+                    {
+                        return player;
+                    }
+
+                    // Back on its beat: walk to the end it is heading for, then turn.
+                    if (guardian.Position.y != guardian.Post.y || guardian.Position.x < guardian.PatrolLeft || guardian.Position.x > guardian.PatrolRight)
+                    {
+                        return guardian.Post;
+                    }
+
+                    int end = guardian.PatrolDirection > 0 ? guardian.PatrolRight : guardian.PatrolLeft;
+                    if (guardian.Position.x == end)
+                    {
+                        guardian.PatrolDirection = -guardian.PatrolDirection;
+                        end = guardian.PatrolDirection > 0 ? guardian.PatrolRight : guardian.PatrolLeft;
+                    }
+
+                    return end == guardian.Position.x ? (GridPoint?)null : new GridPoint(end, guardian.Post.y);
+                }
+
+                case GuardianKind.Listener:
+                {
+                    if (Math.Max(Math.Abs(guardian.Position.x - player.x), Math.Abs(guardian.Position.y - player.y)) <= ListenerSight)
+                    {
+                        guardian.NoiseGoal = null;
+                        return player;
+                    }
+
+                    if (State.NoiseTick > guardian.HeardTick)
+                    {
+                        guardian.HeardTick = State.NoiseTick;
+                        if (Distance(guardian.Position, State.NoisePoint) <= ListenerHearing)
+                        {
+                            guardian.NoiseGoal = State.NoisePoint;
+                        }
+                    }
+
+                    if (guardian.NoiseGoal.HasValue && guardian.Position.Equals(guardian.NoiseGoal.Value))
+                    {
+                        guardian.NoiseGoal = null;
+                    }
+
+                    return guardian.NoiseGoal;
+                }
+
+                default:
+                    return player;
+            }
+        }
+
+        private void MakeNoise(GridPoint point)
+        {
+            State.NoisePoint = point;
+            State.NoiseTick = State.Ticks;
+        }
+
+        // Planks give way under a heavy guardian: it falls through, and the floor is gone for good.
+        private void BreakFragileFloor(GuardianState guardian)
+        {
+            if (guardian.Kind != GuardianKind.Heavy)
+            {
+                return;
+            }
+
+            GridPoint below = guardian.Position + GridPoint.Down;
+            if (InBounds(below) && GetTile(below) == TileType.FragileFloor)
+            {
+                State.Tiles[below.x, below.y] = TileType.Air;
             }
         }
 
@@ -308,8 +494,11 @@ namespace DungeonGuardians.Core
 
             // The route is re-planned before every step, a couple of times a second rather than every frame,
             // so it follows the player as soon as the player changes tier.
-            if (!NextGuardianStep(guardian.Position, out GridPoint next))
+            GridPoint? goal = GoalFor(guardian);
+            if (!goal.HasValue || !NextGuardianStep(guardian.Position, goal.Value, out GridPoint next))
             {
+                // A listener that cannot get any closer to a noise forgets it.
+                guardian.NoiseGoal = null;
                 return false;
             }
 
@@ -321,7 +510,7 @@ namespace DungeonGuardians.Core
         // cannot be reached, the route leads to the reachable cell closest to the player, where the guardian waits.
         // Neighbours are always tried in the same order, so equal routes are chosen the same way every time.
         // Dug holes are planned as the blocks they were: a guardian does not see the trap and walks straight into it.
-        private bool NextGuardianStep(GridPoint from, out GridPoint next)
+        private bool NextGuardianStep(GridPoint from, GridPoint target, out GridPoint next)
         {
             int width = State.Definition.width;
             int height = State.Definition.height;
@@ -335,7 +524,6 @@ namespace DungeonGuardians.Core
                 searchPrevious[i] = -1;
             }
 
-            GridPoint target = State.PlayerPosition;
             int start = from.y * width + from.x;
             int goal = target.y * width + target.x;
             int best = start;
@@ -453,7 +641,7 @@ namespace DungeonGuardians.Core
 
         private static bool IsSolid(TileType tile)
         {
-            return tile == TileType.Solid || tile == TileType.Brick;
+            return tile == TileType.Solid || tile == TileType.Brick || tile == TileType.FragileFloor;
         }
 
         private static bool IsPassable(TileType tile)
@@ -490,7 +678,13 @@ namespace DungeonGuardians.Core
 
         private void CollectGold()
         {
-            if (State.RemainingGold.Remove(State.PlayerPosition) && State.RemainingGold.Count == 0)
+            bool taken = State.RemainingGold.Remove(State.PlayerPosition);
+            if (taken)
+            {
+                MakeNoise(State.PlayerPosition);
+            }
+
+            if (taken && State.RemainingGold.Count == 0)
             {
                 State.ExitOpen = true;
                 State.Tiles[State.Definition.exit.x, State.Definition.exit.y] = TileType.ExitOpen;
@@ -550,7 +744,7 @@ namespace DungeonGuardians.Core
             }
 
             TileType tile = GetTile(point);
-            return tile == TileType.Solid || tile == TileType.Brick;
+            return tile == TileType.Solid || tile == TileType.Brick || tile == TileType.FragileFloor;
         }
 
         // The exit is a doorway in the wall, not a block: closed, it is walked past like an empty cell (only the open
