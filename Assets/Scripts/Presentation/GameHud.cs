@@ -37,8 +37,10 @@ namespace DungeonGuardians.Presentation
         private RectTransform leftGroup;
         private RectTransform rightGroup;
         private GameObject pausePanel;
+        private GameObject defeatPanel;
         private Text levelText;
         private Text goldText;
+        private Text livesText;
         private Text exitText;
         private Text messageText;
         private Image upArrow;
@@ -67,6 +69,22 @@ namespace DungeonGuardians.Presentation
         public void SetLevel(string title, int index, int count)
         {
             levelText.text = conceptTopBar ? $"УРОВЕНЬ <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
+        }
+
+        // Hearts: the lives left glow red, the lost ones are dark.
+        public void SetLives(int left, int total)
+        {
+            var hearts = new System.Text.StringBuilder();
+            for (int i = 0; i < total; i++)
+            {
+                hearts.Append(i < left ? "<color=#FF5A3C>♥</color>" : "<color=#4A3A32>♥</color>");
+                if (i < total - 1)
+                {
+                    hearts.Append(' ');
+                }
+            }
+
+            livesText.text = hearts.ToString();
         }
 
         public void SetGold(int collected, int total)
@@ -164,6 +182,8 @@ namespace DungeonGuardians.Presentation
             canvas = MenuStyle.CreateCanvas("HUD", transform, 0);
 
             levelText = AddText("Level", new Vector2(24f, -24f), TextAnchor.UpperLeft);
+            livesText = AddText("Lives", new Vector2(24f, -70f), TextAnchor.UpperLeft);
+            livesText.supportRichText = true;
             goldText = AddText("Gold", new Vector2(0f, -24f), TextAnchor.UpperCenter);
             exitText = AddText("Exit", new Vector2(-24f, -24f), TextAnchor.UpperRight);
             messageText = AddText("Message", new Vector2(0f, 0f), TextAnchor.MiddleCenter);
@@ -193,6 +213,48 @@ namespace DungeonGuardians.Presentation
             }
 
             BuildPausePanel();
+            BuildDefeatPanel();
+        }
+
+        // After the explorer has turned to stone (DefeatSequence).
+        public void ShowDefeat()
+        {
+            if (defeatPanel != null)
+            {
+                defeatPanel.SetActive(true);
+            }
+        }
+
+        public void HideDefeat()
+        {
+            if (defeatPanel != null)
+            {
+                defeatPanel.SetActive(false);
+            }
+        }
+
+        // The level stays visible behind it, the stone explorer in the middle of it.
+        private void BuildDefeatPanel()
+        {
+            var overlay = new GameObject("Defeat Panel").AddComponent<Image>();
+            overlay.transform.SetParent(canvas.transform, false);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.55f);
+            MenuStyle.Stretch(overlay.rectTransform);
+
+            Text title = MenuStyle.AddLabel(overlay.transform, "Хранитель остановил тебя", 56);
+            title.color = new Color(1f, 0.8f, 0.4f);
+            title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            title.rectTransform.sizeDelta = new Vector2(1200f, 100f);
+            title.rectTransform.anchoredPosition = new Vector2(0f, 110f);
+
+            Button retry = MenuStyle.CreatePlateButton(overlay.transform, "ПОПРОБОВАТЬ СНОВА", new Vector2(460f, 84f), () => input.Restart());
+            var retryRect = (RectTransform)retry.transform;
+            retryRect.anchorMin = retryRect.anchorMax = new Vector2(0.5f, 0.5f);
+            retryRect.anchoredPosition = new Vector2(0f, -20f);
+            AddPauseButton(overlay.transform, "В МЕНЮ", -125f, () => MenuRequested?.Invoke());
+
+            defeatPanel = overlay.gameObject;
+            defeatPanel.SetActive(false);
         }
 
         // Over the frozen level: continue, start the level again or go back to the start screen.
@@ -240,6 +302,8 @@ namespace DungeonGuardians.Presentation
 
             Image level = AddSprite("Level Plate", levelPlate, TextAnchor.UpperLeft, new Vector2(137.5f, -37.5f));
             PlaceLabel(levelText, level.transform, Vector2.zero, 27, TextAnchor.MiddleCenter);
+            Image lives = AddSprite("Lives Plate", levelPlate, TextAnchor.UpperLeft, new Vector2(137.5f + 245f, -37.5f));
+            PlaceLabel(livesText, lives.transform, Vector2.zero, 30, TextAnchor.MiddleCenter);
 
             Image gold = AddSprite("Gold Plate", goldPlate, TextAnchor.UpperCenter, new Vector2(0.5f, -39f));
             Image icon = AddSprite("Gold Icon", goldIcon, TextAnchor.UpperCenter, new Vector2(-51f, -40f));

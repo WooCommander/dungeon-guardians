@@ -13,6 +13,10 @@ namespace DungeonGuardians.Presentation
         private const float ExplorerHeight = 0.92f;
         private const float GuardianHeight = 0.95f;
         private const float ActorDepth = 0f;
+        // When the explorer is caught, both stand in one cell: the explorer steps towards the camera and the guardian
+        // steps back and aside, so the stone figure is in full view with its captor beside it.
+        private const float CaughtDepth = 0.35f;
+        private const float CaughtGap = 0.5f;
         // Walk clip playback speed for the explorer; raise it if the feet still lag behind the movement.
         private const float ExplorerWalkPlayback = 1.8f;
 
@@ -79,6 +83,25 @@ namespace DungeonGuardians.Presentation
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<GridPoint, GameObject> goldPieces = new Dictionary<GridPoint, GameObject>();
+        // The petrified explorer stays on the level as a statue; the next Render makes a new one at the start.
+        public void LeaveStatue()
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            player.name = "Statue";
+            player.enabled = false;
+            statues.Add(player);
+            player = null;
+            PlayerLamp = null;
+        }
+
+        // The explorer and its helmet lamp, for the defeat sequence.
+        public CharacterView Player => player;
+        public HeadLamp PlayerLamp { get; private set; }
+
         // The map being drawn, for cells whose look depends on their neighbours (the ends of a rope).
         private TileType[,] currentTiles;
         private readonly Dictionary<GridPoint, float> goldRestY = new Dictionary<GridPoint, float>();
@@ -88,6 +111,8 @@ namespace DungeonGuardians.Presentation
         private TileType[,] cellTypes;
         private Transform levelRoot;
         private CharacterView player;
+        // Explorers caught earlier in this attempt, left standing as stone statues.
+        private readonly List<CharacterView> statues = new List<CharacterView>();
         private LevelDefinition currentDefinition;
         private RuntimeLevelState currentState;
         private CavernBackdrop backdrop;
@@ -266,6 +291,22 @@ namespace DungeonGuardians.Presentation
         private void BuildDecor(RuntimeLevelState state)
         {
             var torches = new List<Vector3>();
+            GridPoint exit = state.Definition.exit;
+            if (state.Definition.torches != null && state.Definition.torches.Length > 0)
+            {
+                // Spots chosen by tools/build_levels.py, each standing on a block that cannot be dug away.
+                foreach (GridPoint spot in state.Definition.torches)
+                {
+                    // The pair beside the exit stands a little away from the door, clear of its frame.
+                    float shift = spot.y == exit.y && Mathf.Abs(spot.x - exit.x) == 1 ? (spot.x - exit.x) * ExitTorchOffset : 0f;
+                    torches.Add(new Vector3(spot.x + shift, spot.y - 0.5f, 0f));
+                }
+
+                SpawnTorches(torches);
+                return;
+            }
+
+            // Older level files without torch spots: the same rule as the builder, without reinforcing the floor.
             for (int y = 1; y < state.Definition.height - 1; y++)
             {
                 for (int x = 1; x < state.Definition.width - 1; x++)
@@ -282,7 +323,6 @@ namespace DungeonGuardians.Presentation
             }
 
             // A pair of torches flanking the exit door, as on the concept screen.
-            GridPoint exit = state.Definition.exit;
             foreach (int side in new[] { -1, 1 })
             {
                 int x = exit.x + side;
@@ -294,6 +334,11 @@ namespace DungeonGuardians.Presentation
                 }
             }
 
+            SpawnTorches(torches);
+        }
+
+        private void SpawnTorches(List<Vector3> torches)
+        {
             // Real-time lights are costly on phones: light an even spread of torches, the rest only glow.
             int lightEvery = Mathf.Max(1, Mathf.CeilToInt(torches.Count / (float)MaxTorchLights));
             for (int i = 0; i < torches.Count; i++)
@@ -339,18 +384,33 @@ namespace DungeonGuardians.Presentation
             if (player == null)
             {
                 player = CharacterView.Create("explorer", transform, ExplorerHeight, balance.PlayerSpeed, new Color(1f, 0.55f, 0.21f), ExplorerWalkPlayback);
+                PlayerLamp = HeadLamp.Attach(player);
             }
 
             if (newRun)
             {
+                foreach (CharacterView statue in statues)
+                {
+                    Destroy(statue.gameObject);
+                }
+
+                statues.Clear();
+            }
+
+            if (newRun)
+            {
+                // A new attempt: the explorer is flesh again and the lamp burns.
+                player.ClearStone();
+                PlayerLamp.SetLevel(1f);
                 player.SnapNextMove();
                 player.SetOneShotDuration("Dig", balance.DigTicks / balance.TickRate);
             }
 
-            player.SetTarget(ToActorWorld(state.PlayerPosition));
+            Vector3 playerWorld = ToActorWorld(state.PlayerPosition);
+            player.SetTarget(state.Lost ? playerWorld + new Vector3(0f, 0f, -CaughtDepth) : playerWorld);
             if (state.Lost)
             {
-                player.SetPose(CharacterPose.Dead);
+                player.SetPose(CharacterPose.Petrify);
             }
             else if (state.PlayerDigTicks > 0)
             {
@@ -382,7 +442,16 @@ namespace DungeonGuardians.Presentation
                     view.SnapNextMove();
                 }
 
-                view.SetTarget(ToActorWorld(guardian.Position));
+                Vector3 guardianWorld = ToActorWorld(guardian.Position);
+                bool captor = state.Lost && guardian.Position.y == state.PlayerPosition.y && Mathf.Abs(guardian.Position.x - state.PlayerPosition.x) <= 1;
+                if (captor)
+                {
+                    // Aside on the side it came from.
+                    float side = view.transform.position.x >= playerWorld.x ? 1f : -1f;
+                    guardianWorld = new Vector3(playerWorld.x + side * CaughtGap, guardianWorld.y, guardianWorld.z + CaughtDepth);
+                }
+
+                view.SetTarget(guardianWorld);
                 view.SetPose(guardian.Trapped ? CharacterPose.Struggle : MovementPose(simulation, guardian.Position));
             }
         }

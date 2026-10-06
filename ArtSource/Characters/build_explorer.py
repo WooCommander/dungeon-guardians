@@ -1,5 +1,5 @@
 # Builds the game explorer from the rigged Tripo model: attaches the pickaxe to the right hand,
-# keys the gameplay clips (Idle, Walk, Climb, Fall, Dig) and exports Assets/Resources/Characters/explorer.fbx.
+# keys the gameplay clips (Idle, Walk, Climb, Fall, Dig, Petrify) and exports Assets/Resources/Characters/explorer.fbx.
 # Run from the project root:
 #   blender --background --factory-startup --python ArtSource/Characters/build_explorer.py
 # Add "-- --preview <folder>" to also render a contact sheet of the key poses.
@@ -131,7 +131,33 @@ def dig():
     return [(0, windup), (6, impact), (10, settle)]
 
 
-CLIPS = {"Idle": idle, "Walk": walk, "Climb": climb, "Fall": fall, "Dig": dig}
+def petrify():
+    # Caught by a guardian while stone climbs from the feet: a startle, two tugs to pull the pickaxe arm free, then
+    # a frozen, funny fright: arms up by the head, knees knocked together, head pulled back. The feet never move:
+    # they are the first to turn to stone. One second; the game holds the last frame.
+    def knock_kneed(bend):
+        result = legs(-8 - 6 * bend, 18 + 22 * bend, -8 - 6 * bend, 18 + 22 * bend)
+        # Thighs turned in towards each other.
+        result["Left_UpperLeg"] = (result["Left_UpperLeg"][0], LEFT * 8 * bend, 0)
+        result["Right_UpperLeg"] = (result["Right_UpperLeg"][0], RIGHT * 8 * bend, 0)
+        return result
+
+    startle = pose(hips_drop=-0.012, chest=-10, head=-12,
+                   left=arm(LEFT, -20, -55, -70), right=arm(RIGHT, -20, -55, -70), legs=knock_kneed(0.3))
+    tug = pose(hips_drop=-0.02, spine=-6, chest=-14, head=-6,
+               left=arm(LEFT, 25, 35, -30), right=arm(RIGHT, -75, 5, -115), legs=knock_kneed(0.6))
+    tug["Spine"] = (-6, 10, 0)
+    slip = pose(hips_drop=-0.015, chest=-4, head=-2,
+                left=arm(LEFT, 15, 25, -25), right=arm(RIGHT, -35, 15, -60), legs=knock_kneed(0.5))
+    tug_hard = pose(hips_drop=-0.024, spine=-8, chest=-18, head=-10,
+                    left=arm(LEFT, 30, 40, -20), right=arm(RIGHT, -95, 0, -125), legs=knock_kneed(0.8))
+    tug_hard["Spine"] = (-8, 14, 0)
+    frozen = pose(hips_drop=-0.022, spine=-4, chest=-12, head=-14, head_turn=10,
+                  left=arm(LEFT, -25, -80, -105), right=arm(RIGHT, -20, -112, -50), legs=knock_kneed(1.0))
+    return [(0, startle), (6, tug), (11, slip), (17, tug_hard), (24, frozen), (30, frozen)]
+
+
+CLIPS = {"Idle": idle, "Walk": walk, "Climb": climb, "Fall": fall, "Dig": dig, "Petrify": petrify}
 
 
 def main():

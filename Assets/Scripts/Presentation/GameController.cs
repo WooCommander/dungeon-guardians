@@ -14,6 +14,7 @@ namespace DungeonGuardians.Presentation
         private GameMenu menu;
         private MusicPlayer music;
         private FootstepPlayer footsteps;
+        private DefeatSequence defeat;
         private BalanceConfig balance;
         private ProgressStore progressStore;
         private PlayerProgress progress;
@@ -23,6 +24,9 @@ namespace DungeonGuardians.Presentation
         private float accumulator;
         private bool paused;
         private bool lossReported;
+        // Catches the explorer survives on one attempt at a level; each leaves a stone statue behind.
+        private const int Lives = 3;
+        private int livesLeft;
         // Dig taps are one-shot: keep them until a simulation tick consumes them, since not every frame has a tick.
         private bool pendingDigLeft;
         private bool pendingDigRight;
@@ -35,6 +39,7 @@ namespace DungeonGuardians.Presentation
             this.menu = menu;
             this.music = music;
             footsteps = gameObject.AddComponent<FootstepPlayer>();
+            defeat = gameObject.AddComponent<DefeatSequence>();
             this.balance = balance;
             this.progressStore = progressStore;
             progress = progressStore.Load();
@@ -67,11 +72,27 @@ namespace DungeonGuardians.Presentation
             LoadLevel(index);
         }
 
+        // The stone explorer stays where it was caught; a new one sets out from the start.
+        private void NextLife()
+        {
+            if (simulation == null)
+            {
+                return;
+            }
+
+            levelRenderer.LeaveStatue();
+            lossReported = false;
+            hud.ShowMessage(string.Empty);
+            simulation.RevivePlayer();
+        }
+
         private void ShowMenu()
         {
             // The level stops; it stays built behind the opaque start screen until the next one replaces it.
             simulation = null;
             paused = false;
+            defeat.Stop();
+            hud.HideDefeat();
             hud.SetPaused(false);
             hud.SetVisible(false);
             menu.Show();
@@ -137,10 +158,19 @@ namespace DungeonGuardians.Presentation
                 {
                     if (!lossReported)
                     {
-                        // A lost level keeps ticking without changes; buzz only once.
+                        // A lost level keeps ticking without changes; play the defeat only once.
                         lossReported = true;
-                        hud.ShowMessage("Поражение");
-                        GameSettings.Vibrate();
+                        livesLeft--;
+                        hud.SetLives(livesLeft, Lives);
+                        if (livesLeft > 0)
+                        {
+                            hud.ShowMessage(livesLeft == 1 ? "Осталась последняя жизнь" : $"Осталось жизней: {livesLeft}");
+                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, NextLife);
+                        }
+                        else
+                        {
+                            defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, hud.ShowDefeat);
+                        }
                     }
 
                     break;
@@ -170,6 +200,8 @@ namespace DungeonGuardians.Presentation
             levelIndex = Mathf.Clamp(index, 0, catalog.Levels.Count - 1);
             paused = false;
             lossReported = false;
+            livesLeft = Lives;
+            defeat.Stop();
             pendingDigLeft = false;
             pendingDigRight = false;
             accumulator = 0f;
@@ -180,6 +212,8 @@ namespace DungeonGuardians.Presentation
             hud.RefreshControls();
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
+            hud.HideDefeat();
+            hud.SetLives(livesLeft, Lives);
             music.SetMood(MusicPlayer.Mood.Game);
             hud.ShowMessage(string.Empty);
             Render();

@@ -16,5 +16,7 @@ namespace DungeonGuardians.Core
         public GridPoint[] gold = Array.Empty<GridPoint>();
         public GridPoint[] guardians = Array.Empty<GridPoint>();
         public GridPoint[] altars = Array.Empty<GridPoint>();
+        // Torch stands (decoration); the level builder puts an indestructible block under each one.
+        public GridPoint[] torches = Array.Empty<GridPoint>();
     }
 }

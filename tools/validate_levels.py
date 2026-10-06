@@ -11,8 +11,9 @@ from collections import deque
 
 LEVELS = pathlib.Path(__file__).resolve().parent.parent / "Assets" / "Resources" / "Levels"
 KNOWN = set("#BH-EA. ")
-SOLID = set("#B")  # plus the closed exit
-PASSABLE = set(".H-A ")
+SOLID = set("#B")
+# The exit is a doorway: walked past while closed, the level is won by entering it once open.
+PASSABLE = set(".H-AE ")
 
 
 def load(path):
@@ -29,15 +30,14 @@ def load(path):
 
 
 def reachable(level, tile, exit_open, dig):
+    # exit_open is kept for the callers: the doorway is passable either way, so it no longer changes the result.
     def support(x, y):
         if tile(x, y) in "H-":
             return True
-        below = tile(x, y - 1)
-        return below in SOLID or below == "E"
+        return tile(x, y - 1) in SOLID
 
     def passable(x, y):
-        t = tile(x, y)
-        return t in PASSABLE or (t == "E" and exit_open)
+        return tile(x, y) in PASSABLE
 
     # A state is (x, y, in_hole): in_hole means the cell is a freshly dug brick the player is falling through.
     start = (level["playerStart"]["x"], level["playerStart"]["y"], False)
@@ -55,7 +55,7 @@ def reachable(level, tile, exit_open, dig):
             if tile(x, y) in "H-":
                 moves.append((x, y - 1, False))
             # Digging needs solid footing (not a ladder or bar) and an empty cell above the target brick.
-            standing = tile(x, y) not in "H-" and (tile(x, y - 1) in SOLID or tile(x, y - 1) == "E")
+            standing = tile(x, y) not in "H-" and tile(x, y - 1) in SOLID
             for side in (-1, 1):
                 if dig and standing and tile(x + side, y - 1) == "B" and tile(x + side, y) in ". ":
                     moves.append((x + side, y - 1, True))

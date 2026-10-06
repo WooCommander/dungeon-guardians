@@ -12,7 +12,9 @@ namespace DungeonGuardians.Presentation
         Fall,
         Dig,
         Struggle,
-        Dead
+        Dead,
+        // Caught by a guardian: the explorer faces the player, tugs and freezes while turning to stone.
+        Petrify
     }
 
     // Shows a character model from Resources/Characters, glides it between grid cells and picks the animation clip.
@@ -42,6 +44,16 @@ namespace DungeonGuardians.Presentation
         private bool climbing;
         private CharacterPose pose;
         private string currentClip;
+        private float height;
+        private Transform model;
+        // Petrify materials replace the model's own while it turns to stone; the originals come back afterwards.
+        private Renderer[] stoneRenderers;
+        private Material[][] ownMaterials;
+        private readonly List<Material> stoneMaterials = new List<Material>();
+        private static Shader petrifyShader;
+
+        // Height in cells the model was fitted to.
+        public float Height => height;
 
         // walkPlayback scales the Walk and Climb clips so the steps keep up with the movement speed.
         public static CharacterView Create(string modelName, Transform parent, float height, float speed, Color fallbackColor, float walkPlayback = 1f)
@@ -51,6 +63,7 @@ namespace DungeonGuardians.Presentation
             var view = root.AddComponent<CharacterView>();
             view.speed = speed;
             view.walkPlayback = walkPlayback;
+            view.height = height;
             view.Build(modelName, height, fallbackColor);
             return view;
         }
@@ -87,9 +100,9 @@ namespace DungeonGuardians.Presentation
                 facing = facingOverride;
             }
 
-            if (value == CharacterPose.Dig && pose != CharacterPose.Dig)
+            if ((value == CharacterPose.Dig || value == CharacterPose.Petrify) && pose != value)
             {
-                // Restart the swing for every new dig.
+                // Restart the swing for every new dig, and the fright from its start.
                 currentClip = null;
             }
 
@@ -108,6 +121,120 @@ namespace DungeonGuardians.Presentation
         public void SnapNextMove()
         {
             snapNext = true;
+        }
+
+        // A bone of the model by name (e.g. "Head"), or null.
+        public Transform FindBone(string name)
+        {
+            if (model == null)
+            {
+                return null;
+            }
+
+            foreach (Transform child in model.GetComponentsInChildren<Transform>())
+            {
+                if (child.name == name || child.name.EndsWith(":" + name))
+                {
+                    return child;
+                }
+            }
+
+            return null;
+        }
+
+        // Stone climbing the model: 0 = none, 1 = up to the top of the head.
+        public void SetStoneLevel(float share)
+        {
+            if (stoneRenderers == null)
+            {
+                if (share <= 0f || !BeginStone())
+                {
+                    return;
+                }
+            }
+
+            // A little past the top at 1, so the ragged edge clears the helmet.
+            float line = transform.position.y + share * height * 1.08f - 0.02f;
+            foreach (Material material in stoneMaterials)
+            {
+                material.SetFloat("_StoneLine", line);
+            }
+        }
+
+        // Back to the model's own materials.
+        public void ClearStone()
+        {
+            if (stoneRenderers == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < stoneRenderers.Length; i++)
+            {
+                stoneRenderers[i].sharedMaterials = ownMaterials[i];
+            }
+
+            foreach (Material material in stoneMaterials)
+            {
+                Destroy(material);
+            }
+
+            stoneMaterials.Clear();
+
+            stoneRenderers = null;
+            ownMaterials = null;
+        }
+
+        private bool BeginStone()
+        {
+            if (petrifyShader == null)
+            {
+                petrifyShader = Resources.Load<Shader>("Shaders/Petrify");
+            }
+
+            if (petrifyShader == null || model == null)
+            {
+                return false;
+            }
+
+            stoneRenderers = model.GetComponentsInChildren<Renderer>();
+            ownMaterials = new Material[stoneRenderers.Length][];
+            for (int i = 0; i < stoneRenderers.Length; i++)
+            {
+                ownMaterials[i] = stoneRenderers[i].sharedMaterials;
+                var stone = new Material[ownMaterials[i].Length];
+                for (int m = 0; m < stone.Length; m++)
+                {
+                    Material own = ownMaterials[i][m];
+                    stone[m] = new Material(petrifyShader) { name = (own != null ? own.name : "Model") + " (stone)" };
+                    stoneMaterials.Add(stone[m]);
+                    if (own != null)
+                    {
+                        CopyTexture(own, stone[m], "_MainTex", "_BaseMap");
+                        CopyTexture(own, stone[m], "_BumpMap");
+                        if (own.HasProperty("_Color"))
+                        {
+                            stone[m].color = own.color;
+                        }
+                    }
+                }
+
+                stoneRenderers[i].sharedMaterials = stone;
+            }
+
+            return true;
+        }
+
+        private static void CopyTexture(Material from, Material to, params string[] properties)
+        {
+            foreach (string property in properties)
+            {
+                if (from.HasProperty(property) && from.GetTexture(property) != null)
+                {
+                    to.SetTexture(property == "_BaseMap" ? "_MainTex" : property, from.GetTexture(property));
+                    return;
+                }
+            }
         }
 
         // Fits a one-shot clip (Dig) into the gameplay duration so the visible swing matches the input lock.
@@ -140,6 +267,10 @@ namespace DungeonGuardians.Presentation
             if (shown == CharacterPose.Ladder)
             {
                 yaw = BackYaw;
+            }
+            else if (shown == CharacterPose.Petrify)
+            {
+                yaw = FrontYaw;
             }
             else if (shown == CharacterPose.Ground && Time.time - lastMoveTime > FaceFrontDelay)
             {
@@ -176,6 +307,10 @@ namespace DungeonGuardians.Presentation
                 case CharacterPose.Struggle:
                     Play("Struggle", 1f);
                     break;
+                case CharacterPose.Petrify when clipNames.ContainsKey("Petrify"):
+                    Play("Petrify", 1f);
+                    break;
+                case CharacterPose.Petrify:
                 case CharacterPose.Dead:
                     if (currentClip != null && clipNames.TryGetValue(currentClip, out string state))
                     {
@@ -204,7 +339,7 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            if (clip == "Dig")
+            if (clip == "Dig" || clip == "Petrify")
             {
                 animationPlayer[state].time = 0f;
                 animationPlayer.Play(state);
@@ -240,6 +375,7 @@ namespace DungeonGuardians.Presentation
             }
 
             model.name = "Model";
+            this.model = model.transform;
             foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
             {
                 // Characters stand in front of the block wall; their shadow would land below the feet and make them look afloat.
@@ -325,7 +461,7 @@ namespace DungeonGuardians.Presentation
                 // FBX takes are named "Armature|Clip"; keep the clip part.
                 string clip = state.name.Substring(state.name.LastIndexOf('|') + 1);
                 clipNames[clip] = state.name;
-                state.wrapMode = clip == "Dig" || clip == "Fall" ? WrapMode.ClampForever : WrapMode.Loop;
+                state.wrapMode = clip == "Dig" || clip == "Fall" || clip == "Petrify" ? WrapMode.ClampForever : WrapMode.Loop;
             }
         }
     }

@@ -5,8 +5,12 @@ import json
 import pathlib
 import re
 
+from validate_levels import reachable
+
 LEVELS = pathlib.Path(__file__).resolve().parent.parent / "Assets" / "Resources" / "Levels"
 WIDTH, HEIGHT = 36, 21
+# Torches on stands along the walk rows, every TORCH_SPACING cells, shifted by TORCH_STAGGER per row.
+TORCH_SPACING, TORCH_STAGGER = 6, 3
 
 
 class Map:
@@ -53,10 +57,54 @@ def point(x, y, **extra):
     return {"x": x, "y": y, **extra}
 
 
+def place_torches(level, start, exit_, gold, guardians):
+    """Picks the torch spots and makes the block under each one indestructible, since a torch stand cannot stand
+    over a hole. A spot is dropped when its reinforced block would cut the player off from any cell reachable before
+    (a needed dig), so torches never change how a level is solved."""
+    taken = {tuple(start), tuple(exit_), *map(tuple, gold), *map(tuple, guardians)}
+
+    def floor(x, y):
+        return (level.get(x, y) == "." and level.get(x, y - 1) in "#B" and level.get(x, y + 1) in ".-"
+                and (x, y) not in taken)
+
+    spots = [(x, y) for y in range(1, level.height - 1) for x in range(1, level.width - 1)
+             if floor(x, y) and (x + y * TORCH_STAGGER) % TORCH_SPACING == 0]
+    # A pair beside the exit door, as on the concept screen.
+    for side in (-1, 1):
+        spot = (exit_[0] + side, exit_[1])
+        if floor(*spot) and spot not in spots:
+            spots.append(spot)
+
+    def reach():
+        rows = level.rows()
+
+        def tile(x, y):
+            if not (0 <= x < level.width and 0 <= y < level.height):
+                return "#"
+            return rows[level.height - 1 - y][x]
+
+        # Only cells the player can stand in count: a dug brick and the air a player falls through are only passed
+        # on the way, and reinforcing a block rightly removes them.
+        return {(x, y) for x, y in reachable({"playerStart": point(*start)}, tile, exit_open=True, dig=True)
+                if tile(x, y) not in "#B" and (tile(x, y) in "H-" or tile(x, y - 1) in "#B")}
+
+    before = reach()
+    torches = []
+    for x, y in spots:
+        if level.get(x, y - 1) == "B":
+            level.set(x, y - 1, "#")
+            if not before <= reach():
+                level.set(x, y - 1, "B")
+                continue
+        torches.append((x, y))
+    return torches
+
+
 def save(number, title, level, start, exit_, gold, guardians=(), altars=()):
     level.set(exit_[0], exit_[1], "E")
     for x, y in altars:
         level.set(x, y, "A")
+    torches = place_torches(level, start, exit_, gold, guardians)
     data = {
         "id": f"level_{number:02d}",
         "version": 4,
@@ -69,11 +117,13 @@ def save(number, title, level, start, exit_, gold, guardians=(), altars=()):
         "gold": [point(*g) for g in gold],
         "guardians": [point(*g) for g in guardians],
         "altars": [point(*a) for a in altars],
+        "torches": [point(*t) for t in torches],
     }
     text = json.dumps(data, ensure_ascii=False, indent=2)
     # Keep coordinates on one line, as in hand-written levels.
     text = re.sub(r'\{\s+"x": (\d+),\s+"y": (\d+)\s+\}', r'{ "x": \1, "y": \2 }', text)
     (LEVELS / f"level_{number:02d}.json").write_text(text + "\n", encoding="utf-8")
+    print(f"level_{number:02d}: {len(torches)} torches, each on a reinforced block")
 
 
 # Walk rows are y = 2, 7, 11, 15, 19; the blocks under them sit at y = 1, 6, 10, 14, 18.

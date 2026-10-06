@@ -10,8 +10,19 @@ namespace DungeonGuardians.Presentation
     // "Settings" opens SettingsScreen over it. Pieces come from tools/cut_menu.py.
     public sealed class GameMenu : MonoBehaviour
     {
+        // The painted guardians' glowing eyes (picture pixels: centre and glow size), one statue per group so both
+        // eyes of a statue flicker together: the big statue on the right and the one further back.
+        private static readonly (Vector2 centre, float size)[][] Eyes =
+        {
+            new[] { (new Vector2(1355f, 277f), 70f), (new Vector2(1442f, 241f), 70f), (new Vector2(1379f, 196f), 52f) },
+            new[] { (new Vector2(1117f, 500f), 40f), (new Vector2(1153f, 491f), 40f), (new Vector2(1129f, 467f), 30f) },
+        };
+        private static readonly Color EyeColor = new Color(0.45f, 1f, 1f, 1f);
+
         private Canvas canvas;
         private SettingsScreen settings;
+        private readonly System.Collections.Generic.List<(Image glow, int statue)> eyeGlows =
+            new System.Collections.Generic.List<(Image glow, int statue)>();
 
         public event Action Play;
         public event Action SettingsChanged;
@@ -24,6 +35,7 @@ namespace DungeonGuardians.Presentation
             // The picture covers the screen keeping its proportions; the buttons are its children, so they stay on
             // their painted places whatever the screen shape.
             Image picture = MenuStyle.CreatePicture(canvas.transform, "Backgrounds/menu", AspectRatioFitter.AspectMode.EnvelopeParent);
+            AddEyeGlows(picture.transform);
             MenuStyle.AddPictureButton(picture.transform, "menu_play", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", () => Play?.Invoke());
             MenuStyle.AddPictureButton(picture.transform, "menu_settings", new Rect(659f, 617f, 351f, 79f), "НАСТРОЙКИ", OpenSettings);
 
@@ -42,6 +54,41 @@ namespace DungeonGuardians.Presentation
         public void Hide()
         {
             canvas.gameObject.SetActive(false);
+        }
+
+        private void AddEyeGlows(Transform picture)
+        {
+            for (int statue = 0; statue < Eyes.Length; statue++)
+            {
+                foreach ((Vector2 centre, float size) in Eyes[statue])
+                {
+                    var glow = new GameObject("Eye Glow").AddComponent<Image>();
+                    glow.transform.SetParent(picture, false);
+                    glow.sprite = ExitGlow.GetHaloSprite();
+                    glow.raycastTarget = false;
+                    MenuStyle.PlaceOnPicture(glow.rectTransform, new Rect(centre.x - size / 2f, centre.y - size / 2f, size, size));
+                    eyeGlows.Add((glow, statue));
+                }
+            }
+        }
+
+        // Each statue's eyes smoulder unevenly, now and then flaring or almost dying away.
+        private void Update()
+        {
+            if (eyeGlows.Count == 0 || !canvas.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            float time = Time.unscaledTime;
+            foreach ((Image glow, int statue) in eyeGlows)
+            {
+                float slow = Mathf.PerlinNoise(statue * 13.7f, time * 1.3f);
+                float fast = Mathf.PerlinNoise(statue * 5.1f + 40f, time * 9f);
+                float level = Mathf.Clamp01(0.15f + 1.1f * slow * (0.7f + 0.3f * fast));
+                glow.color = new Color(EyeColor.r, EyeColor.g, EyeColor.b, level * 0.85f);
+                glow.rectTransform.localScale = Vector3.one * (0.85f + 0.3f * level);
+            }
         }
 
         private void OpenSettings()

@@ -25,6 +25,27 @@ namespace DungeonGuardians.Core
             CollectGold();
         }
 
+        // A life lost but not the level: the explorer starts again from the start cell, the guardians from theirs.
+        // Collected gold, the opened exit and dug holes stay as they are.
+        public void RevivePlayer()
+        {
+            State.Lost = false;
+            State.PlayerPosition = State.Definition.playerStart;
+            State.PlayerDigTicks = 0;
+            playerMoveBudget = 1f;
+            GridPoint[] starts = State.Definition.guardians ?? Array.Empty<GridPoint>();
+            for (int i = 0; i < State.Guardians.Count && i < starts.Length; i++)
+            {
+                GuardianState guardian = State.Guardians[i];
+                guardian.Position = starts[i];
+                guardian.Trapped = false;
+                guardian.RespawnTicks = 0;
+                guardian.MoveBudget = 0f;
+            }
+
+            StateChanged?.Invoke();
+        }
+
         public void Tick(InputSnapshot input)
         {
             if (State.Won || State.Lost)
@@ -397,12 +418,12 @@ namespace DungeonGuardians.Core
 
         private static bool IsSolid(TileType tile)
         {
-            return tile == TileType.Solid || tile == TileType.Brick || tile == TileType.ExitClosed || tile == TileType.ExitOpen;
+            return tile == TileType.Solid || tile == TileType.Brick;
         }
 
         private static bool IsPassable(TileType tile)
         {
-            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitOpen || tile == TileType.Altar;
+            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar;
         }
 
         private static int Distance(GridPoint a, GridPoint b)
@@ -492,9 +513,11 @@ namespace DungeonGuardians.Core
             }
 
             TileType tile = GetTile(point);
-            return tile == TileType.Solid || tile == TileType.Brick || tile == TileType.ExitClosed || tile == TileType.ExitOpen;
+            return tile == TileType.Solid || tile == TileType.Brick;
         }
 
+        // The exit is a doorway in the wall, not a block: closed, it is walked past like an empty cell (only the open
+        // door ends the level, see CheckExit).
         private bool CanOccupy(GridPoint point)
         {
             if (!InBounds(point))
@@ -503,7 +526,7 @@ namespace DungeonGuardians.Core
             }
 
             TileType tile = GetTile(point);
-            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitOpen || tile == TileType.Altar;
+            return tile == TileType.Air || tile == TileType.Ladder || tile == TileType.Bar || tile == TileType.ExitClosed || tile == TileType.ExitOpen || tile == TileType.Altar;
         }
 
         private bool IsActorAt(GridPoint point)
