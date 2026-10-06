@@ -41,6 +41,11 @@ namespace DungeonGuardians.Presentation
         private Text levelText;
         private Text goldText;
         private Text livesText;
+        // The level's name, shown large when the level starts and fading away.
+        private Text titleBanner;
+        private float titleShownAt = -100f;
+        private const float TitleHold = 2.2f;
+        private const float TitleFade = 0.8f;
         private Text exitText;
         private Text messageText;
         private Image upArrow;
@@ -69,6 +74,8 @@ namespace DungeonGuardians.Presentation
         public void SetLevel(string title, int index, int count)
         {
             levelText.text = conceptTopBar ? $"УРОВЕНЬ <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
+            titleBanner.text = $"<size=30>УРОВЕНЬ {index}</size>\n{title}";
+            titleShownAt = Time.unscaledTime;
         }
 
         // Hearts: the lives left glow red, the lost ones are dark.
@@ -153,6 +160,11 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
+            float shown = Time.unscaledTime - titleShownAt;
+            float alpha = 1f - Mathf.Clamp01((shown - TitleHold) / TitleFade);
+            titleBanner.enabled = alpha > 0f;
+            titleBanner.color = new Color(titleBanner.color.r, titleBanner.color.g, titleBanner.color.b, alpha);
+
             var held = input.HeldDirections;
             if (conceptControls)
             {
@@ -186,6 +198,12 @@ namespace DungeonGuardians.Presentation
             livesText.supportRichText = true;
             goldText = AddText("Gold", new Vector2(0f, -24f), TextAnchor.UpperCenter);
             exitText = AddText("Exit", new Vector2(-24f, -24f), TextAnchor.UpperRight);
+            titleBanner = MenuStyle.AddLabel(canvas.transform, string.Empty, 64);
+            titleBanner.color = new Color(1f, 0.82f, 0.45f);
+            titleBanner.lineSpacing = 0.9f;
+            titleBanner.rectTransform.anchorMin = titleBanner.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+            titleBanner.rectTransform.sizeDelta = new Vector2(1200f, 160f);
+            titleBanner.rectTransform.anchoredPosition = new Vector2(0f, -190f);
             messageText = AddText("Message", new Vector2(0f, 0f), TextAnchor.MiddleCenter);
             messageText.fontSize = 42;
             messageText.enabled = false;

@@ -1,4 +1,4 @@
-# Builds Assets/Resources/Levels/level_01..03.json from compact descriptions (platforms, ladders, bars),
+# Builds Assets/Resources/Levels/level_01..08.json from compact descriptions (platforms, ladders, bars),
 # so wide maps stay easy to edit without counting characters. y counts from the bottom, as in the game.
 #   python tools/build_levels.py && python tools/validate_levels.py --map
 import json
@@ -221,7 +221,133 @@ def level_3():
          guardians=[(30, 2), (20, 15)], altars=[(9, 15)])
 
 
+# Levels 4..8 use the concept-sized 33 x 13 map of level 1: blocks at y = 1, 5, 9, walk rows y = 2, 6, 10 and
+# ropes at y = 11 under the ceiling. Each adds one idea: ropes over gaps, two guardians, gold sealed in pockets
+# that must be dug into, shafts between tiers and finally three guardians around a vault.
+
+def level_4():
+    # "Канатная галерея": the middle tier is split by a wide gap crossed only by a rope; the top tier is reached
+    # from the ropes under the ceiling. One guardian patrols the top.
+    m = Map(33, 13)
+    m.row(5, 1, 11, "B"); m.row(5, 21, 31, "B")            # tier 2, split by the gap x 12..20
+    m.set(11, 5, "#"); m.set(21, 5, "#")                    # reinforced lips of the gap
+    m.bar(6, 12, 20)                                        # rope across the gap
+    m.row(9, 6, 26, "B")                                    # tier 3 in the middle
+    for x in (6, 16, 26):
+        m.set(x, 9, "#")
+    m.ladder(3, 2, 6)        # floor -> tier 2 left
+    m.ladder(29, 2, 6)       # floor -> tier 2 right
+    m.ladder(16, 2, 4)       # floor -> under the rope: climb up and grab it
+    m.ladder(2, 6, 11)       # tier 2 left -> ceiling ropes
+    m.ladder(30, 6, 11)      # tier 2 right -> ceiling ropes
+    m.bar(11, 3, 29)         # ceiling ropes, drop onto tier 3
+    gold = [(8, 2), (24, 2), (16, 6), (6, 6), (26, 6), (9, 10), (16, 10), (23, 10), (5, 11), (27, 11)]
+    save(4, "Канатная галерея", m, start=(5, 2), exit_=(31, 6), gold=gold,
+         guardians=[(18, 10)], altars=[(13, 10)])
+
+
+def level_5():
+    # "Двойная стража": two guardians, one per side, and two gold bars sealed under the floor of tier 2:
+    # dig the sandstone roof of each pocket from beside it, drop in, and climb out by the pocket's ladder.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B")                                    # tier 2
+    m.row(9, 1, 10, "B"); m.row(9, 22, 31, "B")             # tier 3 left and right
+    # Pockets under tier 2: reinforced walls, sandstone roof, a ladder up the inner wall.
+    for x0 in (8, 21):
+        m.column(x0, 2, 4, "#"); m.column(x0 + 4, 2, 4, "#")
+        m.row(5, x0, x0 + 4, "#")
+        m.set(x0 + 2, 5, "B")                               # the roof brick to dig
+    m.ladder(10, 2, 4)       # pocket ladders: back up through the dug roof before it refills
+    m.ladder(23, 2, 4)
+    m.ladder(4, 2, 6)        # floor -> tier 2
+    m.ladder(16, 2, 6)       # floor -> tier 2, middle
+    m.ladder(29, 2, 6)       # floor -> tier 2
+    m.ladder(6, 6, 10)       # tier 2 -> tier 3 left
+    m.ladder(26, 6, 10)      # tier 2 -> tier 3 right
+    m.ladder(14, 6, 11); m.ladder(18, 6, 11)                # up to the ceiling ropes
+    m.bar(11, 11, 21)
+    gold = [(9, 3), (24, 3), (2, 2), (30, 2), (12, 6), (20, 6), (2, 10), (30, 10), (16, 11), (9, 10), (23, 10)]
+    save(5, "Двойная стража", m, start=(16, 2), exit_=(10, 10), gold=gold,
+         guardians=[(3, 10), (29, 10)], altars=[(8, 10), (24, 10)])
+
+
+def level_6():
+    # "Колодцы": the tiers are joined by narrow shafts rather than open ladders, ropes run over the outer halls,
+    # and the exit waits in a walled hall in the middle of the top tier, reached only by the middle shaft.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B"); m.row(9, 1, 31, "B")              # two full tiers
+    for x in (1, 2, 30, 31):
+        m.set(x, 5, "#"); m.set(x, 9, "#")
+    # Shafts: openings in the tiers with ladders.
+    for x in (5, 27):
+        m.set(x, 5, "H"); m.ladder(x, 2, 6)
+    m.set(16, 9, "H"); m.ladder(16, 6, 10)
+    m.set(9, 9, "H"); m.ladder(9, 6, 10)
+    m.set(23, 9, "H"); m.ladder(23, 6, 10)
+    # The middle hall of the top tier: reinforced walls, entered only by the middle shaft.
+    for x in (12, 20):
+        m.column(x, 10, 11, "#")
+    m.bar(11, 2, 11); m.bar(11, 21, 30)                     # ropes over the outer cells
+    m.ladder(3, 10, 11); m.ladder(29, 10, 11)
+    gold = [(10, 2), (22, 2), (16, 2), (3, 6), (29, 6), (13, 6), (19, 6), (14, 10), (15, 10),
+            (6, 11), (26, 11), (2, 2), (30, 2)]
+    save(6, "Колодцы", m, start=(16, 6), exit_=(18, 10), gold=gold,
+         guardians=[(4, 10), (28, 10)], altars=[(7, 2), (25, 2)])
+
+
+def level_7():
+    # "Зеркальные залы": a symmetric hall with three guardians: two on the sides of the floor and one on the top.
+    # The middle tier has reinforced pillars that stop easy digging; the ladders cross over each other's paths.
+    m = Map(33, 13)
+    m.row(5, 3, 29, "B")                                    # tier 2, open at the outer edges
+    for x in (8, 16, 24):
+        m.set(x, 5, "#")
+    m.row(9, 1, 13, "B"); m.row(9, 19, 31, "B")             # tier 3
+    for x in (1, 13, 19, 31):
+        m.set(x, 9, "#")
+    m.ladder(6, 2, 6); m.ladder(26, 2, 6)
+    m.ladder(12, 2, 6); m.ladder(20, 2, 6)
+    m.ladder(3, 6, 10); m.ladder(29, 6, 10)
+    m.ladder(16, 6, 11)                                     # the central climb to the ropes
+    m.bar(11, 4, 15); m.bar(11, 17, 28)
+    m.bar(7, 1, 2); m.bar(7, 30, 31)                        # ledges at the open edges of tier 2
+    gold = [(2, 2), (30, 2), (9, 2), (23, 2), (16, 2), (10, 6), (22, 6), (4, 6), (28, 6),
+            (6, 10), (26, 10), (10, 11), (22, 11), (16, 10)]
+    save(7, "Зеркальные залы", m, start=(16, 6), exit_=(2, 10), gold=gold,
+         guardians=[(4, 2), (28, 2), (24, 10)], altars=[(14, 2), (18, 2)])
+
+
+def level_8():
+    # "Сокровищница": a reinforced vault in the middle tier holds three gold bars: dig in through its roof, dig out
+    # through its floor. Three guardians guard the halls.
+    m = Map(33, 13)
+    m.row(5, 1, 31, "B")
+    for x in (1, 10, 11, 21, 22, 31):
+        m.set(x, 5, "#")
+    m.row(9, 1, 31, "B")
+    for x in (1, 31):
+        m.set(x, 9, "#")
+    # The vault sits in tier 2 (walk row 6) between reinforced walls, roofed by tier 3. Its roof is reinforced but
+    # for one sandstone brick: dig it from the top tier and drop in. There is no ladder: leave by digging the vault's
+    # sandstone floor and falling to the bottom hall.
+    m.column(13, 6, 8, "#"); m.column(19, 6, 8, "#")
+    m.row(9, 13, 19, "#"); m.set(16, 9, "B")
+    m.ladder(4, 2, 6); m.ladder(28, 2, 6)
+    m.ladder(7, 6, 10); m.ladder(25, 6, 10)
+    m.ladder(2, 10, 11); m.ladder(30, 10, 11)
+    m.bar(11, 3, 29)
+    gold = [(14, 6), (15, 6), (18, 6), (2, 2), (30, 2), (10, 2), (22, 2), (4, 10), (28, 10),
+            (11, 10), (21, 10), (9, 6), (24, 6), (16, 11)]
+    save(8, "Сокровищница", m, start=(16, 2), exit_=(13, 10), gold=gold,
+         guardians=[(3, 6), (29, 6), (10, 10)], altars=[(5, 10), (27, 10)])
+
+
 if __name__ == "__main__":
     level_1()
     level_2()
     level_3()
+    level_4()
+    level_5()
+    level_6()
+    level_7()
+    level_8()
