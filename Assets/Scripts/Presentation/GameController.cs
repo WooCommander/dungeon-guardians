@@ -24,6 +24,8 @@ namespace DungeonGuardians.Presentation
         private int levelIndex;
         private float accumulator;
         private bool paused;
+        private bool pendingDigLeft;
+        private bool pendingDigRight;
         private bool lossReported;
         private bool winReported;
         private Coroutine victoryDelay;
