@@ -23,15 +23,20 @@ namespace DungeonGuardians.Presentation
         private Canvas canvas;
         private SettingsScreen settings;
         private StoryScreen story;
+        private LevelMapScreen levelMap;
+        private PlayerProgress progress;
+        private LevelCatalog catalog;
         private readonly System.Collections.Generic.List<(Image glow, int statue)> eyeGlows =
             new System.Collections.Generic.List<(Image glow, int statue)>();
 
-        public event Action Play;
+        public event Action<int> PlayLevel;
         public event Action SettingsChanged;
         public event Action ResetProgress;
 
-        public void Initialize()
+        public void Initialize(PlayerProgress progress, LevelCatalog catalog)
         {
+            this.progress = progress;
+            this.catalog = catalog;
             canvas = MenuStyle.CreateCanvas("Menu", transform, 10);
 
             // The picture covers the screen keeping its proportions; the buttons are its children, so they stay on
@@ -43,16 +48,38 @@ namespace DungeonGuardians.Presentation
 
             settings = SettingsScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
+            levelMap = LevelMapScreen.Create(canvas.transform);
+
+            levelMap.LevelSelected += index =>
+            {
+                levelMap.Close();
+                PlayLevel?.Invoke(index);
+            };
+            levelMap.BackRequested += () =>
+            {
+                levelMap.Close();
+                Show();
+            };
+
             AddQuitButton(picture.transform);
             settings.Changed += () => SettingsChanged?.Invoke();
             settings.ResetProgress += () => ResetProgress?.Invoke();
             Show();
         }
 
+        public void OpenMap()
+        {
+            canvas.gameObject.SetActive(true);
+            settings.Close();
+            story.gameObject.SetActive(false);
+            levelMap.Open(progress, catalog);
+        }
+
         public void Show()
         {
             canvas.gameObject.SetActive(true);
             settings.Close();
+            levelMap.Close();
         }
 
         public void Hide()
@@ -121,6 +148,13 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
+            if (levelMap.gameObject.activeSelf)
+            {
+                levelMap.Close();
+                Show();
+                return;
+            }
+
             if (settings.gameObject.activeSelf)
             {
                 settings.Close();
@@ -131,16 +165,16 @@ namespace DungeonGuardians.Presentation
             }
         }
 
-        // The first game opens with the legend of the city; after that "Play" goes straight to the level.
+        // The first game opens with the legend of the city; after that "Play" opens the Seekers Path level map.
         private void StartGame()
         {
             if (StoryScreen.Seen)
             {
-                Play?.Invoke();
+                OpenMap();
                 return;
             }
 
-            story.Open(() => Play?.Invoke());
+            story.Open(OpenMap);
         }
 
         private void OpenSettings()

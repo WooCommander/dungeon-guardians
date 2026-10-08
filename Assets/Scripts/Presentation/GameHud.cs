@@ -63,6 +63,7 @@ namespace DungeonGuardians.Presentation
 
         public event Action MenuRequested;
         public event Action NextRequested;
+        public event Action MapRequested;
 
         public void Bind(PlayerInputBridge bridge)
         {
@@ -255,33 +256,53 @@ namespace DungeonGuardians.Presentation
             keyboardHint.enabled = false;
         }
 
+        private Text victoryStars;
+        private Text victoryStats;
+
         private void BuildVictoryPanel()
         {
             var overlay = new GameObject("Victory Panel").AddComponent<Image>();
             overlay.transform.SetParent(canvas.transform, false);
-            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.55f);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.65f);
             MenuStyle.Stretch(overlay.rectTransform);
 
-            victoryTitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 60);
+            victoryTitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 54);
             victoryTitle.color = new Color(1f, 0.85f, 0.42f);
+            victoryTitle.fontStyle = FontStyle.Bold;
             victoryTitle.rectTransform.anchorMin = victoryTitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victoryTitle.rectTransform.sizeDelta = new Vector2(1300f, 100f);
-            victoryTitle.rectTransform.anchoredPosition = new Vector2(0f, 200f);
+            victoryTitle.rectTransform.sizeDelta = new Vector2(1300f, 80f);
+            victoryTitle.rectTransform.anchoredPosition = new Vector2(0f, 220f);
 
-            victorySubtitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 32);
-            victorySubtitle.color = new Color(1f, 0.92f, 0.78f);
+            victoryStars = MenuStyle.AddLabel(overlay.transform, "★★★", 48);
+            victoryStars.color = new Color(1f, 0.84f, 0.28f);
+            victoryStars.alignment = TextAnchor.MiddleCenter;
+            victoryStars.rectTransform.anchorMin = victoryStars.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            victoryStars.rectTransform.sizeDelta = new Vector2(400f, 60f);
+            victoryStars.rectTransform.anchoredPosition = new Vector2(0f, 155f);
+
+            victoryStats = MenuStyle.AddLabel(overlay.transform, string.Empty, 26);
+            victoryStats.color = new Color(0.95f, 0.92f, 0.82f);
+            victoryStats.alignment = TextAnchor.MiddleCenter;
+            victoryStats.rectTransform.anchorMin = victoryStats.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            victoryStats.rectTransform.sizeDelta = new Vector2(800f, 50f);
+            victoryStats.rectTransform.anchoredPosition = new Vector2(0f, 105f);
+
+            victorySubtitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 24);
+            victorySubtitle.color = new Color(0.85f, 0.85f, 0.85f);
             victorySubtitle.horizontalOverflow = HorizontalWrapMode.Wrap;
             victorySubtitle.rectTransform.anchorMin = victorySubtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victorySubtitle.rectTransform.sizeDelta = new Vector2(1100f, 110f);
-            victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 105f);
+            victorySubtitle.rectTransform.sizeDelta = new Vector2(1100f, 60f);
+            victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 55f);
 
-            Button next = MenuStyle.CreatePlateButton(overlay.transform, "ДАЛЕЕ", new Vector2(400f, 84f), () => NextRequested?.Invoke());
+            Button next = MenuStyle.CreatePlateButton(overlay.transform, "ДАЛЕЕ", new Vector2(380f, 75f), () => NextRequested?.Invoke());
             var nextRect = (RectTransform)next.transform;
             nextRect.anchorMin = nextRect.anchorMax = new Vector2(0.5f, 0.5f);
-            nextRect.anchoredPosition = new Vector2(0f, -10f);
+            nextRect.anchoredPosition = new Vector2(0f, -25f);
             nextButton = next.gameObject;
-            AddPauseButton(overlay.transform, "ЕЩЁ РАЗ", -115f, () => input.Restart());
-            AddPauseButton(overlay.transform, "В МЕНЮ", -210f, () => MenuRequested?.Invoke());
+
+            AddPauseButton(overlay.transform, "КАРТА УРОВНЕЙ", -110f, () => MapRequested?.Invoke());
+            AddPauseButton(overlay.transform, "ЕЩЁ РАЗ", -190f, () => input.Restart());
+            AddPauseButton(overlay.transform, "В МЕНЮ", -270f, () => MenuRequested?.Invoke());
 
             victoryPanel = overlay.gameObject;
             victoryPanel.SetActive(false);
@@ -298,7 +319,7 @@ namespace DungeonGuardians.Presentation
         }
 
         // The level is won. Without a next level the "next" button is hidden and the subtitle closes the story.
-        public void ShowVictory(string title, string subtitle, bool hasNext)
+        public void ShowVictory(string title, string subtitle, int stars, float timeSeconds, bool isNewBest, bool hasNext)
         {
             if (victoryPanel == null)
             {
@@ -307,6 +328,23 @@ namespace DungeonGuardians.Presentation
 
             victoryTitle.text = title;
             victorySubtitle.text = subtitle;
+
+            string starsStr;
+            switch (stars)
+            {
+                case 3: starsStr = "★ ★ ★"; break;
+                case 2: starsStr = "★ ★ ☆"; break;
+                default: starsStr = "★ ☆ ☆"; break;
+            }
+            victoryStars.text = starsStr;
+
+            int mins = (int)(timeSeconds / 60f);
+            int secs = (int)(timeSeconds % 60f);
+            string timeStr = $"{mins:00}:{secs:00}";
+            victoryStats.text = isNewBest
+                ? $"Время: <color=#FFE7B0>{timeStr}</color>  <color=#5AFFDF>★ НОВЫЙ РЕКОРД! ★</color>"
+                : $"Время: <color=#FFE7B0>{timeStr}</color>";
+
             nextButton.SetActive(hasNext);
             victoryPanel.SetActive(true);
         }

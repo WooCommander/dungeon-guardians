@@ -32,9 +32,10 @@ namespace DungeonGuardians.Presentation
         // Catches the explorer survives on one attempt at a level; each leaves a stone statue behind.
         private const int Lives = 3;
         private int livesLeft;
-        // Dig taps are one-shot: keep them until a simulation tick consumes them, since not every frame has a tick.
-        private bool pendingDigLeft;
-        private bool pendingDigRight;
+        private float levelStartTime;
+        private float lastCompletionTime;
+        private int lastEarnedStars;
+        private bool lastIsNewBest;
 
         public void Initialize(PlayerInputBridge input, LevelRenderer levelRenderer, GameHud hud, GameMenu menu, MusicPlayer music, BalanceConfig balance, ProgressStore progressStore)
         {
@@ -56,19 +57,30 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            // The game opens on the start screen; "Play" always starts from the first level.
+            // Navigation events
             hud.MenuRequested += ShowMenu;
+            hud.MapRequested += ShowLevelMap;
             hud.NextRequested += () => LoadLevel(levelIndex + 1);
-            menu.Play += () => StartLevel(0);
+            menu.PlayLevel += StartLevel;
             menu.SettingsChanged += hud.RefreshControls;
             menu.ResetProgress += ResetProgress;
-            menu.Initialize();
+            menu.Initialize(progress, catalog);
         }
 
         private void ResetProgress()
         {
             progress = new PlayerProgress();
             progressStore.Save(progress);
+        }
+
+        private void ShowLevelMap()
+        {
+            simulation = null;
+            paused = false;
+            defeat.Stop();
+            music.SetMood(MusicPlayer.Mood.Menu);
+            hud.SetVisible(false);
+            menu.OpenMap();
         }
 
         private void StartLevel(int index)
@@ -227,6 +239,7 @@ namespace DungeonGuardians.Presentation
         private void LoadLevel(int index)
         {
             levelIndex = Mathf.Clamp(index, 0, catalog.Levels.Count - 1);
+            levelStartTime = Time.time;
             paused = false;
             lossReported = false;
             winReported = false;
@@ -262,11 +275,11 @@ namespace DungeonGuardians.Presentation
         private void CompleteLevel()
         {
             string completedId = catalog.Levels[levelIndex].id;
-            AddUnique(progress.completedLevelIds, completedId);
+            lastCompletionTime = Mathf.Max(0.1f, Time.time - levelStartTime);
+            lastEarnedStars = livesLeft >= 3 ? 3 : (livesLeft == 2 ? 2 : 1);
 
-            int nextIndex = Mathf.Min(levelIndex + 1, catalog.Levels.Count - 1);
-            AddUnique(progress.unlockedLevelIds, catalog.Levels[nextIndex].id);
-            progress.lastLevelId = catalog.Levels[nextIndex].id;
+            lastIsNewBest = progress.RecordCompletion(levelIndex, completedId, lastCompletionTime, lastEarnedStars, out bool isNewBestTime);
+            progress.lastSelectedLevelIndex = Mathf.Min(levelIndex + 1, catalog.Levels.Count - 1);
             progressStore.Save(progress);
 
             StopVictoryDelay();
@@ -283,12 +296,12 @@ namespace DungeonGuardians.Presentation
             bool hasNext = levelIndex + 1 < catalog.Levels.Count;
             if (hasNext)
             {
-                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", true);
+                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", lastEarnedStars, lastCompletionTime, lastIsNewBest, true);
             }
             else
             {
                 hud.ShowVictory("Все залы пройдены",
-                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", false);
+                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, lastIsNewBest, false);
             }
         }
 

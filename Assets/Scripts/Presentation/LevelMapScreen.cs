@@ -1,0 +1,400 @@
+using System;
+using System.Collections.Generic;
+using DungeonGuardians.Core;
+using DungeonGuardians.Persistence;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace DungeonGuardians.Presentation
+{
+    public sealed class LevelMapScreen : MonoBehaviour
+    {
+        private static readonly Vector2 CanvasReference = new Vector2(1672f, 941f);
+        private static readonly Color GoldColor = new Color(1f, 0.84f, 0.42f);
+        private static readonly Color CyanGlow = new Color(0.35f, 0.95f, 1f);
+        private static readonly Color LockedColor = new Color(0.35f, 0.35f, 0.35f, 0.85f);
+        private static readonly Color CompletedColor = new Color(0.95f, 0.78f, 0.32f);
+
+        // Map layout nodes (X, Y in 1672x941 space)
+        private static readonly Vector2[] NodePositions =
+        {
+            new Vector2(410f, 265f),  // Level 1
+            new Vector2(660f, 290f),  // Level 2
+            new Vector2(900f, 310f),  // Level 3
+            new Vector2(980f, 430f),  // Level 4
+            new Vector2(740f, 460f),  // Level 5
+            new Vector2(490f, 440f),  // Level 6
+            new Vector2(420f, 600f),  // Level 7
+            new Vector2(690f, 630f),  // Level 8
+            new Vector2(950f, 640f),  // Level 9
+            new Vector2(930f, 760f),  // Level 10
+            new Vector2(700f, 780f),  // Level 11
+            new Vector2(450f, 760f),  // Level 12
+            new Vector2(510f, 870f),  // Level 13
+            new Vector2(710f, 880f),  // Level 14
+            new Vector2(920f, 875f),  // Level 15
+            new Vector2(1060f, 875f), // Level 16
+            new Vector2(1180f, 875f), // Level 17
+            new Vector2(1300f, 875f), // Level 18
+        };
+
+        private Transform picture;
+        private PlayerProgress progress;
+        private LevelCatalog catalog;
+        private int selectedIndex;
+        private readonly List<Image> nodeImages = new List<Image>();
+        private readonly List<Text> nodeLabels = new List<Text>();
+        private readonly List<Text> nodeStarLabels = new List<Text>();
+
+        private Text progressText;
+        private Image progressBarFill;
+        private Text percentText;
+        private Text totalStarsText;
+
+        // Right side info card
+        private Text cardChapterText;
+        private Text cardLevelTitle;
+        private Text cardBestTimeText;
+        private Text cardStarsText;
+        private Text cardStatusText;
+
+        // Bottom action button
+        private Text playButtonText;
+
+        public event Action<int> LevelSelected;
+        public event Action BackRequested;
+
+        public static LevelMapScreen Create(Transform parent)
+        {
+            var root = new GameObject("LevelMapScreen", typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            MenuStyle.Stretch((RectTransform)root.transform);
+            var screen = root.AddComponent<LevelMapScreen>();
+            screen.Build();
+            return screen;
+        }
+
+        public void Open(PlayerProgress currentProgress, LevelCatalog levelCatalog)
+        {
+            progress = currentProgress;
+            catalog = levelCatalog;
+
+            int highestUnlocked = Mathf.Clamp(progress.highestUnlockedIndex, 0, catalog.Levels.Count - 1);
+            selectedIndex = Mathf.Clamp(progress.lastSelectedLevelIndex, 0, highestUnlocked);
+
+            Refresh();
+            gameObject.SetActive(true);
+        }
+
+        public void Close()
+        {
+            gameObject.SetActive(false);
+        }
+
+        private void Build()
+        {
+            // Background painted map
+            Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.EnvelopeParent);
+            backing.raycastTarget = true;
+            picture = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.FitInParent).transform;
+
+            BuildTopBar();
+            BuildLevelNodes();
+            BuildInfoCard();
+            BuildBottomPlayButton();
+        }
+
+        private void BuildTopBar()
+        {
+            // Back button in top-left
+            var backBtn = MenuStyle.AddPictureButton(picture, "settings_back", new Rect(40f, 35f, 80f, 65f), "<", () => BackRequested?.Invoke());
+            var backLabel = backBtn.GetComponentInChildren<Text>();
+            if (backLabel != null)
+            {
+                backLabel.text = "←";
+                backLabel.fontSize = 44;
+            }
+
+            // Title: ПУТЬ ИСКАТЕЛЯ
+            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 44);
+            title.fontStyle = FontStyle.Bold;
+            title.color = GoldColor;
+            title.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(400f, 25f, 600f, 55f));
+
+            // Progress bar and text
+            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 18", 22);
+            progressText.color = new Color(0.95f, 0.95f, 0.95f);
+            progressText.alignment = TextAnchor.MiddleRight;
+            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(360f, 85f, 240f, 30f));
+
+            // Progress bar track
+            var barTrack = new GameObject("ProgressTrack").AddComponent<Image>();
+            barTrack.transform.SetParent(picture, false);
+            barTrack.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
+            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(615f, 92f, 260f, 16f));
+
+            var fillObj = new GameObject("Fill").AddComponent<Image>();
+            fillObj.transform.SetParent(barTrack.transform, false);
+            fillObj.color = GoldColor;
+            fillObj.type = Image.Type.Filled;
+            fillObj.fillMethod = Image.FillMethod.Horizontal;
+            fillObj.fillOrigin = (int)Image.OriginHorizontal.Left;
+            MenuStyle.Stretch(fillObj.rectTransform);
+            progressBarFill = fillObj;
+
+            percentText = MenuStyle.AddLabel(picture, "0%", 20);
+            percentText.color = GoldColor;
+            percentText.fontStyle = FontStyle.Bold;
+            percentText.alignment = TextAnchor.MiddleLeft;
+            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(885f, 85f, 90f, 30f));
+
+            totalStarsText = MenuStyle.AddLabel(picture, "★ 0", 24);
+            totalStarsText.color = GoldColor;
+            totalStarsText.fontStyle = FontStyle.Bold;
+            totalStarsText.alignment = TextAnchor.MiddleRight;
+            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(1000f, 85f, 120f, 30f));
+        }
+
+        private void BuildLevelNodes()
+        {
+            for (int i = 0; i < NodePositions.Length; i++)
+            {
+                int index = i;
+                Vector2 pos = NodePositions[i];
+                float size = 68f;
+
+                var nodeObj = new GameObject($"Node_{i + 1}").AddComponent<Image>();
+                nodeObj.transform.SetParent(picture, false);
+                nodeObj.color = new Color(0.16f, 0.18f, 0.22f, 0.95f);
+                MenuStyle.PlaceOnPicture(nodeObj.rectTransform, new Rect(pos.x - size / 2f, pos.y - size / 2f, size, size));
+
+                var numText = MenuStyle.AddLabel(nodeObj.transform, $"{i + 1}", 26);
+                numText.fontStyle = FontStyle.Bold;
+                numText.alignment = TextAnchor.MiddleCenter;
+                MenuStyle.Stretch(numText.rectTransform);
+
+                var starText = MenuStyle.AddLabel(nodeObj.transform, string.Empty, 14);
+                starText.color = GoldColor;
+                starText.alignment = TextAnchor.LowerCenter;
+                MenuStyle.Stretch(starText.rectTransform);
+
+                MenuStyle.MakeButton(nodeObj, () => SelectLevel(index));
+
+                nodeImages.Add(nodeObj);
+                nodeLabels.Add(numText);
+                nodeStarLabels.Add(starText);
+            }
+        }
+
+        private void BuildInfoCard()
+        {
+            var card = new GameObject("InfoCard").AddComponent<Image>();
+            card.transform.SetParent(picture, false);
+            card.color = new Color(0.08f, 0.1f, 0.14f, 0.92f);
+            MenuStyle.PlaceOnPicture(card.rectTransform, new Rect(1240f, 120f, 380f, 680f));
+
+            cardChapterText = MenuStyle.AddLabel(card.transform, "ГЛАВА I", 26);
+            cardChapterText.color = GoldColor;
+            cardChapterText.fontStyle = FontStyle.Bold;
+            cardChapterText.alignment = TextAnchor.UpperCenter;
+            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(20f, 30f, 340f, 40f));
+
+            cardLevelTitle = MenuStyle.AddLabel(card.transform, "Первые залы", 32);
+            cardLevelTitle.color = Color.white;
+            cardLevelTitle.fontStyle = FontStyle.Bold;
+            cardLevelTitle.alignment = TextAnchor.UpperCenter;
+            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(20f, 80f, 340f, 60f));
+
+            // Illustration placeholder panel
+            var previewPanel = new GameObject("Preview").AddComponent<Image>();
+            previewPanel.transform.SetParent(card.transform, false);
+            previewPanel.color = new Color(0.04f, 0.06f, 0.09f, 0.95f);
+            MenuStyle.PlaceOnPicture(previewPanel.rectTransform, new Rect(30f, 150f, 320f, 260f));
+
+            var previewText = MenuStyle.AddLabel(previewPanel.transform, "✦", 64);
+            previewText.color = CyanGlow;
+            previewText.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.Stretch(previewText.rectTransform);
+
+            // Stats
+            var statsHeader = MenuStyle.AddLabel(card.transform, "СТАТИСТИКА", 22);
+            statsHeader.color = GoldColor;
+            statsHeader.fontStyle = FontStyle.Bold;
+            statsHeader.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.PlaceOnPicture(statsHeader.rectTransform, new Rect(20f, 430f, 340f, 30f));
+
+            cardBestTimeText = MenuStyle.AddLabel(card.transform, "Лучшее время: —:—", 20);
+            cardBestTimeText.color = new Color(0.9f, 0.9f, 0.95f);
+            cardBestTimeText.alignment = TextAnchor.MiddleLeft;
+            MenuStyle.PlaceOnPicture(cardBestTimeText.rectTransform, new Rect(40f, 475f, 300f, 30f));
+
+            cardStarsText = MenuStyle.AddLabel(card.transform, "Звёзды: ☆☆☆", 20);
+            cardStarsText.color = GoldColor;
+            cardStarsText.alignment = TextAnchor.MiddleLeft;
+            MenuStyle.PlaceOnPicture(cardStarsText.rectTransform, new Rect(40f, 515f, 300f, 30f));
+
+            cardStatusText = MenuStyle.AddLabel(card.transform, "Статус: ДОСТУПЕН", 20);
+            cardStatusText.color = CyanGlow;
+            cardStatusText.fontStyle = FontStyle.Bold;
+            cardStatusText.alignment = TextAnchor.MiddleLeft;
+            MenuStyle.PlaceOnPicture(cardStatusText.rectTransform, new Rect(40f, 555f, 300f, 30f));
+        }
+
+        private void BuildBottomPlayButton()
+        {
+            var btnImage = new GameObject("PlayLevelButton").AddComponent<Image>();
+            btnImage.transform.SetParent(picture, false);
+            btnImage.color = new Color(0.95f, 0.72f, 0.22f, 0.95f);
+            MenuStyle.PlaceOnPicture(btnImage.rectTransform, new Rect(450f, 845f, 620f, 75f));
+
+            playButtonText = MenuStyle.AddLabel(btnImage.transform, "ПРОДОЛЖИТЬ • УРОВЕНЬ 1", 32);
+            playButtonText.fontStyle = FontStyle.Bold;
+            playButtonText.color = new Color(0.12f, 0.08f, 0.04f);
+            playButtonText.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.Stretch(playButtonText.rectTransform);
+
+            MenuStyle.MakeButton(btnImage, LaunchSelectedLevel);
+        }
+
+        private void SelectLevel(int index)
+        {
+            if (catalog == null || index < 0 || index >= catalog.Levels.Count)
+            {
+                return;
+            }
+
+            if (!progress.IsUnlocked(index))
+            {
+                return;
+            }
+
+            selectedIndex = index;
+            progress.lastSelectedLevelIndex = selectedIndex;
+            Refresh();
+        }
+
+        private void LaunchSelectedLevel()
+        {
+            if (catalog == null || selectedIndex < 0 || selectedIndex >= catalog.Levels.Count)
+            {
+                return;
+            }
+
+            if (progress.IsUnlocked(selectedIndex))
+            {
+                LevelSelected?.Invoke(selectedIndex);
+            }
+        }
+
+        private void Refresh()
+        {
+            if (catalog == null || progress == null)
+            {
+                return;
+            }
+
+            int totalLevels = catalog.Levels.Count;
+            int completed = progress.GetCompletedCount();
+            int totalStars = progress.GetTotalStars();
+            float ratio = totalLevels > 0 ? (float)completed / totalLevels : 0f;
+
+            progressText.text = $"Пройдено {completed} из {totalLevels}";
+            progressBarFill.fillAmount = ratio;
+            percentText.text = $"{Mathf.RoundToInt(ratio * 100f)}%";
+            totalStarsText.text = $"★ {totalStars}";
+
+            // Update nodes
+            for (int i = 0; i < nodeImages.Count; i++)
+            {
+                if (i >= totalLevels)
+                {
+                    nodeImages[i].gameObject.SetActive(false);
+                    continue;
+                }
+
+                nodeImages[i].gameObject.SetActive(true);
+                bool unlocked = progress.IsUnlocked(i);
+                LevelRecord record = progress.GetOrCreateRecord(i, catalog.Levels[i].id);
+
+                if (!unlocked)
+                {
+                    nodeImages[i].color = LockedColor;
+                    nodeLabels[i].text = "🔒";
+                    nodeLabels[i].color = new Color(0.6f, 0.6f, 0.6f);
+                    nodeStarLabels[i].text = string.Empty;
+                }
+                else if (record.completed)
+                {
+                    nodeImages[i].color = i == selectedIndex ? CyanGlow : CompletedColor;
+                    nodeLabels[i].text = $"{i + 1} ✓";
+                    nodeLabels[i].color = new Color(0.12f, 0.08f, 0.04f);
+                    nodeStarLabels[i].text = GetStarsString(record.stars);
+                }
+                else
+                {
+                    nodeImages[i].color = i == selectedIndex ? CyanGlow : new Color(0.25f, 0.55f, 0.65f);
+                    nodeLabels[i].text = $"{i + 1}";
+                    nodeLabels[i].color = Color.white;
+                    nodeStarLabels[i].text = string.Empty;
+                }
+            }
+
+            // Update Card
+            LevelDefinition def = catalog.Levels[selectedIndex];
+            LevelRecord selRecord = progress.GetOrCreateRecord(selectedIndex, def.id);
+
+            cardChapterText.text = GetChapterName(selectedIndex);
+            cardLevelTitle.text = $"{selectedIndex + 1:00}. {def.title}";
+
+            if (selRecord.completed && selRecord.bestTimeSeconds > 0.01f)
+            {
+                int mins = (int)(selRecord.bestTimeSeconds / 60f);
+                int secs = (int)(selRecord.bestTimeSeconds % 60f);
+                cardBestTimeText.text = $"Лучшее время: <color=#FFE7B0>{mins:00}:{secs:00}</color>";
+            }
+            else
+            {
+                cardBestTimeText.text = "Лучшее время: —:—";
+            }
+
+            cardStarsText.text = $"Звёзды: {GetStarsString(selRecord.stars)}";
+
+            if (selRecord.completed)
+            {
+                cardStatusText.text = "Статус: <color=#FFE7B0>ПРОЙДЕН</color>";
+            }
+            else if (progress.IsUnlocked(selectedIndex))
+            {
+                cardStatusText.text = "Статус: <color=#5AFFDF>ДОСТУПЕН</color>";
+            }
+            else
+            {
+                cardStatusText.text = "Статус: <color=#999999>ЗАКРЫТ</color>";
+            }
+
+            playButtonText.text = $"ИГРАТЬ • УРОВЕНЬ {selectedIndex + 1}";
+        }
+
+        private static string GetStarsString(int stars)
+        {
+            switch (stars)
+            {
+                case 3: return "★★★";
+                case 2: return "★★☆";
+                case 1: return "★☆☆";
+                default: return "☆☆☆";
+            }
+        }
+
+        private static string GetChapterName(int levelIndex)
+        {
+            if (levelIndex < 3) return "ГЛАВА I • ДРЕВНИЕ СВОДЫ";
+            if (levelIndex < 6) return "ГЛАВА II • ПЕСЧАНЫЕ ШАХТЫ";
+            if (levelIndex < 9) return "ГЛАВА III • ЗАТОПЛЕННЫЕ СВОДЫ";
+            if (levelIndex < 12) return "ГЛАВА IV • ЗАЛЫ ТЬМЫ";
+            if (levelIndex < 15) return "ГЛАВА V • ПЕЧАТЬ СТРАЖЕЙ";
+            return "ГЛАВА VI • СЕРДЦЕ ПОДЗЕМЕЛЬЯ";
+        }
+    }
+}
