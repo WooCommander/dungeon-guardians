@@ -7,10 +7,12 @@ using UnityEngine.UI;
 
 namespace DungeonGuardians.Presentation
 {
-    // "Путь искателя": the level map and the player's progress in one screen. The painted picture
-    // (map-images/level_map.png, cut by tools/cut_level_map.cs) keeps its scenery, frame, card and buttons; the
-    // circles, the path between them, the counts, the chapter on the card and the button's caption are laid over it
-    // from the saved progress. Starting the game over lives here too, behind a confirmation.
+    // "Путь искателя": the level map and the player's progress in one screen. The painting of the cave covers the
+    // whole screen, and the circles and the path lie on it by its pixels. The interface (pieces cut by
+    // tools/cut_level_map.cs: the title, the chapter card, the buttons) keeps to the screen's edges, inside the safe
+    // area, so nothing goes off screen whatever its shape. On wide phones the buttons stand in a column on the left
+    // and the progress goes above the card, so the circles keep the middle. Starting the game over lives here too,
+    // behind a confirmation.
     public sealed class LevelMapScreen : MonoBehaviour
     {
         // Circle centres in picture pixels, in the order of play: a snake down the five tiers of the cave.
@@ -64,10 +66,38 @@ namespace DungeonGuardians.Presentation
         // The helmet (UI/map_helmet.png, 80 x 56) sits this far from the centre of the chosen circle.
         private static readonly Vector2 HelmetOffset = new Vector2(-3f, -34f);
         private static readonly Vector2 HelmetSize = new Vector2(80f, 56f);
-        private static readonly Rect CardWindow = new Rect(1294f, 356f, 297f, 294f);
-        // The bar's inside: the fill starts at its left end and may reach its right end.
-        private const float BarLeft = 817f;
-        private const float BarRight = 1110f;
+
+        // The interface is sized in painting pixels, at the scale the painting has on a 16:9 screen; positions are
+        // the mock-up's. Sizes of the cut pieces:
+        private static readonly Vector2 HeaderSize = new Vector2(740f, 146f);
+        private static readonly Vector2 TitleSize = new Vector2(740f, 100f);
+        private static readonly Vector2 CardSize = new Vector2(384f, 735f);
+        private static readonly Vector2 BarSize = new Vector2(316f, 26f);
+        // Inside the card: the window with the chapter's piece of the map.
+        private static readonly Rect CardWindow = new Rect(48f, 239f, 297f, 294f);
+        // Inside the bar: the fill starts at its left end and may reach its right end.
+        private const float BarLeft = 5f;
+        private const float BarRight = 298f;
+        // The header's centre on the painting; the card's distance from the right edge and from the top (lower on
+        // screens where the progress goes above it); the buttons' distance from the left and bottom edges.
+        private const float HeaderCentre = 856f;
+        private const float CardRight = 42f;
+        private const float CardTop = 117f;
+        private const float CardTopWide = 160f;
+        private const float RowLeft = 48f;
+        private const float RowBottom = 41f;
+        private const float ButtonWidth = 380f;
+        private const float ButtonHeight = 93f;
+        private const float ButtonGap = 20f;
+        // Wider than this the layout for phones is used. Narrower than NarrowAspect (tablets) the first circle would
+        // cover the progress under the title, so it goes above the card as on phones.
+        private const float WideAspect = 1.8f;
+        private const float NarrowAspect = 1.58f;
+        // On the painting: the left-most the path goes (the bend between 6 and 7), the top of the circles under the
+        // title, the bottom of the lowest circles.
+        private const float PathLeft = 318f;
+        private const float CirclesTop = 132f;
+        private const float CirclesBottom = 812f;
 
         private static readonly Color Cream = new Color(1f, 0.92f, 0.76f);
         private static readonly Color Gold = new Color(1f, 0.82f, 0.45f);
@@ -82,7 +112,23 @@ namespace DungeonGuardians.Presentation
             public NodeState State;
         }
 
+        // The painting, and the layer of circles on it (the same rectangle; the header lies between the two).
+        private RectTransform painting;
+        private RectTransform mapLayer;
         private Transform picture;
+        // The interface behind the circles (header, totals) and in front of them (card, buttons).
+        private RectTransform hudBack;
+        private RectTransform hudFront;
+        private Image header;
+        private Sprite headerSprite;
+        private Sprite titleSprite;
+        private RectTransform totals;
+        private RectTransform progressRow;
+        private Image bar;
+        private RectTransform card;
+        private Image[] buttons;
+        private Vector2 laidOutScreen;
+        private Rect laidOutHud;
         private Font serif;
         private Sprite doneSprite;
         private Sprite currentSprite;
@@ -153,6 +199,9 @@ namespace DungeonGuardians.Presentation
             HideToast();
             Refresh();
             gameObject.SetActive(true);
+            // Laid out before the first frame is drawn.
+            laidOutScreen = Vector2.zero;
+            LateUpdate();
         }
 
         public void Close()
@@ -186,19 +235,38 @@ namespace DungeonGuardians.Presentation
             currentSprite = Resources.Load<Sprite>("UI/map_node_current");
             lockedSprite = Resources.Load<Sprite>("UI/map_node_locked");
 
-            // A blurred copy fills the screen around the picture, which is shown whole.
-            Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/level_map_blur", AspectRatioFitter.AspectMode.EnvelopeParent);
-            backing.raycastTarget = true;
-            Image pictureImage = MenuStyle.CreatePicture(transform, "Backgrounds/level_map", AspectRatioFitter.AspectMode.FitInParent);
-            picture = pictureImage.transform;
+            // Back to front: the painting, the header, the circles, the card and buttons. Layout() places them all.
+            var paintingImage = new GameObject("Painting").AddComponent<Image>();
+            paintingImage.transform.SetParent(transform, false);
+            paintingImage.sprite = Resources.Load<Sprite>("Backgrounds/level_map");
+            paintingImage.color = paintingImage.sprite != null ? Color.white : new Color(0.05f, 0.06f, 0.08f);
+            // Catches every tap meant for the start screen underneath.
+            paintingImage.raycastTarget = true;
+            painting = paintingImage.rectTransform;
+
+            hudBack = CreateHud("Interface Back");
+            mapLayer = (RectTransform)new GameObject("Map", typeof(RectTransform)).transform;
+            mapLayer.SetParent(transform, false);
+            picture = mapLayer;
+            hudFront = CreateHud("Interface Front");
 
             BuildPath();
             BuildNodes();
-            BuildTopBar();
+            BuildHeader();
             BuildCard();
             BuildButtons();
             BuildToast();
             BuildConfirmModal();
+        }
+
+        // A full-screen layer for the interface, kept inside the safe area.
+        private RectTransform CreateHud(string name)
+        {
+            var hud = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            hud.SetParent(transform, false);
+            MenuStyle.Stretch(hud);
+            hud.gameObject.AddComponent<SafeArea>();
+            return hud;
         }
 
         // ------------------------------------------------------------------------------------------------- path
@@ -305,76 +373,245 @@ namespace DungeonGuardians.Presentation
             Refresh();
         }
 
-        // --------------------------------------------------------------------------------------------- top bar
+        // ----------------------------------------------------------------------------------------------- header
 
-        private void BuildTopBar()
+        private void BuildHeader()
         {
-            passedText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleRight, 60, serif);
-            MenuStyle.PlaceOnPicture(passedText.rectTransform, new Rect(540f, 106f, 258f, 32f));
+            headerSprite = Resources.Load<Sprite>("UI/map_header");
+            titleSprite = Resources.Load<Sprite>("UI/map_title");
+            header = new GameObject("Header").AddComponent<Image>();
+            header.transform.SetParent(hudBack, false);
+            header.raycastTarget = false;
 
-            barFill = new GameObject("Bar Fill").AddComponent<Image>();
-            barFill.transform.SetParent(picture, false);
+            // Totals over the card: stars and time, and on very wide or narrow screens the progress too.
+            totals = (RectTransform)new GameObject("Totals", typeof(RectTransform)).transform;
+            totals.SetParent(hudBack, false);
+            starsText = AddText(totals, string.Empty, Gold, TextAnchor.MiddleCenter, 60, MenuStyle.Font);
+            timeText = AddText(totals, string.Empty, Cream, TextAnchor.MiddleCenter, 60, serif);
+
+            // "Пройдено N из M", the bar and the percentage: on the header's plate, or among the totals.
+            progressRow = (RectTransform)new GameObject("Progress", typeof(RectTransform)).transform;
+            progressRow.SetParent(header.transform, false);
+            passedText = AddText(progressRow, string.Empty, Cream, TextAnchor.MiddleRight, 60, serif);
+            bar = new GameObject("Bar").AddComponent<Image>();
+            bar.transform.SetParent(progressRow, false);
+            bar.sprite = Resources.Load<Sprite>("UI/map_bar");
+            bar.color = bar.sprite != null ? Color.white : new Color(0.08f, 0.08f, 0.1f);
+            bar.raycastTarget = false;
+            barFill = new GameObject("Fill").AddComponent<Image>();
+            barFill.transform.SetParent(bar.transform, false);
             barFill.sprite = Resources.Load<Sprite>("UI/map_fill");
             barFill.raycastTarget = false;
-            barCap = new GameObject("Bar Cap").AddComponent<Image>();
-            barCap.transform.SetParent(picture, false);
+            barCap = new GameObject("Cap").AddComponent<Image>();
+            barCap.transform.SetParent(bar.transform, false);
             barCap.sprite = Resources.Load<Sprite>("UI/map_fill_cap");
             barCap.raycastTarget = false;
-
-            percentText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleLeft, 60, serif);
-            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(1136f, 106f, 90f, 32f));
-
-            // Totals in the dark of the cave above the card.
-            starsText = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 60, MenuStyle.Font);
-            MenuStyle.PlaceOnPicture(starsText.rectTransform, new Rect(1262f, 22f, 340f, 46f));
-            timeText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 60, serif);
-            MenuStyle.PlaceOnPicture(timeText.rectTransform, new Rect(1262f, 70f, 340f, 30f));
+            percentText = AddText(progressRow, string.Empty, Cream, TextAnchor.MiddleLeft, 60, serif);
         }
 
         // ------------------------------------------------------------------------------------------------- card
 
         private void BuildCard()
         {
-            chapterNumber = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 60, serif);
-            MenuStyle.PlaceOnPicture(chapterNumber.rectTransform, new Rect(1300f, 180f, 286f, 38f));
+            var frame = new GameObject("Card").AddComponent<Image>();
+            frame.transform.SetParent(hudFront, false);
+            frame.sprite = Resources.Load<Sprite>("UI/map_card");
+            frame.color = frame.sprite != null ? Color.white : new Color(0.1f, 0.09f, 0.08f, 0.95f);
+            // The card takes taps, so none fall through to a circle behind it.
+            frame.raycastTarget = true;
+            card = frame.rectTransform;
 
-            chapterName = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 46, serif);
-            chapterName.horizontalOverflow = HorizontalWrapMode.Wrap;
+            chapterNumber = AddText(card, string.Empty, Gold, TextAnchor.MiddleCenter, 60, serif);
+            PlaceIn(chapterNumber.rectTransform, CardSize, new Rect(54f, 63f, 286f, 38f));
+
+            chapterName = AddText(card, string.Empty, Cream, TextAnchor.MiddleCenter, 46, serif);
             chapterName.lineSpacing = 0.9f;
-            MenuStyle.PlaceOnPicture(chapterName.rectTransform, new Rect(1288f, 248f, 310f, 90f));
+            PlaceIn(chapterName.rectTransform, CardSize, new Rect(42f, 131f, 310f, 90f));
 
-            Texture mapTexture = picture.GetComponent<Image>().sprite != null ? picture.GetComponent<Image>().sprite.texture : null;
             chapterView = new GameObject("Chapter View").AddComponent<RawImage>();
-            chapterView.transform.SetParent(picture, false);
-            chapterView.texture = mapTexture;
+            chapterView.transform.SetParent(card, false);
+            Sprite paintingSprite = painting.GetComponent<Image>().sprite;
+            chapterView.texture = paintingSprite != null ? paintingSprite.texture : null;
             chapterView.raycastTarget = false;
-            MenuStyle.PlaceOnPicture(chapterView.rectTransform, CardWindow);
+            PlaceIn(chapterView.rectTransform, CardSize, CardWindow);
 
             // The chosen level along the bottom of the card's picture, on a dark band.
             var band = new GameObject("Level Band").AddComponent<Image>();
-            band.transform.SetParent(picture, false);
+            band.transform.SetParent(card, false);
             band.color = new Color(0.02f, 0.02f, 0.03f, 0.72f);
             band.raycastTarget = false;
-            MenuStyle.PlaceOnPicture(band.rectTransform, new Rect(CardWindow.x, CardWindow.yMax - 72f, CardWindow.width, 72f));
+            PlaceIn(band.rectTransform, CardSize, new Rect(CardWindow.x, CardWindow.yMax - 72f, CardWindow.width, 72f));
 
-            levelTitle = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 40, serif);
-            MenuStyle.PlaceOnPicture(levelTitle.rectTransform, new Rect(CardWindow.x + 8f, CardWindow.yMax - 68f, CardWindow.width - 16f, 32f));
-            levelRecord = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 40, MenuStyle.Font);
-            MenuStyle.PlaceOnPicture(levelRecord.rectTransform, new Rect(CardWindow.x + 8f, CardWindow.yMax - 36f, CardWindow.width - 16f, 30f));
+            levelTitle = AddText(card, string.Empty, Cream, TextAnchor.MiddleCenter, 40, serif);
+            PlaceIn(levelTitle.rectTransform, CardSize, new Rect(CardWindow.x + 8f, CardWindow.yMax - 68f, CardWindow.width - 16f, 32f));
+            levelRecord = AddText(card, string.Empty, Gold, TextAnchor.MiddleCenter, 40, MenuStyle.Font);
+            PlaceIn(levelRecord.rectTransform, CardSize, new Rect(CardWindow.x + 8f, CardWindow.yMax - 36f, CardWindow.width - 16f, 30f));
         }
 
         // ---------------------------------------------------------------------------------------------- buttons
 
         private void BuildButtons()
         {
-            // One row of three buttons of one kind and width along the floor of the hall: start over, back, and the
-            // golden banner to play; the other two are its unlit twin (UI/map_button.png). Both stretch in the middle
-            // only. One caption size for all three. The painted banner and back arrow are gone from the picture
-            // (tools/cut_level_map.cs).
-            playText = MenuStyle.AddCaptionedButton(picture, "map_play", new Rect(848f, 807f, 380f, 93f), string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
-            Text back = MenuStyle.AddQuietButton(picture, "map_button", new Rect(448f, 807f, 380f, 93f), "НАЗАД", () => BackRequested?.Invoke());
-            Text reset = MenuStyle.AddQuietButton(picture, "map_button", new Rect(48f, 807f, 380f, 93f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
-            EqualFontSize.Apply(picture.gameObject, 60, playText, back, reset);
+            // Three buttons of one kind and width: start over, back, and the golden banner to play; the other two are
+            // its unlit twin (UI/map_button.png). Both stretch in the middle only. One caption size for all three.
+            var box = new Rect(0f, 0f, ButtonWidth, ButtonHeight);
+            Text reset = MenuStyle.AddQuietButton(hudFront, "map_button", box, "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
+            Text back = MenuStyle.AddQuietButton(hudFront, "map_button", box, "НАЗАД", () => BackRequested?.Invoke());
+            playText = MenuStyle.AddCaptionedButton(hudFront, "map_play", box, string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
+            buttons = new[] { ButtonOf(reset), ButtonOf(back), ButtonOf(playText) };
+            EqualFontSize.Apply(hudFront.gameObject, 60, playText, back, reset);
+        }
+
+        private static Image ButtonOf(Text caption)
+        {
+            return caption.transform.parent.GetComponent<Image>();
+        }
+
+        // ----------------------------------------------------------------------------------------------- layout
+
+        private void LateUpdate()
+        {
+            Vector2 screen = ((RectTransform)transform).rect.size;
+            if (screen != laidOutScreen || hudBack.rect != laidOutHud)
+            {
+                laidOutScreen = screen;
+                laidOutHud = hudBack.rect;
+                Layout(screen);
+            }
+        }
+
+        private void Layout(Vector2 screen)
+        {
+            if (screen.x <= 0f || screen.y <= 0f)
+            {
+                return;
+            }
+
+            // Interface units per painting pixel; whether this is a wide phone; whether the progress goes above the card.
+            float k = screen.y / MenuStyle.PictureSize.y;
+            float aspect = screen.x / screen.y;
+            bool wide = aspect > WideAspect;
+            bool aside = wide || aspect < NarrowAspect;
+
+            // The painting covers the screen. On wide screens it is cut at the top and bottom; it goes down as far
+            // as keeps the circles under the title clear of it and the lowest ones on screen.
+            float s = Mathf.Max(screen.x / MenuStyle.PictureSize.x, screen.y / MenuStyle.PictureSize.y);
+            Vector2 map = MenuStyle.PictureSize * s;
+            float mapLeft = (screen.x - map.x) / 2f;
+            float mapTop = (screen.y - map.y) / 2f;
+            if (wide)
+            {
+                mapTop = Mathf.Clamp(TitleSize.y * k - CirclesTop * s, screen.y - map.y, Mathf.Min(0f, screen.y - 8f * k - CirclesBottom * s));
+            }
+
+            PlaceTopLeft(painting, new Vector2(mapLeft, mapTop), map);
+            PlaceTopLeft(mapLayer, new Vector2(mapLeft, mapTop), map);
+
+            // The interface, in the safe area.
+            Rect hud = hudBack.rect;
+            float hudLeft = hudBack.anchorMin.x * screen.x;
+
+            // The card at the right; the totals over it, the same width.
+            PlaceTopRight(card, new Vector2(CardRight, aside ? CardTopWide : CardTop) * k, CardSize * k);
+            float cardLeft = hud.width - (CardRight + CardSize.x) * k;
+            var totalsSize = new Vector2(CardSize.x, aside ? CardTopWide - 22f : 80f);
+            PlaceTopRight(totals, new Vector2(CardRight, 22f) * k, totalsSize * k);
+            PlaceIn(starsText.rectTransform, totalsSize, new Rect(0f, 0f, CardSize.x, 46f));
+            PlaceIn(timeText.rectTransform, totalsSize, new Rect(0f, 48f, CardSize.x, 30f));
+
+            // The header at the top, over the middle of the painting but clear of the card: the title alone when the
+            // progress goes among the totals.
+            Vector2 headerSize = (aside ? TitleSize : HeaderSize) * k;
+            header.sprite = aside ? titleSprite : headerSprite;
+            header.color = header.sprite != null ? Color.white : Color.clear;
+            float centre = screen.x / 2f - hudLeft + (HeaderCentre - MenuStyle.PictureSize.x / 2f) * k;
+            centre = Mathf.Max(Mathf.Min(centre, cardLeft - 10f * k - headerSize.x / 2f), headerSize.x / 2f + 10f * k);
+            header.rectTransform.anchorMin = header.rectTransform.anchorMax = new Vector2(0f, 1f);
+            header.rectTransform.pivot = new Vector2(0.5f, 1f);
+            header.rectTransform.anchoredPosition = new Vector2(centre, 0f);
+            header.rectTransform.sizeDelta = headerSize;
+
+            if (aside)
+            {
+                // Two lines among the totals: the count, then the bar and the percentage.
+                progressRow.SetParent(totals, false);
+                var row = new Vector2(CardSize.x, 60f);
+                PlaceIn(progressRow, totalsSize, new Rect(0f, totalsSize.y - row.y, row.x, row.y));
+                passedText.alignment = TextAnchor.MiddleCenter;
+                PlaceIn(passedText.rectTransform, row, new Rect(0f, 0f, row.x, 30f));
+                PlaceIn(bar.rectTransform, row, new Rect(6f, 34f, BarSize.x, BarSize.y));
+                PlaceIn(percentText.rectTransform, row, new Rect(328f, 31f, 56f, 30f));
+            }
+            else
+            {
+                // One line on the header's plate, as on the mock-up.
+                progressRow.SetParent(header.transform, false);
+                var row = new Vector2(686f, 36f);
+                PlaceIn(progressRow, HeaderSize, new Rect(54f, 104f, row.x, row.y));
+                passedText.alignment = TextAnchor.MiddleRight;
+                PlaceIn(passedText.rectTransform, row, new Rect(0f, 0f, 258f, row.y));
+                PlaceIn(bar.rectTransform, row, new Rect(272f, 5f, BarSize.x, BarSize.y));
+                PlaceIn(percentText.rectTransform, row, new Rect(596f, 0f, 90f, row.y));
+            }
+
+            // The buttons: a row along the floor up to the card, or on wide screens a column left of the path.
+            float bh = ButtonHeight * k;
+            float gap = ButtonGap * k;
+            if (wide)
+            {
+                float left = 24f * k;
+                float right = mapLeft + PathLeft * s - hudLeft - 14f * k;
+                float bw = Mathf.Clamp(right - left, 200f * k, ButtonWidth * k);
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    float y = RowBottom * k + (buttons.Length - 1 - i) * (bh + 14f * k);
+                    PlaceBottomLeft(buttons[i].rectTransform, new Vector2(left, y), new Vector2(bw, bh));
+                }
+            }
+            else
+            {
+                float left = RowLeft * k;
+                float bw = Mathf.Min(ButtonWidth * k, (cardLeft - gap - left - 2f * gap) / 3f);
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    PlaceBottomLeft(buttons[i].rectTransform, new Vector2(left + i * (bw + gap), RowBottom * k), new Vector2(bw, bh));
+                }
+            }
+
+            // The fixed ends of the stretching buttons keep the scale of the rest.
+            foreach (Image button in buttons)
+            {
+                button.pixelsPerUnitMultiplier = 1f / k;
+            }
+        }
+
+        // Box in its parent's size (in painting pixels from the top-left corner), anchored so it scales with it.
+        private static void PlaceIn(RectTransform rect, Vector2 parent, Rect box)
+        {
+            rect.anchorMin = new Vector2(box.xMin / parent.x, 1f - box.yMax / parent.y);
+            rect.anchorMax = new Vector2(box.xMax / parent.x, 1f - box.yMin / parent.y);
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+        }
+
+        private static void PlaceTopLeft(RectTransform rect, Vector2 offset, Vector2 size)
+        {
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(offset.x, -offset.y);
+            rect.sizeDelta = size;
+        }
+
+        private static void PlaceTopRight(RectTransform rect, Vector2 offset, Vector2 size)
+        {
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1f, 1f);
+            rect.anchoredPosition = new Vector2(-offset.x, -offset.y);
+            rect.sizeDelta = size;
+        }
+
+        private static void PlaceBottomLeft(RectTransform rect, Vector2 offset, Vector2 size)
+        {
+            rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.zero;
+            rect.anchoredPosition = offset;
+            rect.sizeDelta = size;
         }
 
         private void OnPlayClicked()
@@ -457,8 +694,8 @@ namespace DungeonGuardians.Presentation
             float end = Mathf.Lerp(BarLeft, BarRight, ratio);
             barFill.gameObject.SetActive(ratio > 0f);
             barCap.gameObject.SetActive(ratio > 0f);
-            MenuStyle.PlaceOnPicture(barFill.rectTransform, new Rect(BarLeft, 113f, Mathf.Max(end - BarLeft - 6f, 0f), 19f));
-            MenuStyle.PlaceOnPicture(barCap.rectTransform, new Rect(Mathf.Max(end - 6f, BarLeft), 113f, 18f, 19f));
+            PlaceIn(barFill.rectTransform, BarSize, new Rect(BarLeft, 4f, Mathf.Max(end - BarLeft - 6f, 0.01f), 19f));
+            PlaceIn(barCap.rectTransform, BarSize, new Rect(Mathf.Max(end - 6f, BarLeft), 4f, 18f, 19f));
 
             starsText.text = $"★ {stars} / {levelCount * StarsPerLevel}";
             timeText.text = completed > 0 ? $"Общее время {FormatTime(time)}" : string.Empty;

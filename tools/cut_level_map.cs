@@ -1,14 +1,19 @@
-// Cuts the level map (map-images/level_map.png, 1672 x 941) into the pieces LevelMapScreen.cs lays out.
+// Cuts the pieces of the level map that LevelMapScreen.cs lays over the clean painting of the cave.
 //
-// - Backgrounds/level_map.png: the picture with everything that depends on progress removed and rebuilt from the
-//   surrounding art: the level circles, the golden and dashed paths, "Пройдено 6 из 15", the bar's fill, "40%",
-//   the chapter name on the card, the caption of the big button and the back arrow in the corner.
-//   Backgrounds/level_map_blur.png: a small blurred copy that fills the screen around it.
+// - Backgrounds/level_map.png: the painting itself, nothing on it (map-images/level_map_clean.png). It covers the
+//   whole screen; the level circles and the path are placed on it by the picture's pixels.
+// From the mock-up of the screen (map-images/level_map.png, the same painting with the interface drawn in):
 // - UI/map_node_done.png, map_node_current.png, map_node_locked.png: the three kinds of circle (passed with its
 //   tick, the current one, locked with its padlock), number cleared, centred in a 97 x 97 square.
 // - UI/map_helmet.png: the explorer's helmet that marks the chosen level.
 // - UI/map_fill.png, map_fill_cap.png: the golden bar fill and its rounded end.
-// - UI/map_play.png: the big golden button, cut from its painted place, which is then cleared from the background.
+// - UI/map_header.png: the title and its divider on their dark plate, with the plate's empty row below for the
+//   progress; UI/map_title.png: the title and divider alone, for wide screens where the progress goes beside the
+//   card. Both fade out at the sides and the bottom.
+// - UI/map_bar.png: the empty progress bar, cut to its pointed ends.
+// - UI/map_card.png: the chapter card, its chapter name cleared, cut to its frame.
+// - UI/map_play.png: the big golden button, its caption cleared, cut to the banner.
+// These sit at the screen's edges (title, card, buttons), so they never go off it whatever its shape.
 //
 // Run from the repository root (needs the .NET 10 SDK):  dotnet run tools/cut_level_map.cs
 #:property TargetFramework=net10.0-windows
@@ -23,6 +28,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 
 const string Source = "map-images/level_map.png";
+const string CleanPainting = "map-images/level_map_clean.png";
 const string Backgrounds = "Assets/Resources/Backgrounds/";
 const string UI = "Assets/Resources/UI/";
 
@@ -95,60 +101,13 @@ const int Half = 48;
 src.Crop(880, 113, 4, 19).Save(UI + "map_fill.png");
 src.Crop(930, 113, 18, 19).Save(UI + "map_fill_cap.png");
 
-// ---- What goes from the picture.
-var hole = new bool[src.W * src.H];
+// ---- The painted texts that change with progress go from the pieces cut below.
 
-// The golden circles glow well beyond their rim.
-foreach (var (cx, cy) in done)
-{
-    MarkCircle(hole, cx, cy, 45);
-    MarkCircle(hole, cx + 30, cy + 18, 18);
-}
-MarkCircle(hole, current.Item1, current.Item2, 45);
-MarkRect(hole, 366, 370, 450, 428);
-foreach (var (cx, cy) in locked)
-{
-    MarkCircle(hole, cx, cy, 36);
-    MarkRect(hole, cx - 14, cy + 12, cx + 15, cy + 46);
-}
-
-var golden = new List<(float, float)[]>
-{
-    new[] { (366f, 166f), (380f, 161f) },
-    new[] { (436f, 166f), (500f, 168f), (560f, 172f), (634f, 179f) },
-    new[] { (692f, 182f), (760f, 188f), (820f, 194f), (866f, 198f) },
-    new[] { (928f, 211f), (975f, 222f), (1005f, 234f), (1022f, 247f), (1026f, 260f), (1020f, 272f), (1007f, 281f), (992f, 291f) },
-    new[] { (950f, 312f), (900f, 319f), (840f, 324f), (770f, 326f) },
-    new[] { (705f, 318f), (650f, 312f), (600f, 308f), (512f, 310f) },
-    new[] { (452f, 321f), (412f, 337f), (375f, 355f), (342f, 370f), (329f, 385f), (332f, 400f), (350f, 415f), (374f, 423f) },
-};
-var dashed = new List<(float, float)[]>
-{
-    new[] { (444f, 441f), (500f, 442f), (560f, 445f), (648f, 448f) },
-    new[] { (712f, 456f), (770f, 468f), (825f, 475f), (870f, 472f), (918f, 467f) },
-    new[] { (450f, 586f), (510f, 596f), (580f, 607f), (652f, 607f) },
-    new[] { (716f, 613f), (760f, 610f), (800f, 600f), (850f, 594f), (893f, 600f) },
-    new[] { (956f, 612f), (995f, 632f), (1030f, 650f), (1048f, 667f), (1062f, 675f), (1072f, 688f), (1072f, 703f),
-            (1065f, 717f), (1055f, 727f), (1042f, 737f), (1020f, 744f) },
-    new[] { (552f, 737f), (620f, 742f), (690f, 747f) },
-    new[] { (753f, 752f), (800f, 757f), (850f, 762f), (900f, 758f), (958f, 751f) },
-};
-foreach (var line in golden) MarkPath(hole, line, 14f);
-foreach (var line in dashed) MarkPath(hole, line, 7f);
-
-var everywhere = new Rectangle(0, 0, src.W, src.H);
-Inpaint(clean, hole, everywhere, 70);
-
-// The painted back arrow in the top-left corner: the game draws its own buttons (LevelMapScreen.cs).
-var arrow = new bool[src.W * src.H];
-MarkRect(arrow, 26, 18, 160, 100);
-// Patches come from the cave and the column above the corner ornament only, so no piece of it is copied in.
-Inpaint(clean, arrow, new Rectangle(0, 0, 300, 86), 220);
-
-// "Пройдено 6 из 15" and "40%" on the dark plate under the title.
+// "Пройдено 6 из 15" on the dark plate under the title.
 var plate = new bool[src.W * src.H];
 MarkRect(plate, 588, 104, 798, 139);
-Inpaint(clean, plate, new Rectangle(520, 98, 720, 46), 320);
+// Patches come from the plate only, right of the scaffolding at its left end.
+Inpaint(clean, plate, new Rectangle(566, 98, 674, 46), 320);
 
 // "40%" sits on plain dark: filled in smoothly, as patches would bring in the tip of the bar.
 Smooth(clean, (x, y) => x >= 1131 && x <= 1194 && y >= 102 && y <= 140);
@@ -158,16 +117,21 @@ for (int y = 113; y <= 131; y++)
     for (int x = 818; x <= 950; x++)
         clean.Set(x, y, src.Get(1050, y));
 
+// The top of the second circle's rim, just under the bar: the plate goes on over it.
+var rim = new bool[src.W * src.H];
+MarkRect(rim, 606, 134, 718, 146);
+Inpaint(clean, rim, new Rectangle(566, 132, 610, 16), 200);
+
 // The chapter name on the card, rebuilt from the plain stone above it (the dividers would be copied otherwise).
 var card = new bool[src.W * src.H];
-MarkRect(card, 1370, 176, 1510, 218);
+MarkRect(card, 1366, 172, 1514, 221);
 MarkRect(card, 1316, 248, 1580, 336);
-Inpaint(clean, card, new Rectangle(1262, 140, 352, 37), 220);
+Inpaint(clean, card, new Rectangle(1300, 158, 270, 20), 220);
 
 // The caption of the big button: its gold is smooth, so it is filled in from the edges.
 Smooth(clean, (x, y) => x >= 584 && x <= 1090 && y >= 829 && y <= 876);
 
-// The big button over its painted place, shaped like the banner.
+// The big button, shaped like the banner.
 {
     const int X0 = 494, Y0 = 807, W = 685, H = 93;
     Img piece = clean.Crop(X0, Y0, W, H);
@@ -176,32 +140,71 @@ Smooth(clean, (x, y) => x >= 584 && x <= 1090 && y >= 829 && y <= 876);
     piece.Save(UI + "map_play.png");
 }
 
-// With the button cut out, the painted banner and the little diamond above it go from the picture: the game places
-// its buttons where it likes (LevelMapScreen.cs). The floor of the hall is rebuilt around them.
-var banner = new bool[src.W * src.H];
-MarkRect(banner, 486, 794, 1188, 904);
-Inpaint(clean, banner, everywhere, 200);
-
-clean.Save(Backgrounds + "level_map.png");
-clean.Blurred(6).Save(Backgrounds + "level_map_blur.png");
-
-
-// A check picture with the cleared areas tinted, for looking over the masks.
+// The empty bar, cut to its pointed ends, before it goes from the plate.
 {
-    Img check = src.Clone();
-    for (int i = 0; i < hole.Length; i++)
-        if (hole[i] || plate[i] || card[i])
-        {
-            check.R[i] = check.R[i] * 0.5f + 0.5f;
-            check.B[i] *= 0.5f;
-        }
-    Directory.CreateDirectory("Temp");
-    check.Save("Temp/level_map_masks.png");
+    const int X0 = 812, Y0 = 109, W = 316, H = 26;
+    var shape = new[] { new PointF(812, 122), new PointF(823, 110), new PointF(1116, 110), new PointF(1128, 122), new PointF(1116, 135), new PointF(823, 135) };
+    Img piece = clean.Crop(X0, Y0, W, H);
+    piece.MaskAlpha((x, y) => Inside(shape, x + X0 + 0.5f, y + Y0 + 0.5f) ? 1f : 0f);
+    piece.Feather(1);
+    piece.Save(UI + "map_bar.png");
 }
+
+// The bar goes from the plate: the game places it, on the plate or beside the card.
+var bar = new bool[src.W * src.H];
+MarkRect(bar, 808, 106, 1132, 139);
+Inpaint(clean, bar, new Rectangle(566, 98, 674, 46), 320);
+
+// The header: title, divider and the plate's row for the progress (x 486..1226). Above the divider the plate ends at x 1170
+// (rock beyond); below it holds only the row of the bar, from x 566 (scaffolding left of it). Both are faded out:
+// 24 pixels of fade at the sides, 10 at the bottom.
+{
+    const int X0 = 486, Y0 = 0, W = 740, H = 146;
+    Img piece = clean.Crop(X0, Y0, W, H);
+    piece.MaskAlpha((x, y) =>
+    {
+        float lower = Math.Clamp((y - 96f) / 8f, 0f, 1f);
+        float left = 80f * lower, right = 56f * (1f - lower);
+        return Ramp(Math.Min(x - left, W - 1 - right - x), 24f) * Ramp(H - 1 - y, 10f);
+    });
+    piece.Save(UI + "map_header.png");
+}
+
+// The title alone: the same, down to just under the divider.
+{
+    const int X0 = 486, Y0 = 0, W = 740, H = 100;
+    Img piece = clean.Crop(X0, Y0, W, H);
+    piece.MaskAlpha((x, y) => Ramp(Math.Min(x, W - 1 - 56 - x), 24f) * Ramp(H - 1 - y, 8f));
+    piece.Save(UI + "map_title.png");
+}
+
+// The card, cut along its frame: chamfered corners, and at the bottom right it gives way to the column in front.
+{
+    const int X0 = 1246, Y0 = 117, W = 384, H = 735;
+    var frame = new[]
+    {
+        new PointF(1271, 118), new PointF(1567, 118), new PointF(1628, 166), new PointF(1628, 787),
+        new PointF(1600, 792), new PointF(1600, 851), new PointF(1272, 851), new PointF(1247, 815), new PointF(1247, 143),
+    };
+    Img piece = clean.Crop(X0, Y0, W, H);
+    piece.MaskAlpha((x, y) => Inside(frame, x + X0 + 0.5f, y + Y0 + 0.5f) ? 1f : 0f);
+    piece.Feather(1);
+    piece.Save(UI + "map_card.png");
+}
+
+// The background: the painting as it is.
+File.Copy(CleanPainting, Backgrounds + "level_map.png", true);
 
 Console.WriteLine("level map pieces written");
 
 // ================================================================================================ helpers
+
+// 0 at the edge, rising smoothly to 1 at `width` pixels in.
+static float Ramp(float distance, float width)
+{
+    float t = Math.Clamp(distance / width, 0f, 1f);
+    return t * t * (3f - 2f * t);
+}
 
 static double Dist(double x, double y, double cx, double cy) => Math.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
 
@@ -228,52 +231,11 @@ static bool Inside(PointF[] poly, float x, float y)
     return inside;
 }
 
-static void MarkCircle(bool[] mask, int cx, int cy, int r)
-{
-    for (int y = cy - r; y <= cy + r; y++)
-        for (int x = cx - r; x <= cx + r; x++)
-            if (Dist(x, y, cx, cy) <= r)
-                mask[y * Img.Width + x] = true;
-}
-
 static void MarkRect(bool[] mask, int x0, int y0, int x1, int y1)
 {
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
             mask[y * Img.Width + x] = true;
-}
-
-// A band along a smooth curve through the points.
-static void MarkPath(bool[] mask, (float x, float y)[] points, float halfWidth)
-{
-    foreach (var (px, py) in Spline(points, 1.5f))
-    {
-        int r = (int)Math.Ceiling(halfWidth);
-        for (int y = (int)py - r; y <= (int)py + r; y++)
-            for (int x = (int)px - r; x <= (int)px + r; x++)
-                if (Dist(x, y, px, py) <= halfWidth)
-                    mask[y * Img.Width + x] = true;
-    }
-}
-
-// Catmull-Rom through the points, sampled about every `step` pixels.
-static List<(float, float)> Spline((float x, float y)[] p, float step)
-{
-    var result = new List<(float, float)>();
-    for (int i = 0; i < p.Length - 1; i++)
-    {
-        var p0 = p[Math.Max(i - 1, 0)]; var p1 = p[i]; var p2 = p[i + 1]; var p3 = p[Math.Min(i + 2, p.Length - 1)];
-        int n = Math.Max(2, (int)(Dist(p1.x, p1.y, p2.x, p2.y) / step));
-        for (int k = 0; k < n; k++)
-        {
-            float t = k / (float)n, t2 = t * t, t3 = t2 * t;
-            float x = 0.5f * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
-            float y = 0.5f * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-            result.Add((x, y));
-        }
-    }
-    result.Add(p[^1]);
-    return result;
 }
 
 static bool[] LargestComponent(bool[] m, int w, int h)
@@ -548,44 +510,6 @@ sealed class Img
                     A[i] = (a[i] * 4 + a[i - 1] + a[i + 1] + a[i - W] + a[i + W]) / 8f;
                 }
         }
-    }
-
-    // Shrunk by `factor` and box-blurred: shown stretched, it is a soft copy.
-    public Img Blurred(int factor)
-    {
-        int w = W / factor, h = H / factor;
-        var small = new Img(w, h);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-            {
-                float r = 0, g = 0, b = 0;
-                for (int dy = 0; dy < factor; dy++)
-                    for (int dx = 0; dx < factor; dx++)
-                    {
-                        int i = (y * factor + dy) * W + x * factor + dx;
-                        r += R[i]; g += G[i]; b += B[i];
-                    }
-                int n = factor * factor;
-                small.Set(x, y, new Color4(r / n, g / n, b / n, 1f));
-            }
-        for (int pass = 0; pass < 3; pass++)
-        {
-            var copy = small.Clone();
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                {
-                    float r = 0, g = 0, b = 0; int n = 0;
-                    for (int dy = -2; dy <= 2; dy++)
-                        for (int dx = -2; dx <= 2; dx++)
-                        {
-                            int qx = Math.Clamp(x + dx, 0, w - 1), qy = Math.Clamp(y + dy, 0, h - 1);
-                            Color4 c = copy.Get(qx, qy);
-                            r += c.R; g += c.G; b += c.B; n++;
-                        }
-                    small.Set(x, y, new Color4(r / n, g / n, b / n, 1f));
-                }
-        }
-        return small;
     }
 
     public static Img Load(string path)
