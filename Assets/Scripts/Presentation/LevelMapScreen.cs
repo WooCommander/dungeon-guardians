@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using DungeonGuardians.Core;
 using DungeonGuardians.Persistence;
@@ -8,104 +7,124 @@ using UnityEngine.UI;
 
 namespace DungeonGuardians.Presentation
 {
+    // "Путь искателя": the level map and the player's progress in one screen. The painted picture
+    // (map-images/level_map.png, cut by tools/cut_level_map.cs) keeps its scenery, frame, card and buttons; the
+    // circles, the path between them, the counts, the chapter on the card and the button's caption are laid over it
+    // from the saved progress. Starting the game over lives here too, behind a confirmation.
     public sealed class LevelMapScreen : MonoBehaviour
     {
-        private static readonly Vector2 CanvasReference = new Vector2(1024f, 576f);
-        private static readonly Color GoldColor = new Color(1f, 0.84f, 0.42f);
-        private static readonly Color CyanGlow = new Color(0.35f, 0.95f, 1f);
-        private static readonly Color PathActiveColor = new Color(1f, 0.84f, 0.42f, 0.95f);
-        private static readonly Color PathLockedColor = new Color(0.35f, 0.38f, 0.44f, 0.45f);
-
-        // 15 Level node positions in 1024x576 space matching reference concept art
-        private static readonly Vector2[] NodePositions =
+        // Circle centres in picture pixels, in the order of play: a snake down the five tiers of the cave.
+        private static readonly Vector2[] Nodes =
         {
-            new Vector2(248f, 98f),  // Level 1 (Mine Shaft Bridge)
-            new Vector2(395f, 110f), // Level 2
-            new Vector2(536f, 120f), // Level 3
-            new Vector2(286f, 188f), // Level 4 (Ancient Sunken City)
-            new Vector2(441f, 202f), // Level 5
-            new Vector2(586f, 185f), // Level 6
-            new Vector2(250f, 268f), // Level 7 (Flooded Azure Waters)
-            new Vector2(410f, 280f), // Level 8
-            new Vector2(570f, 286f), // Level 9
-            new Vector2(252f, 368f), // Level 10 (Stone Mechanisms & Wheels)
-            new Vector2(410f, 372f), // Level 11
-            new Vector2(556f, 368f), // Level 12
-            new Vector2(310f, 450f), // Level 13 (Magma Core Abyss)
-            new Vector2(430f, 454f), // Level 14
-            new Vector2(595f, 456f)  // Level 15
+            new Vector2(407f, 155f), new Vector2(662f, 180f), new Vector2(895f, 196f),
+            new Vector2(980f, 304f), new Vector2(737f, 320f), new Vector2(480f, 307f),
+            new Vector2(411f, 434f), new Vector2(545f, 442f), new Vector2(680f, 450f), new Vector2(951f, 466f),
+            new Vector2(924f, 600f), new Vector2(684f, 600f), new Vector2(551f, 595f), new Vector2(419f, 585f),
+            new Vector2(520f, 732f), new Vector2(721f, 744f), new Vector2(855f, 752f), new Vector2(989f, 746f),
         };
 
-        // S-curve connection sequence between nodes matching the art
-        private static readonly (int from, int to)[] PathSegments =
+        // Where the path bends on its way from each circle to the next.
+        private static readonly Vector2[][] Bends =
         {
-            (0, 1),   // 1 -> 2
-            (1, 2),   // 2 -> 3
-            (2, 5),   // 3 -> 6 (curve down right)
-            (5, 4),   // 6 -> 5
-            (4, 3),   // 5 -> 4
-            (3, 6),   // 4 -> 7 (curve down left)
-            (6, 7),   // 7 -> 8
-            (7, 8),   // 8 -> 9
-            (8, 11),  // 9 -> 12 (curve down right)
-            (11, 10), // 12 -> 11
-            (10, 9),  // 11 -> 10
-            (9, 12),  // 10 -> 13 (curve down left)
-            (12, 13), // 13 -> 14
-            (13, 14)  // 14 -> 15
+            new[] { new Vector2(500f, 168f), new Vector2(565f, 173f) },
+            new[] { new Vector2(760f, 188f), new Vector2(822f, 194f) },
+            new[] { new Vector2(975f, 222f), new Vector2(1012f, 240f), new Vector2(1026f, 262f), new Vector2(1012f, 285f) },
+            new[] { new Vector2(900f, 318f), new Vector2(840f, 324f) },
+            new[] { new Vector2(650f, 313f), new Vector2(580f, 308f) },
+            new[] { new Vector2(412f, 337f), new Vector2(350f, 366f), new Vector2(330f, 392f), new Vector2(352f, 418f) },
+            new[] { new Vector2(478f, 440f) },
+            new[] { new Vector2(612f, 448f) },
+            new[] { new Vector2(770f, 466f), new Vector2(830f, 474f), new Vector2(892f, 471f) },
+            new[] { new Vector2(1003f, 486f), new Vector2(1030f, 520f), new Vector2(1018f, 565f), new Vector2(975f, 592f) },
+            new[] { new Vector2(850f, 594f), new Vector2(790f, 602f) },
+            new[] { new Vector2(618f, 599f) },
+            new[] { new Vector2(485f, 590f) },
+            new[] { new Vector2(372f, 620f), new Vector2(382f, 680f), new Vector2(440f, 722f) },
+            new[] { new Vector2(620f, 741f) },
+            new[] { new Vector2(788f, 750f) },
+            new[] { new Vector2(922f, 752f) },
         };
+
+        // The chapters: first level of each, its name, and the piece of the map shown on the card (none: the card's
+        // own painting, which is of chapter III).
+        private static readonly int[] ChapterStarts = { 0, 3, 6, 10, 14 };
+        private static readonly string[] ChapterNumbers = { "I", "II", "III", "IV", "V" };
+        private static readonly string[] ChapterNames =
+        {
+            "Заброшенные шахты", "Подземный город", "Затопленные своды", "Древние механизмы", "Огненная бездна",
+        };
+        private static readonly Rect?[] ChapterViews =
+        {
+            new Rect(850f, 95f, 260f, 257f), new Rect(480f, 215f, 300f, 297f), null,
+            new Rect(360f, 470f, 300f, 297f), new Rect(600f, 520f, 280f, 277f),
+        };
+
+        private const int StarsPerLevel = 3;
+        private const float NodeHalf = 48.5f;
+        // The helmet (UI/map_helmet.png, 80 x 56) sits this far from the centre of the chosen circle.
+        private static readonly Vector2 HelmetOffset = new Vector2(-3f, -34f);
+        private static readonly Vector2 HelmetSize = new Vector2(80f, 56f);
+        private static readonly Rect CardWindow = new Rect(1294f, 356f, 297f, 294f);
+        // The bar's inside: the fill starts at its left end and may reach its right end.
+        private const float BarLeft = 817f;
+        private const float BarRight = 1110f;
+
+        private static readonly Color Cream = new Color(1f, 0.92f, 0.76f);
+        private static readonly Color Gold = new Color(1f, 0.82f, 0.45f);
+        private static readonly Color Ink = new Color(0.22f, 0.11f, 0.03f);
+        private static readonly Color Shadow = new Color(0.08f, 0.04f, 0.01f, 0.9f);
+
+        private enum NodeState { Done, Current, Locked }
+
+        private sealed class NodeView
+        {
+            public Image Circle;
+            public Text Number;
+            public NodeState State;
+        }
 
         private Transform picture;
+        private Font serif;
+        private Sprite doneSprite;
+        private Sprite currentSprite;
+        private Sprite lockedSprite;
+        private readonly List<NodeView> nodes = new List<NodeView>();
+        private readonly List<List<Vector2>> segments = new List<List<Vector2>>();
+        private MapPath pathGlow;
+        private MapPath pathGold;
+        private MapPath dashShadow;
+        private MapPath dashes;
+        private Image helmet;
+        private Image currentGlow;
+
+        private Text passedText;
+        private Text percentText;
+        private Image barFill;
+        private Image barCap;
+        private Text starsText;
+        private Text timeText;
+        private Text chapterNumber;
+        private Text chapterName;
+        private RawImage chapterView;
+        private Text levelTitle;
+        private Text levelRecord;
+        private Text playText;
+        private GameObject confirmModal;
+        private Text toastText;
+
         private PlayerProgress progress;
         private LevelCatalog catalog;
+        private int levelCount;
         private int selectedIndex;
-        private int lastSeenUnlockedIndex = -1;
-        private readonly List<Image> nodeImages = new List<Image>();
-        private readonly List<Text> nodeLabels = new List<Text>();
-        private readonly List<Image> nodeIconOverlays = new List<Image>();
-        private readonly List<Text> nodeStarLabels = new List<Text>();
-        private readonly List<Image> pathLines = new List<Image>();
-
-        // Sprites from atlas
-        private Sprite nodeGoldSprite;
-        private Sprite nodeCyanSprite;
-        private Sprite nodeLockedSprite;
-        private Sprite iconCheckSprite;
-        private Sprite iconLockSprite;
-        private Sprite iconHelmetSprite;
-        private Sprite cardFrameSprite;
-        private Sprite playBtnSprite;
-        private Sprite backBtnSprite;
-        private Sprite progressTrackSprite;
-        private Sprite progressFillSprite;
-        private Sprite dividerSprite;
-
-        private Image sparkImage;
-        private float sparkProgress;
-        private const float SparkSpeed = 0.55f;
-
-        // Unlock visual effects
-        private Image burstRing;
-        private readonly List<Image> burstSparks = new List<Image>();
-        private static AudioClip unlockSfxClip;
-
-        private Text progressText;
-        private Image progressBarFill;
-        private Text percentText;
-        private Text totalStarsText;
-
-        // Right side info card
-        private Text cardChapterText;
-        private Text cardLevelTitle;
-        private Text cardBestTimeText;
-        private Text cardStarsText;
-        private Text cardStatusText;
-
-        // Bottom action button
-        private Text playButtonText;
+        private int currentIndex = -1;
+        private int lastSeenUnlocked = -1;
+        private int poppingIndex = -1;
+        private float popStart;
 
         public event Action<int> LevelSelected;
         public event Action BackRequested;
+        // The player confirmed starting over: progress is to be wiped. The map redraws itself right after.
+        public event Action ResetRequested;
 
         public static LevelMapScreen Create(Transform parent)
         {
@@ -113,703 +132,580 @@ namespace DungeonGuardians.Presentation
             root.transform.SetParent(parent, false);
             MenuStyle.Stretch((RectTransform)root.transform);
             var screen = root.AddComponent<LevelMapScreen>();
-            screen.LoadAtlasSprites();
             screen.Build();
+            root.SetActive(false);
             return screen;
-        }
-
-        private void LoadAtlasSprites()
-        {
-            nodeGoldSprite = Resources.Load<Sprite>("UI/map_node_gold");
-            nodeCyanSprite = Resources.Load<Sprite>("UI/map_node_cyan");
-            nodeLockedSprite = Resources.Load<Sprite>("UI/map_node_locked");
-            iconCheckSprite = Resources.Load<Sprite>("UI/map_icon_check");
-            iconLockSprite = Resources.Load<Sprite>("UI/map_icon_lock");
-            iconHelmetSprite = Resources.Load<Sprite>("UI/map_icon_helmet");
-            cardFrameSprite = Resources.Load<Sprite>("UI/map_card_frame");
-            playBtnSprite = Resources.Load<Sprite>("UI/map_play_btn");
-            backBtnSprite = Resources.Load<Sprite>("UI/map_back_btn");
-            progressTrackSprite = Resources.Load<Sprite>("UI/map_progress_track");
-            progressFillSprite = Resources.Load<Sprite>("UI/map_progress_fill");
-            dividerSprite = Resources.Load<Sprite>("UI/map_divider");
         }
 
         public void Open(PlayerProgress currentProgress, LevelCatalog levelCatalog)
         {
             progress = currentProgress;
             catalog = levelCatalog;
+            levelCount = Mathf.Min(catalog != null ? catalog.Levels.Count : 0, Nodes.Length);
+            int highest = Mathf.Clamp(progress.highestUnlockedIndex, 0, Mathf.Max(levelCount - 1, 0));
+            selectedIndex = Mathf.Clamp(progress.lastSelectedLevelIndex, 0, highest);
 
-            int maxLevels = catalog != null && catalog.Levels.Count > 0 ? catalog.Levels.Count : NodePositions.Length;
-            int highestUnlocked = Mathf.Clamp(progress.highestUnlockedIndex, 0, maxLevels - 1);
-            selectedIndex = Mathf.Clamp(progress.lastSelectedLevelIndex, 0, highestUnlocked);
-            sparkProgress = 0f;
+            // A circle opened since the map was last shown pops up.
+            poppingIndex = lastSeenUnlocked >= 0 && highest > lastSeenUnlocked ? highest : -1;
+            popStart = Time.unscaledTime;
+            lastSeenUnlocked = highest;
 
+            HideConfirmModal();
+            HideToast();
             Refresh();
             gameObject.SetActive(true);
-
-            // Trigger unlock ceremony if newly unlocked
-            if (lastSeenUnlockedIndex >= 0 && highestUnlocked > lastSeenUnlockedIndex)
-            {
-                StartCoroutine(AnimateUnlockSequence(highestUnlocked));
-            }
-            lastSeenUnlockedIndex = highestUnlocked;
         }
 
         public void Close()
         {
+            HideConfirmModal();
+            HideToast();
             gameObject.SetActive(false);
+        }
+
+        // Android's back button: closes the confirmation if it is open. Returns whether it was.
+        public bool HideDialog()
+        {
+            if (confirmModal == null || !confirmModal.activeSelf)
+            {
+                return false;
+            }
+
+            HideConfirmModal();
+            return true;
         }
 
         private void Build()
         {
-            // Background painted map (1024x576)
-            Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.EnvelopeParent);
+            serif = Resources.Load<Font>("Fonts/PTSerif-Bold");
+            if (serif == null)
+            {
+                serif = MenuStyle.Font;
+            }
+
+            doneSprite = Resources.Load<Sprite>("UI/map_node_done");
+            currentSprite = Resources.Load<Sprite>("UI/map_node_current");
+            lockedSprite = Resources.Load<Sprite>("UI/map_node_locked");
+
+            // A blurred copy fills the screen around the picture, which is shown whole.
+            Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/level_map_blur", AspectRatioFitter.AspectMode.EnvelopeParent);
             backing.raycastTarget = true;
-            picture = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.FitInParent).transform;
+            Image pictureImage = MenuStyle.CreatePicture(transform, "Backgrounds/level_map", AspectRatioFitter.AspectMode.FitInParent);
+            picture = pictureImage.transform;
 
-            BuildPathLines();
-            BuildSpark();
-            BuildUnlockVfx();
-            BuildLevelNodes();
+            BuildPath();
+            BuildNodes();
             BuildTopBar();
-            BuildInfoCard();
-            BuildBottomPlayButton();
+            BuildCard();
+            BuildButtons();
+            BuildToast();
+            BuildConfirmModal();
         }
 
-        private void BuildPathLines()
+        // ------------------------------------------------------------------------------------------------- path
+
+        private void BuildPath()
         {
-            for (int i = 0; i < PathSegments.Length; i++)
+            // The whole route as one smooth curve through every circle and bend, cut into a piece per step.
+            var points = new List<Vector2>();
+            var owner = new List<int>();
+            for (int i = 0; i < Nodes.Length; i++)
             {
-                var (from, to) = PathSegments[i];
-                Vector2 start = NodePositions[from];
-                Vector2 end = NodePositions[to];
-                Vector2 mid = (start + end) * 0.5f;
-                float dist = Vector2.Distance(start, end);
-                float angle = Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg;
-
-                var lineObj = new GameObject($"PathLine_{from + 1}_{to + 1}").AddComponent<Image>();
-                lineObj.transform.SetParent(picture, false);
-                lineObj.color = PathLockedColor;
-                lineObj.raycastTarget = false;
-
-                RectTransform rect = lineObj.rectTransform;
-                rect.anchorMin = rect.anchorMax = new Vector2(mid.x / CanvasReference.x, 1f - mid.y / CanvasReference.y);
-                rect.sizeDelta = new Vector2(dist, 6f);
-                rect.localEulerAngles = new Vector3(0f, 0f, -angle);
-
-                pathLines.Add(lineObj);
+                points.Add(Nodes[i]);
+                owner.Add(i);
+                if (i < Bends.Length)
+                {
+                    foreach (Vector2 bend in Bends[i])
+                    {
+                        points.Add(bend);
+                        owner.Add(i);
+                    }
+                }
             }
-        }
 
-        private void BuildSpark()
-        {
-            sparkImage = new GameObject("PathSpark").AddComponent<Image>();
-            sparkImage.transform.SetParent(picture, false);
-            sparkImage.sprite = ExitGlow.GetHaloSprite();
-            sparkImage.color = new Color(1f, 0.95f, 0.55f, 0.95f);
-            sparkImage.raycastTarget = false;
-            sparkImage.rectTransform.sizeDelta = new Vector2(34f, 34f);
-        }
-
-        private void BuildUnlockVfx()
-        {
-            burstRing = new GameObject("BurstRing").AddComponent<Image>();
-            burstRing.transform.SetParent(picture, false);
-            burstRing.sprite = ExitGlow.GetHaloSprite();
-            burstRing.color = Color.clear;
-            burstRing.raycastTarget = false;
-            burstRing.rectTransform.sizeDelta = new Vector2(90f, 90f);
-
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < Nodes.Length - 1; i++)
             {
-                var spark = new GameObject($"BurstSpark_{i}").AddComponent<Image>();
-                spark.transform.SetParent(picture, false);
-                spark.sprite = ExitGlow.GetHaloSprite();
-                spark.color = Color.clear;
-                spark.raycastTarget = false;
-                spark.rectTransform.sizeDelta = new Vector2(24f, 24f);
-                burstSparks.Add(spark);
+                segments.Add(new List<Vector2>());
             }
+
+            for (int k = 0; k < points.Count - 1; k++)
+            {
+                Vector2 p0 = points[Mathf.Max(k - 1, 0)], p1 = points[k], p2 = points[k + 1], p3 = points[Mathf.Min(k + 2, points.Count - 1)];
+                List<Vector2> segment = segments[owner[k]];
+                int steps = Mathf.Max(2, Mathf.CeilToInt(Vector2.Distance(p1, p2) / 4f));
+                for (int s = segment.Count == 0 ? 0 : 1; s <= steps; s++)
+                {
+                    segment.Add(CatmullRom(p0, p1, p2, p3, s / (float)steps));
+                }
+            }
+
+            pathGlow = MapPath.Create(picture, "Path Glow", new Color(1f, 0.72f, 0.25f, 0.45f), 20f, 1f);
+            pathGold = MapPath.Create(picture, "Path Gold", new Color(1f, 0.86f, 0.5f, 1f), 6f, 0.45f);
+            dashShadow = MapPath.Create(picture, "Path Dash Shadow", new Color(0.04f, 0.04f, 0.05f, 0.85f), 9f, 0.35f, 14f, 10f);
+            dashes = MapPath.Create(picture, "Path Dashes", new Color(0.88f, 0.87f, 0.83f, 1f), 5f, 0.3f, 14f, 10f);
         }
+
+        private static Vector2 CatmullRom(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
+        {
+            float t2 = t * t, t3 = t2 * t;
+            return 0.5f * (2f * p1 + (p2 - p0) * t + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 + (3f * p1 - p0 - 3f * p2 + p3) * t3);
+        }
+
+        // ------------------------------------------------------------------------------------------------ nodes
+
+        private void BuildNodes()
+        {
+            currentGlow = new GameObject("Current Glow").AddComponent<Image>();
+            currentGlow.transform.SetParent(picture, false);
+            currentGlow.sprite = ExitGlow.GetHaloSprite();
+            currentGlow.color = new Color(0.3f, 0.95f, 1f, 0.7f);
+            currentGlow.raycastTarget = false;
+
+            for (int i = 0; i < Nodes.Length; i++)
+            {
+                int index = i;
+                var view = new NodeView();
+                view.Circle = new GameObject($"Level {i + 1}").AddComponent<Image>();
+                view.Circle.transform.SetParent(picture, false);
+                PlaceAround(view.Circle.rectTransform, Nodes[i], NodeHalf);
+                MenuStyle.MakeButton(view.Circle, () => OnNodeClicked(index));
+
+                view.Number = AddText(view.Circle.transform, (i + 1).ToString(), Cream, TextAnchor.MiddleCenter, 60, serif);
+                // The number fills the inner disc: a box of 40 x 34 picture pixels around the centre.
+                view.Number.rectTransform.anchorMin = new Vector2(0.5f - 20f / 97f, 0.5f - 17f / 97f);
+                view.Number.rectTransform.anchorMax = new Vector2(0.5f + 20f / 97f, 0.5f + 17f / 97f);
+                nodes.Add(view);
+            }
+
+            helmet = new GameObject("Helmet").AddComponent<Image>();
+            helmet.transform.SetParent(picture, false);
+            helmet.sprite = Resources.Load<Sprite>("UI/map_helmet");
+            helmet.raycastTarget = false;
+        }
+
+        private static void PlaceAround(RectTransform rect, Vector2 centre, float half)
+        {
+            MenuStyle.PlaceOnPicture(rect, new Rect(centre.x - half, centre.y - half, 2f * half, 2f * half));
+        }
+
+        private void OnNodeClicked(int index)
+        {
+            if (progress == null || index >= levelCount)
+            {
+                return;
+            }
+
+            if (!progress.IsUnlocked(index))
+            {
+                ShowToast($"Сначала пройдите уровень {index}");
+                return;
+            }
+
+            selectedIndex = index;
+            progress.lastSelectedLevelIndex = index;
+            Refresh();
+        }
+
+        // --------------------------------------------------------------------------------------------- top bar
 
         private void BuildTopBar()
         {
-            // Back button in top-left using sprite from atlas (240x160 ratio)
-            var backBtnObj = new GameObject("BackButton").AddComponent<Image>();
-            backBtnObj.transform.SetParent(picture, false);
-            if (backBtnSprite != null)
-            {
-                backBtnObj.sprite = backBtnSprite;
-            }
-            else
-            {
-                backBtnObj.color = new Color(0.2f, 0.16f, 0.12f, 0.95f);
-            }
-            MenuStyle.PlaceOnPicture(backBtnObj.rectTransform, new Rect(24f, 16f, 66f, 44f));
-            MenuStyle.MakeButton(backBtnObj, () => BackRequested?.Invoke());
+            passedText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleRight, 60, serif);
+            MenuStyle.PlaceOnPicture(passedText.rectTransform, new Rect(540f, 106f, 258f, 32f));
 
-            // Title: ПУТЬ ИСКАТЕЛЯ
-            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 28);
-            title.fontStyle = FontStyle.Bold;
-            title.color = GoldColor;
-            title.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(320f, 10f, 384f, 32f));
+            barFill = new GameObject("Bar Fill").AddComponent<Image>();
+            barFill.transform.SetParent(picture, false);
+            barFill.sprite = Resources.Load<Sprite>("UI/map_fill");
+            barFill.raycastTarget = false;
+            barCap = new GameObject("Bar Cap").AddComponent<Image>();
+            barCap.transform.SetParent(picture, false);
+            barCap.sprite = Resources.Load<Sprite>("UI/map_fill_cap");
+            barCap.raycastTarget = false;
 
-            // Decorative divider below title (285x60 ratio)
-            if (dividerSprite != null)
-            {
-                var divObj = new GameObject("TitleDivider").AddComponent<Image>();
-                divObj.transform.SetParent(picture, false);
-                divObj.sprite = dividerSprite;
-                divObj.raycastTarget = false;
-                MenuStyle.PlaceOnPicture(divObj.rectTransform, new Rect(427f, 40f, 170f, 24f));
-            }
+            percentText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleLeft, 60, serif);
+            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(1136f, 106f, 90f, 32f));
 
-            // Progress text
-            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 15", 15);
-            progressText.color = new Color(0.92f, 0.92f, 0.92f);
-            progressText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(240f, 65f, 180f, 22f));
-
-            // Progress bar track using atlas sprite (220x60 ratio)
-            var barTrack = new GameObject("ProgressTrack").AddComponent<Image>();
-            barTrack.transform.SetParent(picture, false);
-            if (progressTrackSprite != null)
-            {
-                barTrack.sprite = progressTrackSprite;
-            }
-            else
-            {
-                barTrack.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
-            }
-            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(430f, 64f, 210f, 24f));
-
-            var fillObj = new GameObject("Fill").AddComponent<Image>();
-            fillObj.transform.SetParent(barTrack.transform, false);
-            if (progressFillSprite != null)
-            {
-                fillObj.sprite = progressFillSprite;
-            }
-            else
-            {
-                fillObj.color = GoldColor;
-            }
-            fillObj.type = Image.Type.Filled;
-            fillObj.fillMethod = Image.FillMethod.Horizontal;
-            fillObj.fillOrigin = (int)Image.OriginHorizontal.Left;
-            
-            RectTransform fillRect = fillObj.rectTransform;
-            fillRect.anchorMin = new Vector2(0.04f, 0.15f);
-            fillRect.anchorMax = new Vector2(0.96f, 0.85f);
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-            progressBarFill = fillObj;
-
-            percentText = MenuStyle.AddLabel(picture, "0%", 15);
-            percentText.color = GoldColor;
-            percentText.fontStyle = FontStyle.Bold;
-            percentText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(650f, 65f, 60f, 22f));
-
-            totalStarsText = MenuStyle.AddLabel(picture, "★ 0", 18);
-            totalStarsText.color = GoldColor;
-            totalStarsText.fontStyle = FontStyle.Bold;
-            totalStarsText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(750f, 18f, 100f, 30f));
+            // Totals in the dark of the cave above the card.
+            starsText = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 60, MenuStyle.Font);
+            MenuStyle.PlaceOnPicture(starsText.rectTransform, new Rect(1262f, 22f, 340f, 46f));
+            timeText = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 60, serif);
+            MenuStyle.PlaceOnPicture(timeText.rectTransform, new Rect(1262f, 70f, 340f, 30f));
         }
 
-        private void BuildLevelNodes()
+        // ------------------------------------------------------------------------------------------------- card
+
+        private void BuildCard()
         {
-            for (int i = 0; i < NodePositions.Length; i++)
-            {
-                int index = i;
-                Vector2 pos = NodePositions[i];
-                float size = 56f;
+            chapterNumber = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 60, serif);
+            MenuStyle.PlaceOnPicture(chapterNumber.rectTransform, new Rect(1300f, 180f, 286f, 38f));
 
-                var nodeObj = new GameObject($"Node_{i + 1}").AddComponent<Image>();
-                nodeObj.transform.SetParent(picture, false);
-                nodeObj.sprite = nodeLockedSprite;
-                nodeObj.color = Color.white;
-                MenuStyle.PlaceOnPicture(nodeObj.rectTransform, new Rect(pos.x - size / 2f, pos.y - size / 2f, size, size));
+            chapterName = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 46, serif);
+            chapterName.horizontalOverflow = HorizontalWrapMode.Wrap;
+            chapterName.lineSpacing = 0.9f;
+            MenuStyle.PlaceOnPicture(chapterName.rectTransform, new Rect(1288f, 248f, 310f, 90f));
 
-                var btn = nodeObj.gameObject.AddComponent<Button>();
-                btn.onClick.AddListener(() =>
-                {
-                    if (progress != null && progress.IsUnlocked(index))
-                    {
-                        selectedIndex = index;
-                        Refresh();
-                    }
-                });
+            Texture mapTexture = picture.GetComponent<Image>().sprite != null ? picture.GetComponent<Image>().sprite.texture : null;
+            chapterView = new GameObject("Chapter View").AddComponent<RawImage>();
+            chapterView.transform.SetParent(picture, false);
+            chapterView.texture = mapTexture;
+            chapterView.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(chapterView.rectTransform, CardWindow);
 
-                // Icon overlay (Lock / Checkmark / Helmet)
-                var iconObj = new GameObject("IconOverlay").AddComponent<Image>();
-                iconObj.transform.SetParent(nodeObj.transform, false);
-                iconObj.raycastTarget = false;
-                var iconRect = iconObj.rectTransform;
-                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.5f);
-                iconRect.sizeDelta = new Vector2(28f, 28f);
-                iconRect.anchoredPosition = Vector2.zero;
+            // The chosen level along the bottom of the card's picture, on a dark band.
+            var band = new GameObject("Level Band").AddComponent<Image>();
+            band.transform.SetParent(picture, false);
+            band.color = new Color(0.02f, 0.02f, 0.03f, 0.72f);
+            band.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(band.rectTransform, new Rect(CardWindow.x, CardWindow.yMax - 72f, CardWindow.width, 72f));
 
-                nodeImages.Add(nodeObj);
-                nodeIconOverlays.Add(iconObj);
-
-                var label = MenuStyle.AddLabel(nodeObj.transform, $"{i + 1}", 20);
-                label.fontStyle = FontStyle.Bold;
-                label.alignment = TextAnchor.MiddleCenter;
-                MenuStyle.Stretch(label.rectTransform);
-                nodeLabels.Add(label);
-
-                // Stars below node
-                var starsLabel = MenuStyle.AddLabel(nodeObj.transform, string.Empty, 11);
-                starsLabel.color = GoldColor;
-                starsLabel.fontStyle = FontStyle.Bold;
-                starsLabel.alignment = TextAnchor.LowerCenter;
-                MenuStyle.Stretch(starsLabel.rectTransform);
-                starsLabel.rectTransform.anchoredPosition = new Vector2(0f, -16f);
-                nodeStarLabels.Add(starsLabel);
-            }
+            levelTitle = AddText(picture, string.Empty, Cream, TextAnchor.MiddleCenter, 40, serif);
+            MenuStyle.PlaceOnPicture(levelTitle.rectTransform, new Rect(CardWindow.x + 8f, CardWindow.yMax - 68f, CardWindow.width - 16f, 32f));
+            levelRecord = AddText(picture, string.Empty, Gold, TextAnchor.MiddleCenter, 40, MenuStyle.Font);
+            MenuStyle.PlaceOnPicture(levelRecord.rectTransform, new Rect(CardWindow.x + 8f, CardWindow.yMax - 36f, CardWindow.width - 16f, 30f));
         }
 
-        private void BuildInfoCard()
+        // ---------------------------------------------------------------------------------------------- buttons
+
+        private void BuildButtons()
         {
-            // Panel frame on the right side of the screen matching concept stone card
-            var cardPanel = new GameObject("InfoCardPanel").AddComponent<Image>();
-            cardPanel.transform.SetParent(picture, false);
-            if (cardFrameSprite != null)
-            {
-                cardPanel.sprite = cardFrameSprite;
-            }
-            else
-            {
-                cardPanel.color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
-            }
-            MenuStyle.PlaceOnPicture(cardPanel.rectTransform, new Rect(750f, 75f, 235f, 410f));
+            // The painted back arrow in the top-left corner.
+            var back = new GameObject("Back").AddComponent<Image>();
+            back.transform.SetParent(picture, false);
+            back.color = Color.clear;
+            MenuStyle.PlaceOnPicture(back.rectTransform, new Rect(34f, 24f, 122f, 74f));
+            MenuStyle.MakeButton(back, () => BackRequested?.Invoke());
 
-            var border = cardPanel.gameObject.AddComponent<Outline>();
-            border.effectColor = new Color(1f, 0.84f, 0.42f, 0.55f);
-            border.effectDistance = new Vector2(2f, 2f);
+            MenuStyle.AddPictureButton(picture, "map_play", new Rect(494f, 807f, 685f, 93f), string.Empty, OnPlayClicked);
+            playText = AddText(picture, string.Empty, Ink, TextAnchor.MiddleCenter, 60, serif);
+            playText.GetComponent<Outline>().effectColor = new Color(1f, 0.93f, 0.7f, 0.35f);
+            MenuStyle.PlaceOnPicture(playText.rectTransform, new Rect(588f, 830f, 498f, 46f));
 
-            cardChapterText = MenuStyle.AddLabel(cardPanel.transform, "ГЛАВА I", 16);
-            cardChapterText.color = GoldColor;
-            cardChapterText.fontStyle = FontStyle.Bold;
-            cardChapterText.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(10f, 18f, 215f, 24f));
-
-            cardLevelTitle = MenuStyle.AddLabel(cardPanel.transform, "Уровень 1", 20);
-            cardLevelTitle.color = Color.white;
-            cardLevelTitle.fontStyle = FontStyle.Bold;
-            cardLevelTitle.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(10f, 42f, 215f, 48f));
-
-            // Illustration preview box
-            var previewBox = new GameObject("PreviewBox").AddComponent<Image>();
-            previewBox.transform.SetParent(cardPanel.transform, false);
-            previewBox.color = new Color(0.04f, 0.06f, 0.08f, 0.95f);
-            MenuStyle.PlaceOnPicture(previewBox.rectTransform, new Rect(15f, 95f, 205f, 175f));
-
-            var icon = MenuStyle.AddLabel(previewBox.transform, "✦", 48);
-            icon.color = CyanGlow;
-            icon.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.Stretch(icon.rectTransform);
-
-            cardBestTimeText = MenuStyle.AddLabel(cardPanel.transform, "Лучшее время: —:—", 14);
-            cardBestTimeText.color = new Color(0.85f, 0.85f, 0.88f);
-            cardBestTimeText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardBestTimeText.rectTransform, new Rect(15f, 280f, 205f, 24f));
-
-            cardStarsText = MenuStyle.AddLabel(cardPanel.transform, "Звёзды: ☆☆☆", 16);
-            cardStarsText.color = GoldColor;
-            cardStarsText.fontStyle = FontStyle.Bold;
-            cardStarsText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardStarsText.rectTransform, new Rect(15f, 310f, 205f, 24f));
-
-            cardStatusText = MenuStyle.AddLabel(cardPanel.transform, "Статус: ДОСТУПЕН", 15);
-            cardStatusText.color = CyanGlow;
-            cardStatusText.fontStyle = FontStyle.Bold;
-            cardStatusText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardStatusText.rectTransform, new Rect(15f, 345f, 205f, 24f));
-        }
-
-        private void BuildBottomPlayButton()
-        {
-            var btnImage = new GameObject("PlayButton").AddComponent<Image>();
-            btnImage.transform.SetParent(picture, false);
-            if (playBtnSprite != null)
-            {
-                btnImage.sprite = playBtnSprite;
-            }
-            else
-            {
-                btnImage.color = new Color(0.95f, 0.72f, 0.22f, 0.95f);
-            }
-            MenuStyle.PlaceOnPicture(btnImage.rectTransform, new Rect(300f, 495f, 424f, 58f));
-
-            playButtonText = MenuStyle.AddLabel(btnImage.transform, "ПРОДОЛЖИТЬ", 22);
-            playButtonText.fontStyle = FontStyle.Bold;
-            playButtonText.color = new Color(0.12f, 0.08f, 0.03f);
-            playButtonText.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.Stretch(playButtonText.rectTransform);
-
-            MenuStyle.MakeButton(btnImage, OnPlayClicked);
+            // Starting over, small and out of the way in the bottom-left corner.
+            Button reset = MenuStyle.CreatePlateButtonOnPicture(picture, "Начать заново", new Rect(150f, 840f, 330f, 60f), ShowConfirmModal);
+            Text label = reset.GetComponentInChildren<Text>();
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 8;
+            label.resizeTextMaxSize = 26;
+            label.rectTransform.offsetMin = new Vector2(50f, 6f);
+            label.rectTransform.offsetMax = new Vector2(-50f, -6f);
         }
 
         private void OnPlayClicked()
         {
-            if (progress != null && progress.IsUnlocked(selectedIndex))
+            if (progress != null && selectedIndex < levelCount && progress.IsUnlocked(selectedIndex))
             {
                 progress.lastSelectedLevelIndex = selectedIndex;
                 LevelSelected?.Invoke(selectedIndex);
             }
         }
 
-        private IEnumerator AnimateUnlockSequence(int nodeIndex)
-        {
-            if (nodeIndex < 0 || nodeIndex >= NodePositions.Length)
-            {
-                yield break;
-            }
-
-            Vector2 targetPos = NodePositions[nodeIndex];
-            PlayUnlockSound();
-
-            // Setup burst ring
-            burstRing.rectTransform.anchorMin = burstRing.rectTransform.anchorMax =
-                new Vector2(targetPos.x / CanvasReference.x, 1f - targetPos.y / CanvasReference.y);
-            burstRing.rectTransform.anchoredPosition = Vector2.zero;
-
-            // Setup radial sparks
-            for (int i = 0; i < burstSparks.Count; i++)
-            {
-                burstSparks[i].rectTransform.anchorMin = burstSparks[i].rectTransform.anchorMax =
-                    new Vector2(targetPos.x / CanvasReference.x, 1f - targetPos.y / CanvasReference.y);
-                burstSparks[i].rectTransform.anchoredPosition = Vector2.zero;
-            }
-
-            float duration = 0.85f;
-            float elapsed = 0f;
-            Transform nodeTransform = nodeImages[nodeIndex].transform;
-            Vector3 originalNodePos = nodeTransform.localPosition;
-            Vector3 originalPicPos = picture.localPosition;
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-
-                // Expand ring with fading alpha
-                float ringScale = Mathf.Lerp(0.2f, 3.2f, Mathf.Sqrt(t));
-                float ringAlpha = Mathf.Sin(t * Mathf.PI);
-                burstRing.color = new Color(1f, 0.88f, 0.45f, ringAlpha * 0.95f);
-                burstRing.transform.localScale = Vector3.one * ringScale;
-
-                // Move 12 radial sparks outwards with varied speeds
-                for (int i = 0; i < burstSparks.Count; i++)
-                {
-                    float angle = (i * (360f / burstSparks.Count) + Mathf.Sin(i * 1.5f) * 15f) * Mathf.Deg2Rad;
-                    float speedMultiplier = 0.8f + 0.4f * Mathf.Sin(i * 2.3f);
-                    float sparkDist = Mathf.Lerp(0f, 110f * speedMultiplier, 1f - Mathf.Pow(1f - t, 2.5f));
-                    Vector2 offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * sparkDist;
-                    burstSparks[i].rectTransform.anchoredPosition = offset;
-                    burstSparks[i].color = new Color(1f, 0.96f, 0.65f, (1f - t) * 0.95f);
-                    burstSparks[i].transform.localScale = Vector3.one * Mathf.Lerp(1.4f, 0.1f, t);
-                }
-
-                // Node bounce & ancient mechanism shake
-                float bounce = 1f + 0.4f * Mathf.Sin(t * Mathf.PI * 2.5f) * (1f - t);
-                nodeTransform.localScale = Vector3.one * bounce;
-
-                // Lock rattle / screen micro-shake in the first 0.28 seconds
-                if (elapsed < 0.28f)
-                {
-                    float shakeIntensity = (1f - elapsed / 0.28f) * 6f;
-                    float shakeX = Mathf.Sin(elapsed * 90f) * shakeIntensity;
-                    float shakeY = Mathf.Cos(elapsed * 75f) * shakeIntensity * 0.7f;
-                    nodeTransform.localPosition = originalNodePos + new Vector3(shakeX, shakeY, 0f);
-                    picture.localPosition = originalPicPos + new Vector3(shakeX * 0.35f, shakeY * 0.35f, 0f);
-                }
-                else
-                {
-                    nodeTransform.localPosition = originalNodePos;
-                    picture.localPosition = originalPicPos;
-                }
-
-                yield return null;
-            }
-
-            burstRing.color = Color.clear;
-            for (int i = 0; i < burstSparks.Count; i++)
-            {
-                burstSparks[i].color = Color.clear;
-            }
-            nodeTransform.localScale = Vector3.one;
-            nodeTransform.localPosition = originalNodePos;
-            picture.localPosition = originalPicPos;
-        }
-
-        private static void PlayUnlockSound()
-        {
-            if (unlockSfxClip == null)
-            {
-                int sampleRate = 44100;
-                float duration = 0.55f;
-                int samplesCount = (int)(sampleRate * duration);
-                float[] samples = new float[samplesCount];
-
-                for (int i = 0; i < samplesCount; i++)
-                {
-                    float t = (float)i / sampleRate;
-
-                    // 1. Initial sharp metal pick / tumbler click (1950Hz + 2800Hz)
-                    float click1 = Mathf.Sin(2f * Mathf.PI * 1950f * t) * Mathf.Exp(-t * 110f);
-                    click1 += Mathf.Sin(2f * Mathf.PI * 2800f * t) * Mathf.Exp(-t * 130f) * 0.6f;
-
-                    // 2. Heavy stone/bronze latch release latch-spring thud at t = 0.055s (180Hz - 320Hz)
-                    float latchThud = 0f;
-                    if (t > 0.055f)
-                    {
-                        float dt = t - 0.055f;
-                        latchThud = Mathf.Sin(2f * Mathf.PI * 220f * dt) * Mathf.Exp(-dt * 45f) * 0.75f;
-                        latchThud += Mathf.Sin(2f * Mathf.PI * 960f * dt) * Mathf.Exp(-dt * 70f) * 0.5f;
-                    }
-
-                    // 3. Resonant crystal / golden chime chord (1568Hz G6 + 2349Hz D7 + 3136Hz G7)
-                    float chime = 0f;
-                    if (t > 0.02f)
-                    {
-                        float dt = t - 0.02f;
-                        chime += Mathf.Sin(2f * Mathf.PI * 1568f * dt) * Mathf.Exp(-dt * 7.5f) * 0.45f;
-                        chime += Mathf.Sin(2f * Mathf.PI * 2349f * dt) * Mathf.Exp(-dt * 11.0f) * 0.25f;
-                        chime += Mathf.Sin(2f * Mathf.PI * 3136f * dt) * Mathf.Exp(-dt * 14.0f) * 0.15f;
-                    }
-
-                    samples[i] = Mathf.Clamp(click1 * 0.6f + latchThud + chime, -1f, 1f);
-                }
-
-                unlockSfxClip = AudioClip.Create("UnlockSFX", samplesCount, 1, sampleRate, false);
-                unlockSfxClip.SetData(samples, 0);
-            }
-
-            if (GameSettings.Sound > 0.01f)
-            {
-                var audioObj = new GameObject("UnlockSoundTemp");
-                var src = audioObj.AddComponent<AudioSource>();
-                src.clip = unlockSfxClip;
-                src.volume = GameSettings.Sound * 0.95f;
-                src.pitch = UnityEngine.Random.Range(0.98f, 1.03f);
-                src.Play();
-                UnityEngine.Object.Destroy(audioObj, 0.7f);
-            }
-        }
-
-        private void Update()
-        {
-            if (catalog == null || progress == null || !gameObject.activeInHierarchy)
-            {
-                return;
-            }
-
-            float time = Time.unscaledTime;
-
-            // Pulse currently selected node
-            float pulse = 1f + 0.08f * Mathf.Sin(time * 5f);
-            if (selectedIndex >= 0 && selectedIndex < nodeImages.Count)
-            {
-                nodeImages[selectedIndex].transform.localScale = Vector3.one * pulse;
-            }
-
-            // Animate spark running along the unlocked path
-            int maxStep = Mathf.Clamp(progress.highestUnlockedIndex, 0, PathSegments.Length);
-            if (maxStep > 0 && sparkImage != null)
-            {
-                sparkProgress += Time.unscaledDeltaTime * SparkSpeed;
-                if (sparkProgress > maxStep)
-                {
-                    sparkProgress = 0f;
-                }
-
-                int segIndex = Mathf.FloorToInt(sparkProgress);
-                float segT = sparkProgress - segIndex;
-                if (segIndex >= maxStep)
-                {
-                    segIndex = maxStep - 1;
-                    segT = 1f;
-                }
-
-                var (from, to) = PathSegments[segIndex];
-                Vector2 start = NodePositions[from];
-                Vector2 end = NodePositions[to];
-                Vector2 currentPos = Vector2.Lerp(start, end, segT);
-
-                sparkImage.gameObject.SetActive(true);
-                sparkImage.rectTransform.anchorMin = sparkImage.rectTransform.anchorMax =
-                    new Vector2(currentPos.x / CanvasReference.x, 1f - currentPos.y / CanvasReference.y);
-                sparkImage.rectTransform.anchoredPosition = Vector2.zero;
-
-                float sparkScale = 1f + 0.3f * Mathf.Sin(time * 12f);
-                sparkImage.transform.localScale = Vector3.one * sparkScale;
-            }
-            else if (sparkImage != null)
-            {
-                sparkImage.gameObject.SetActive(false);
-            }
-        }
+        // ---------------------------------------------------------------------------------------------- refresh
 
         private void Refresh()
         {
-            if (catalog == null || progress == null)
+            if (progress == null)
             {
                 return;
             }
 
-            int totalLevels = catalog.Levels.Count > 0 ? catalog.Levels.Count : NodePositions.Length;
-            int completed = progress.GetCompletedCount();
-            int totalStars = progress.GetTotalStars();
-            float ratio = totalLevels > 0 ? (float)completed / totalLevels : 0f;
-
-            progressText.text = $"Пройдено {completed} из {totalLevels}";
-            progressBarFill.fillAmount = ratio;
-            percentText.text = $"{Mathf.RoundToInt(ratio * 100f)}%";
-            totalStarsText.text = $"★ {totalStars}";
-
-            // Update path lines
-            for (int i = 0; i < pathLines.Count && i < PathSegments.Length; i++)
+            currentIndex = -1;
+            int completed = 0, stars = 0;
+            float time = 0f;
+            for (int i = 0; i < Nodes.Length; i++)
             {
-                var (_, to) = PathSegments[i];
-                bool lineActive = progress.IsUnlocked(to);
-                pathLines[i].color = lineActive ? PathActiveColor : PathLockedColor;
-            }
-
-            // Update nodes
-            for (int i = 0; i < nodeImages.Count; i++)
-            {
-                if (i >= totalLevels)
+                NodeView view = nodes[i];
+                bool shown = i < levelCount;
+                view.Circle.gameObject.SetActive(shown);
+                if (!shown)
                 {
-                    nodeImages[i].gameObject.SetActive(false);
                     continue;
                 }
 
-                nodeImages[i].gameObject.SetActive(true);
-                bool unlocked = progress.IsUnlocked(i);
-                string levelId = i < catalog.Levels.Count ? catalog.Levels[i].id : $"level_{i + 1}";
-                LevelRecord record = progress.GetOrCreateRecord(i, levelId);
-
-                Image overlay = nodeIconOverlays[i];
-
-                if (!unlocked)
+                LevelRecord record = FindRecord(i);
+                if (record != null && record.completed)
                 {
-                    nodeImages[i].sprite = nodeLockedSprite;
-                    nodeLabels[i].text = string.Empty;
-                    nodeStarLabels[i].text = string.Empty;
-
-                    if (iconLockSprite != null)
-                    {
-                        overlay.gameObject.SetActive(true);
-                        overlay.sprite = iconLockSprite;
-                        overlay.color = Color.white;
-                        overlay.rectTransform.sizeDelta = new Vector2(24f, 30f);
-                        overlay.rectTransform.anchoredPosition = Vector2.zero;
-                    }
+                    view.State = NodeState.Done;
+                    completed++;
+                    stars += record.stars;
+                    time += record.bestTimeSeconds;
                 }
-                else if (record.completed)
+                else if (progress.IsUnlocked(i))
                 {
-                    nodeImages[i].sprite = nodeGoldSprite;
-                    nodeLabels[i].text = $"{i + 1}";
-                    nodeLabels[i].color = new Color(1f, 0.95f, 0.7f);
-                    nodeStarLabels[i].text = GetStarsString(record.stars);
-
-                    if (iconCheckSprite != null)
+                    view.State = NodeState.Current;
+                    if (currentIndex < 0)
                     {
-                        overlay.gameObject.SetActive(true);
-                        overlay.sprite = iconCheckSprite;
-                        overlay.color = Color.white;
-                        overlay.rectTransform.sizeDelta = new Vector2(20f, 20f);
-                        overlay.rectTransform.anchoredPosition = new Vector2(16f, -14f);
-                    }
-                    else
-                    {
-                        overlay.gameObject.SetActive(false);
+                        currentIndex = i;
                     }
                 }
                 else
                 {
-                    // Current active level: Cyan glow node with helmet
-                    nodeImages[i].sprite = nodeCyanSprite;
-                    nodeLabels[i].text = $"{i + 1}";
-                    nodeLabels[i].color = Color.white;
-                    nodeStarLabels[i].text = string.Empty;
+                    view.State = NodeState.Locked;
+                }
 
-                    if (iconHelmetSprite != null)
-                    {
-                        overlay.gameObject.SetActive(true);
-                        overlay.sprite = iconHelmetSprite;
-                        overlay.color = Color.white;
-                        overlay.rectTransform.sizeDelta = new Vector2(46f, 34f);
-                        overlay.rectTransform.anchoredPosition = new Vector2(0f, 22f);
-                    }
-                    else
-                    {
-                        overlay.gameObject.SetActive(false);
-                    }
+                view.Circle.sprite = view.State == NodeState.Done ? doneSprite : view.State == NodeState.Current ? currentSprite : lockedSprite;
+                view.Number.color = view.State == NodeState.Done ? Cream : view.State == NodeState.Current ? Color.white : new Color(0.86f, 0.85f, 0.82f);
+            }
+
+            // The path is golden up to every circle that is open, dashed beyond.
+            var golden = new List<Vector2[]>();
+            var dashed = new List<Vector2[]>();
+            for (int i = 0; i < segments.Count && i + 1 < levelCount; i++)
+            {
+                (progress.IsUnlocked(i + 1) ? golden : dashed).Add(segments[i].ToArray());
+            }
+            pathGlow.SetLines(golden);
+            pathGold.SetLines(golden);
+            dashShadow.SetLines(dashed);
+            dashes.SetLines(dashed);
+
+            currentGlow.gameObject.SetActive(currentIndex >= 0);
+            if (currentIndex >= 0)
+            {
+                PlaceAround(currentGlow.rectTransform, Nodes[currentIndex], 70f);
+            }
+
+            float ratio = levelCount > 0 ? (float)completed / levelCount : 0f;
+            passedText.text = $"Пройдено {completed} из {levelCount}";
+            percentText.text = $"{Mathf.RoundToInt(ratio * 100f)}%";
+            float end = Mathf.Lerp(BarLeft, BarRight, ratio);
+            barFill.gameObject.SetActive(ratio > 0f);
+            barCap.gameObject.SetActive(ratio > 0f);
+            MenuStyle.PlaceOnPicture(barFill.rectTransform, new Rect(BarLeft, 113f, Mathf.Max(end - BarLeft - 6f, 0f), 19f));
+            MenuStyle.PlaceOnPicture(barCap.rectTransform, new Rect(Mathf.Max(end - 6f, BarLeft), 113f, 18f, 19f));
+
+            starsText.text = $"★ {stars} / {levelCount * StarsPerLevel}";
+            timeText.text = completed > 0 ? $"Общее время {FormatTime(time)}" : string.Empty;
+
+            RefreshSelection();
+        }
+
+        private void RefreshSelection()
+        {
+            if (levelCount == 0)
+            {
+                return;
+            }
+
+            selectedIndex = Mathf.Clamp(selectedIndex, 0, levelCount - 1);
+            NodeView selected = nodes[selectedIndex];
+            MenuStyle.PlaceOnPicture(helmet.rectTransform,
+                new Rect(Nodes[selectedIndex].x + HelmetOffset.x - HelmetSize.x / 2f, Nodes[selectedIndex].y + HelmetOffset.y - HelmetSize.y / 2f, HelmetSize.x, HelmetSize.y));
+
+            int chapter = ChapterOf(selectedIndex);
+            chapterNumber.text = "Глава " + ChapterNumbers[chapter];
+            chapterName.text = ChapterNames[chapter];
+            Rect? view = ChapterViews[chapter];
+            chapterView.gameObject.SetActive(view.HasValue && chapterView.texture != null);
+            if (view.HasValue)
+            {
+                Rect r = view.Value;
+                Vector2 size = MenuStyle.PictureSize;
+                chapterView.uvRect = new Rect(r.x / size.x, 1f - r.yMax / size.y, r.width / size.x, r.height / size.y);
+            }
+
+            LevelRecord record = FindRecord(selectedIndex);
+            string title = catalog.Levels[selectedIndex].title;
+            levelTitle.text = $"{selectedIndex + 1}. {title}";
+            levelRecord.text = record != null && record.completed
+                ? $"{StarLine(record.stars)}   рекорд {FormatTime(record.bestTimeSeconds)}"
+                : "ещё не пройден";
+
+            string verb = selected.State == NodeState.Done ? "ИГРАТЬ" : selectedIndex == 0 && FindRecord(0) == null ? "НАЧАТЬ" : "ПРОДОЛЖИТЬ";
+            playText.text = $"{verb} • УРОВЕНЬ {selectedIndex + 1}";
+        }
+
+        private static int ChapterOf(int index)
+        {
+            int chapter = 0;
+            for (int i = 0; i < ChapterStarts.Length; i++)
+            {
+                if (index >= ChapterStarts[i])
+                {
+                    chapter = i;
                 }
             }
-
-            // Update Card
-            int validIndex = Mathf.Clamp(selectedIndex, 0, catalog.Levels.Count - 1);
-            LevelDefinition def = catalog.Levels[validIndex];
-            LevelRecord selRecord = progress.GetOrCreateRecord(validIndex, def.id);
-
-            cardChapterText.text = GetChapterName(validIndex);
-            cardLevelTitle.text = $"{validIndex + 1:00}. {def.title}";
-
-            if (selRecord.completed && selRecord.bestTimeSeconds > 0.01f)
-            {
-                int mins = (int)(selRecord.bestTimeSeconds / 60f);
-                int secs = (int)(selRecord.bestTimeSeconds % 60f);
-                cardBestTimeText.text = $"Лучшее время: <color=#FFE7B0>{mins:00}:{secs:00}</color>";
-            }
-            else
-            {
-                cardBestTimeText.text = "Лучшее время: —:—";
-            }
-
-            cardStarsText.text = $"Звёзды: {GetStarsString(selRecord.stars)}";
-
-            if (selRecord.completed)
-            {
-                cardStatusText.text = "Статус: <color=#FFE7B0>ПРОЙДЕН</color>";
-            }
-            else if (progress.IsUnlocked(validIndex))
-            {
-                cardStatusText.text = "Статус: <color=#5AFFDF>ДОСТУПЕН</color>";
-            }
-            else
-            {
-                cardStatusText.text = "Статус: <color=#999999>ЗАКРЫТ</color>";
-            }
-
-            playButtonText.text = $"ПРОДОЛЖИТЬ • УРОВЕНЬ {validIndex + 1}";
+            return chapter;
         }
 
-        private static string GetStarsString(int stars)
+        private LevelRecord FindRecord(int index)
         {
-            switch (stars)
+            foreach (LevelRecord record in progress.records)
             {
-                case 3: return "★★★";
-                case 2: return "★★☆";
-                case 1: return "★☆☆";
-                default: return "☆☆☆";
+                if (record.levelIndex == index)
+                {
+                    return record;
+                }
+            }
+            return null;
+        }
+
+        private static string StarLine(int stars)
+        {
+            var line = new System.Text.StringBuilder();
+            for (int i = 0; i < StarsPerLevel; i++)
+            {
+                line.Append(i < stars ? '★' : '☆');
+            }
+            return line.ToString();
+        }
+
+        private static string FormatTime(float seconds)
+        {
+            int whole = Mathf.RoundToInt(seconds);
+            return whole >= 3600 ? $"{whole / 3600}:{whole / 60 % 60:00}:{whole % 60:00}" : $"{whole / 60}:{whole % 60:00}";
+        }
+
+        // Text on the picture: sized to its box, with a dark rim so it reads over the painting.
+        private static Text AddText(Transform parent, string value, Color color, TextAnchor alignment, int maxSize, Font font)
+        {
+            Text text = MenuStyle.AddLabel(parent, value, maxSize);
+            text.font = font;
+            text.fontStyle = FontStyle.Normal;
+            text.color = color;
+            text.alignment = alignment;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 6;
+            text.resizeTextMaxSize = maxSize;
+            text.GetComponent<Outline>().effectColor = Shadow;
+            return text;
+        }
+
+        // ----------------------------------------------------------------------------------------- animation
+
+        private void Update()
+        {
+            float t = Time.unscaledTime;
+            if (helmet != null && levelCount > 0)
+            {
+                // The helmet bobs gently over the chosen circle: its anchors place it, the offset carries the bob.
+                helmet.rectTransform.anchoredPosition = new Vector2(0f, Mathf.Sin(t * 2.4f) * 2.5f);
+            }
+
+            if (currentGlow != null && currentGlow.gameObject.activeSelf)
+            {
+                float pulse = 0.5f + 0.5f * Mathf.Sin(t * 2.2f);
+                currentGlow.color = new Color(0.3f, 0.95f, 1f, 0.45f + 0.35f * pulse);
+                currentGlow.rectTransform.localScale = Vector3.one * (0.92f + 0.12f * pulse);
+            }
+
+            if (poppingIndex >= 0 && poppingIndex < nodes.Count)
+            {
+                float k = Mathf.Clamp01((t - popStart) / 0.6f);
+                // Out of nothing, a little past full size, and back.
+                float scale = k < 1f ? Mathf.Sin(k * Mathf.PI * 0.75f) / Mathf.Sin(Mathf.PI * 0.75f) : 1f;
+                nodes[poppingIndex].Circle.rectTransform.localScale = Vector3.one * Mathf.Max(scale, 0.01f);
+                if (k >= 1f)
+                {
+                    nodes[poppingIndex].Circle.rectTransform.localScale = Vector3.one;
+                    poppingIndex = -1;
+                }
             }
         }
 
-        private static string GetChapterName(int levelIndex)
+        // --------------------------------------------------------------------------------------- start over
+
+        private void ShowConfirmModal()
         {
-            if (levelIndex < 3) return "ГЛАВА I • ДРЕВНИЕ СВОДЫ";
-            if (levelIndex < 6) return "ГЛАВА II • ПЕСЧАНЫЕ ШАХТЫ";
-            if (levelIndex < 9) return "ГЛАВА III • ЗАТОПЛЕННЫЕ СВОДЫ";
-            if (levelIndex < 12) return "ГЛАВА IV • ЗАЛЫ ТЬМЫ";
-            if (levelIndex < 15) return "ГЛАВА V • ПЕЧАТЬ СТРАЖЕЙ";
-            return "ГЛАВА VI • СЕРДЦЕ ПОДЗЕМЕЛЬЯ";
+            confirmModal.SetActive(true);
+        }
+
+        private void HideConfirmModal()
+        {
+            if (confirmModal != null)
+            {
+                confirmModal.SetActive(false);
+            }
+        }
+
+        // Progress is wiped and the legend will be told again; the settings stay as they are.
+        private void ExecuteStartOver()
+        {
+            HideConfirmModal();
+            StoryScreen.Seen = false;
+            ResetRequested?.Invoke();
+            selectedIndex = 0;
+            lastSeenUnlocked = 0;
+            poppingIndex = -1;
+            Refresh();
+            ShowToast("Прогресс сброшен");
+        }
+
+        private void BuildConfirmModal()
+        {
+            confirmModal = new GameObject("Confirm Start Over", typeof(RectTransform));
+            confirmModal.transform.SetParent(transform, false);
+            MenuStyle.Stretch((RectTransform)confirmModal.transform);
+
+            // The scrim catches every tap behind the dialog.
+            var scrim = confirmModal.AddComponent<Image>();
+            scrim.color = new Color(0.03f, 0.03f, 0.04f, 0.85f);
+            scrim.raycastTarget = true;
+
+            var box = new GameObject("Dialog").AddComponent<Image>();
+            box.transform.SetParent(confirmModal.transform, false);
+            box.color = new Color(0.1f, 0.09f, 0.08f, 0.98f);
+            Center(box.rectTransform, Vector2.zero, new Vector2(760f, 380f));
+            var border = box.gameObject.AddComponent<Outline>();
+            border.effectColor = new Color(0.85f, 0.6f, 0.25f, 0.95f);
+            border.effectDistance = new Vector2(4f, 4f);
+
+            Text title = AddText(box.transform, "Начать игру заново?", Gold, TextAnchor.MiddleCenter, 40, serif);
+            Center(title.rectTransform, new Vector2(0f, 130f), new Vector2(700f, 60f));
+
+            Text desc = AddText(box.transform,
+                "Все пройденные уровни, рекорды времени и звёзды будут удалены безвозвратно.", Cream, TextAnchor.MiddleCenter, 28, serif);
+            Center(desc.rectTransform, new Vector2(0f, 30f), new Vector2(640f, 110f));
+
+            Button cancel = MenuStyle.CreatePlateButton(box.transform, "ОТМЕНА", new Vector2(280f, 70f), HideConfirmModal);
+            Center((RectTransform)cancel.transform, new Vector2(-165f, -115f), new Vector2(280f, 70f));
+
+            Button confirm = MenuStyle.CreatePlateButton(box.transform, "СБРОСИТЬ", new Vector2(280f, 70f), ExecuteStartOver);
+            Center((RectTransform)confirm.transform, new Vector2(165f, -115f), new Vector2(280f, 70f));
+            confirm.GetComponent<Image>().color = new Color(1f, 0.55f, 0.48f);
+
+            confirmModal.SetActive(false);
+        }
+
+        private void BuildToast()
+        {
+            var toast = new GameObject("Toast").AddComponent<Image>();
+            toast.transform.SetParent(transform, false);
+            toast.color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
+            toast.raycastTarget = false;
+            Center(toast.rectTransform, new Vector2(0f, 250f), new Vector2(620f, 64f));
+            var outline = toast.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.85f, 0.6f, 0.25f, 0.9f);
+            outline.effectDistance = new Vector2(2f, 2f);
+
+            toastText = AddText(toast.transform, string.Empty, Cream, TextAnchor.MiddleCenter, 30, serif);
+            MenuStyle.Stretch(toastText.rectTransform);
+            toast.gameObject.SetActive(false);
+        }
+
+        private void ShowToast(string message)
+        {
+            toastText.text = message;
+            toastText.transform.parent.gameObject.SetActive(true);
+            CancelInvoke(nameof(HideToast));
+            Invoke(nameof(HideToast), 2.2f);
+        }
+
+        private void HideToast()
+        {
+            if (toastText != null)
+            {
+                toastText.transform.parent.gameObject.SetActive(false);
+            }
+        }
+
+        // Centred on the parent at an offset, in canvas units.
+        private static void Center(RectTransform rect, Vector2 position, Vector2 size)
+        {
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = position;
         }
     }
 }

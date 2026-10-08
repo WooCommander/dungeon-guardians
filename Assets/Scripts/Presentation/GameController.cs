@@ -62,7 +62,6 @@ namespace DungeonGuardians.Presentation
             // Navigation events
             hud.MenuRequested += ShowMenu;
             hud.MapRequested += ShowLevelMap;
-            hud.NextRequested += () => LoadLevel(levelIndex + 1);
             menu.PlayLevel += StartLevel;
             menu.SettingsChanged += hud.RefreshControls;
             menu.ResetProgress += ResetProgress;
@@ -306,12 +305,12 @@ namespace DungeonGuardians.Presentation
             bool hasNext = levelIndex + 1 < catalog.Levels.Count;
             if (hasNext)
             {
-                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", lastEarnedStars, lastCompletionTime, lastIsNewBest, true);
+                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", lastEarnedStars, lastCompletionTime, lastIsNewBest);
             }
             else
             {
                 hud.ShowVictory("Все залы пройдены",
-                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, lastIsNewBest, false);
+                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, lastIsNewBest);
             }
         }
 

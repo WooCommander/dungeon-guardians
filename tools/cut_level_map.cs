@@ -11,7 +11,8 @@
 // - UI/map_play.png: the big button, laid over its painted place to darken when pressed.
 //
 // Run from the repository root (needs the .NET 10 SDK):  dotnet run tools/cut_level_map.cs
-#:package System.Drawing.Common@9.0.0
+#:property TargetFramework=net10.0-windows
+#:property UseWindowsForms=true
 #pragma warning disable CA1416
 
 using System;
@@ -97,10 +98,11 @@ src.Crop(930, 113, 18, 19).Save(UI + "map_fill_cap.png");
 // ---- What goes from the picture.
 var hole = new bool[src.W * src.H];
 
+// The golden circles glow well beyond their rim.
 foreach (var (cx, cy) in done)
 {
-    MarkCircle(hole, cx, cy, 34);
-    MarkCircle(hole, cx + 30, cy + 18, 16);
+    MarkCircle(hole, cx, cy, 45);
+    MarkCircle(hole, cx + 30, cy + 18, 18);
 }
 MarkCircle(hole, current.Item1, current.Item2, 45);
 MarkRect(hole, 366, 370, 450, 428);
@@ -131,7 +133,7 @@ var dashed = new List<(float, float)[]>
     new[] { (552f, 737f), (620f, 742f), (690f, 747f) },
     new[] { (753f, 752f), (800f, 757f), (850f, 762f), (900f, 758f), (958f, 751f) },
 };
-foreach (var line in golden) MarkPath(hole, line, 10f);
+foreach (var line in golden) MarkPath(hole, line, 14f);
 foreach (var line in dashed) MarkPath(hole, line, 7f);
 
 var everywhere = new Rectangle(0, 0, src.W, src.H);
@@ -140,19 +142,21 @@ Inpaint(clean, hole, everywhere, 70);
 // "Пройдено 6 из 15" and "40%" on the dark plate under the title.
 var plate = new bool[src.W * src.H];
 MarkRect(plate, 588, 104, 798, 139);
-MarkRect(plate, 1131, 104, 1194, 139);
-Inpaint(clean, plate, new Rectangle(520, 98, 720, 46), 60);
+Inpaint(clean, plate, new Rectangle(520, 98, 720, 46), 320);
+
+// "40%" sits on plain dark: filled in smoothly, as patches would bring in the tip of the bar.
+Smooth(clean, (x, y) => x >= 1131 && x <= 1194 && y >= 102 && y <= 140);
 
 // The bar keeps its empty track: its dark inside is the same all along, so the fill is covered with a column of it.
 for (int y = 113; y <= 131; y++)
     for (int x = 818; x <= 950; x++)
         clean.Set(x, y, src.Get(1050, y));
 
-// The chapter name on the card, rebuilt from the card's own stone.
+// The chapter name on the card, rebuilt from the plain stone above it (the dividers would be copied otherwise).
 var card = new bool[src.W * src.H];
 MarkRect(card, 1370, 176, 1510, 218);
 MarkRect(card, 1316, 248, 1580, 336);
-Inpaint(clean, card, new Rectangle(1262, 142, 352, 202), 80);
+Inpaint(clean, card, new Rectangle(1262, 140, 352, 37), 220);
 
 // The caption of the big button: its gold is smooth, so it is filled in from the edges.
 Smooth(clean, (x, y) => x >= 584 && x <= 1090 && y >= 829 && y <= 876);

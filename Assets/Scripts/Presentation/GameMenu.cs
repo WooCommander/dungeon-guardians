@@ -24,7 +24,6 @@ namespace DungeonGuardians.Presentation
 
         private Canvas canvas;
         private SettingsScreen settings;
-        private ProgressScreen progressScreen;
         private StoryScreen story;
         private LevelMapScreen levelMap;
         private PlayerProgress progress;
@@ -53,17 +52,13 @@ namespace DungeonGuardians.Presentation
             // 2. НАСТРОЙКИ (Matching stone plate with cyan diamonds)
             MenuStyle.CreatePlateButtonOnPicture(picture.transform, "НАСТРОЙКИ", new Rect(636f, 615f, 400f, 78f), OpenSettings);
 
-            // 3. ПРОГРЕСС (below Settings, the same plate): levels, stars and starting over
-            MenuStyle.CreatePlateButtonOnPicture(picture.transform, "ПРОГРЕСС", new Rect(636f, 712f, 400f, 78f), OpenProgress);
-
-            // 4. ВЫХОД (desktop only, below Progress)
+            // 3. ВЫХОД (Directly below Settings with identical plate size and typography)
             if (!Application.isMobilePlatform)
             {
-                MenuStyle.CreatePlateButtonOnPicture(picture.transform, "ВЫХОД", new Rect(636f, 809f, 400f, 78f), Application.Quit);
+                MenuStyle.CreatePlateButtonOnPicture(picture.transform, "ВЫХОД", new Rect(636f, 712f, 400f, 78f), Application.Quit);
             }
 
             settings = SettingsScreen.Create(canvas.transform);
-            progressScreen = ProgressScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
             levelMap = LevelMapScreen.Create(canvas.transform);
 
@@ -79,7 +74,7 @@ namespace DungeonGuardians.Presentation
             };
 
             settings.Changed += () => SettingsChanged?.Invoke();
-            progressScreen.ResetRequested += () => ResetProgress?.Invoke();
+            levelMap.ResetRequested += () => ResetProgress?.Invoke();
             Show();
         }
 
@@ -87,7 +82,6 @@ namespace DungeonGuardians.Presentation
         {
             canvas.gameObject.SetActive(true);
             settings.Close();
-            progressScreen.Close();
             story.gameObject.SetActive(false);
             levelMap.Open(progress, catalog);
         }
@@ -96,7 +90,6 @@ namespace DungeonGuardians.Presentation
         {
             canvas.gameObject.SetActive(true);
             settings.Close();
-            progressScreen.Close();
             levelMap.Close();
         }
 
@@ -141,8 +134,8 @@ namespace DungeonGuardians.Presentation
             }
         }
 
-        // Android's back button (Esc on a keyboard): closes the settings or the progress screen, and on the start screen
-        // leaves the game.
+        // Android's back button (Esc on a keyboard): closes the settings or the level map's dialog, and on the start
+        // screen leaves the game.
         private void HandleBack()
         {
             Keyboard keyboard = Keyboard.current;
@@ -153,16 +146,17 @@ namespace DungeonGuardians.Presentation
 
             if (levelMap.gameObject.activeSelf)
             {
+                if (levelMap.HideDialog())
+                {
+                    return;
+                }
+
                 levelMap.Close();
                 Show();
                 return;
             }
 
-            if (progressScreen.gameObject.activeSelf)
-            {
-                progressScreen.Back();
-            }
-            else if (settings.gameObject.activeSelf)
+            if (settings.gameObject.activeSelf)
             {
                 settings.Close();
             }
@@ -187,11 +181,6 @@ namespace DungeonGuardians.Presentation
         private void OpenSettings()
         {
             settings.Open();
-        }
-
-        private void OpenProgress()
-        {
-            progressScreen.Open(progress, catalog);
         }
     }
 
