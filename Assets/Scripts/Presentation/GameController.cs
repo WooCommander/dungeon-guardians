@@ -21,6 +21,8 @@ namespace DungeonGuardians.Presentation
         private PlayerProgress progress;
         private LevelCatalog catalog;
         private DungeonSimulation simulation;
+        // The keys of the attempt in play; in the editor a win is kept as the level's replay (tools/LevelCheck).
+        private readonly ReplayRecorder recorder = new ReplayRecorder();
         private int levelIndex;
         private float accumulator;
         private bool paused;
@@ -110,6 +112,7 @@ namespace DungeonGuardians.Presentation
             levelRenderer.LeaveStatue(!buried);
             lossReported = false;
             hud.ShowMessage(string.Empty);
+            recorder.Revive();
             simulation.RevivePlayer();
         }
 
@@ -189,6 +192,11 @@ namespace DungeonGuardians.Presentation
                 tickInput.DigRight = pendingDigRight;
                 pendingDigLeft = false;
                 pendingDigRight = false;
+                if (!simulation.State.Won && !simulation.State.Lost)
+                {
+                    recorder.Tick(tickInput);
+                }
+
                 simulation.Tick(tickInput);
 
                 if (simulation.State.Won)
@@ -259,6 +267,7 @@ namespace DungeonGuardians.Presentation
             pendingDigRight = false;
             accumulator = 0f;
             simulation = new DungeonSimulation(catalog.Levels[levelIndex], balance);
+            recorder.Begin(catalog.Levels[levelIndex]);
             simulation.StateChanged += Render;
             footsteps.BeginLevel();
             hud.Bind(input);
@@ -284,6 +293,7 @@ namespace DungeonGuardians.Presentation
         private void CompleteLevel()
         {
             string completedId = catalog.Levels[levelIndex].id;
+            recorder.SaveWin(catalog.Levels[levelIndex], balance);
             lastCompletionTime = Mathf.Max(0.1f, Time.time - levelStartTime);
             lastEarnedStars = livesLeft >= 3 ? 3 : (livesLeft == 2 ? 2 : 1);
 

@@ -1,0 +1,31 @@
+# Every level can still be won: the static check, a walk through without guardians, and the recorded replays
+# (LevelReplays/) played back through the game's own rules. Plain .NET, no Unity needed; takes seconds.
+name: Level check
+
+on:
+  push:
+    paths:
+      - "Assets/Scripts/Core/**"
+      - "Assets/Resources/Levels/**"
+      - "LevelReplays/**"
+      - "tools/LevelCheck/**"
+      - ".github/workflows/level-check.yml"
+  pull_request:
+    paths:
+      - "Assets/Scripts/Core/**"
+      - "Assets/Resources/Levels/**"
+      - "LevelReplays/**"
+      - "tools/LevelCheck/**"
+      - ".github/workflows/level-check.yml"
+  workflow_dispatch:
+
+jobs:
+  levels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Check the levels
+        run: dotnet run -c Release --project tools/LevelCheck

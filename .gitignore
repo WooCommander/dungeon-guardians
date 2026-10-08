@@ -22,3 +22,7 @@ sysinfo.txt
 
 # Raw Tripo downloads (70+ MB each); game-ready versions are produced by the ArtSource scripts.
 /models/
+
+# Level check build output
+tools/LevelCheck/bin/
+tools/LevelCheck/obj/
