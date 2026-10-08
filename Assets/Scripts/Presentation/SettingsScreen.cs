@@ -50,11 +50,8 @@ namespace DungeonGuardians.Presentation
         private Sprite vibrationOff;
         private Button cameraStyleButton;
         private Text cameraStyleText;
-        private GameObject confirmModal;
-        private Text toastText;
 
         public event Action Changed;
-        public event Action ResetProgress;
 
         public static SettingsScreen Create(Transform parent)
         {
@@ -69,14 +66,6 @@ namespace DungeonGuardians.Presentation
         public void Open()
         {
             Refresh();
-            if (confirmModal != null)
-            {
-                confirmModal.SetActive(false);
-            }
-            if (toastText != null && toastText.transform.parent != null)
-            {
-                toastText.transform.parent.gameObject.SetActive(false);
-            }
             gameObject.SetActive(true);
         }
 
@@ -112,13 +101,10 @@ namespace DungeonGuardians.Presentation
             // Row 6: Масштаб камеры (вместо выбора языка)
             AddCameraStyleSwitch(CameraStyleRow);
 
-            // Bottom Buttons
             MenuStyle.AddPictureButton(picture, "settings_back", new Rect(298f, 105f, 97f, 80f), "<", Close);
-            MenuStyle.AddPictureButton(picture, "settings_done", new Rect(835f, 763f, 435f, 112f), "ГОТОВО", Close);
-            MenuStyle.AddPictureButton(picture, "settings_reset", new Rect(405f, 772f, 390f, 96f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
-
-            BuildToastNotification();
-            BuildConfirmModal();
+            // The only button at the bottom, centred on the frame; tools/settings_bottom_row.ps1 clears the painted
+            // "Начать заново" and "ГОТОВО" from under it. Starting over lives on the level map.
+            MenuStyle.AddPictureButton(picture, "settings_done", new Rect(618f, 763f, 435f, 112f), "ГОТОВО", Close);
         }
 
         private void Refresh()
@@ -134,150 +120,6 @@ namespace DungeonGuardians.Presentation
 
             vibration.sprite = GameSettings.Vibration ? vibrationOn : vibrationOff;
             UpdateCameraStyleText();
-        }
-
-        private void ShowConfirmModal()
-        {
-            if (confirmModal != null)
-            {
-                confirmModal.SetActive(true);
-            }
-        }
-
-        private void HideConfirmModal()
-        {
-            if (confirmModal != null)
-            {
-                confirmModal.SetActive(false);
-            }
-        }
-
-        // "Start over": progress is wiped, every setting goes back to its default and the story is shown again.
-        private void ExecuteStartOver()
-        {
-            HideConfirmModal();
-            GameSettings.Music = GameSettings.DefaultMusic;
-            GameSettings.Sound = GameSettings.DefaultSound;
-            GameSettings.Vibration = true;
-            GameSettings.ButtonSize = GameSettings.DefaultButtonSize;
-            GameSettings.ButtonOpacity = GameSettings.DefaultButtonOpacity;
-            GameSettings.CameraStyle = 0;
-            GameSettings.Save();
-            // A fresh start tells the legend again.
-            StoryScreen.Seen = false;
-            Refresh();
-            ResetProgress?.Invoke();
-            ShowToast("✓ ПРОГРЕСС И НАСТРОЙКИ СБРОШЕНЫ");
-        }
-
-        private void BuildToastNotification()
-        {
-            var toastObj = new GameObject("ToastNotification");
-            toastObj.transform.SetParent(picture, false);
-            var bg = toastObj.AddComponent<Image>();
-            bg.color = new Color(0.1f, 0.4f, 0.2f, 0.95f);
-            MenuStyle.PlaceOnPicture(bg.rectTransform, new Rect(520f, 690f, 630f, 50f));
-
-            var outline = toastObj.AddComponent<Outline>();
-            outline.effectColor = new Color(0.4f, 1f, 0.6f, 0.7f);
-            outline.effectDistance = new Vector2(2f, 2f);
-
-            toastText = MenuStyle.AddLabel(toastObj.transform, "✓ ПРОГРЕСС СБРОШЕН", 20);
-            toastText.fontStyle = FontStyle.Bold;
-            toastText.color = Color.white;
-            toastText.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.Stretch(toastText.rectTransform);
-
-            toastObj.SetActive(false);
-        }
-
-        private void ShowToast(string message)
-        {
-            if (toastText != null && toastText.transform.parent != null)
-            {
-                toastText.text = message;
-                toastText.transform.parent.gameObject.SetActive(true);
-                CancelInvoke(nameof(HideToast));
-                Invoke(nameof(HideToast), 2.5f);
-            }
-        }
-
-        private void HideToast()
-        {
-            if (toastText != null && toastText.transform.parent != null)
-            {
-                toastText.transform.parent.gameObject.SetActive(false);
-            }
-        }
-
-        private void BuildConfirmModal()
-        {
-            confirmModal = new GameObject("ConfirmModal", typeof(RectTransform));
-            confirmModal.transform.SetParent(transform, false);
-            MenuStyle.Stretch((RectTransform)confirmModal.transform);
-
-            // Scrim overlay
-            var scrim = confirmModal.AddComponent<Image>();
-            scrim.color = new Color(0.04f, 0.05f, 0.07f, 0.85f);
-            scrim.raycastTarget = true;
-
-            // Centered dialog box
-            var box = new GameObject("DialogBox").AddComponent<Image>();
-            box.transform.SetParent(confirmModal.transform, false);
-            box.color = new Color(0.11f, 0.13f, 0.17f, 0.98f);
-            var boxRect = box.rectTransform;
-            boxRect.anchorMin = boxRect.anchorMax = new Vector2(0.5f, 0.5f);
-            boxRect.sizeDelta = new Vector2(760f, 380f);
-            boxRect.anchoredPosition = Vector2.zero;
-
-            var border = box.gameObject.AddComponent<Outline>();
-            border.effectColor = new Color(1f, 0.84f, 0.42f, 0.75f);
-            border.effectDistance = new Vector2(3f, 3f);
-
-            // Title
-            var title = MenuStyle.AddLabel(box.transform, "⚠️ СБРОСИТЬ ВЕСЬ ПРОГРЕСС?", 28);
-            title.fontStyle = FontStyle.Bold;
-            title.color = new Color(1f, 0.85f, 0.45f);
-            title.alignment = TextAnchor.UpperCenter;
-            var titleRect = title.rectTransform;
-            titleRect.anchorMin = new Vector2(0f, 1f);
-            titleRect.anchorMax = new Vector2(1f, 1f);
-            titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(-40f, 50f);
-            titleRect.anchoredPosition = new Vector2(0f, -30f);
-
-            // Description
-            var desc = MenuStyle.AddLabel(
-                box.transform,
-                "Вы действительно хотите начать игру заново?\n\nВсе пройденные уровни, рекорды времени и заработанные звёзды будут удалены безвозвратно.",
-                22
-            );
-            desc.color = new Color(0.88f, 0.88f, 0.92f);
-            desc.alignment = TextAnchor.MiddleCenter;
-            var descRect = desc.rectTransform;
-            descRect.anchorMin = new Vector2(0f, 0.35f);
-            descRect.anchorMax = new Vector2(1f, 0.82f);
-            descRect.offsetMin = new Vector2(35f, 0f);
-            descRect.offsetMax = new Vector2(-35f, 0f);
-
-            // Cancel Button
-            var cancelBtn = MenuStyle.CreatePlateButton(box.transform, "ОТМЕНА", new Vector2(240f, 65f), HideConfirmModal);
-            var cancelRect = (RectTransform)cancelBtn.transform;
-            cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.3f, 0.18f);
-            cancelRect.anchoredPosition = Vector2.zero;
-
-            // Confirm Button (Red/Gold styled)
-            var confirmBtn = MenuStyle.CreatePlateButton(box.transform, "ДА, СБРОСИТЬ", new Vector2(280f, 65f), ExecuteStartOver);
-            var confirmRect = (RectTransform)confirmBtn.transform;
-            confirmRect.anchorMin = confirmRect.anchorMax = new Vector2(0.7f, 0.18f);
-            confirmRect.anchoredPosition = Vector2.zero;
-            var confirmImg = confirmBtn.GetComponent<Image>();
-            if (confirmImg != null)
-            {
-                confirmImg.color = new Color(0.55f, 0.18f, 0.14f, 0.95f);
-            }
-
-            confirmModal.SetActive(false);
         }
 
         private Slider AddSlider(float row, Action<float> store, Func<float, string> format)
