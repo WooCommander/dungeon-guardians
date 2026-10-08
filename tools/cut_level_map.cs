@@ -8,7 +8,7 @@
 //   tick, the current one, locked with its padlock), number cleared, centred in a 97 x 97 square.
 // - UI/map_helmet.png: the explorer's helmet that marks the chosen level.
 // - UI/map_fill.png, map_fill_cap.png: the golden bar fill and its rounded end.
-// - UI/map_play.png: the big button, laid over its painted place to darken when pressed.
+// - UI/map_play.png: the big golden button, cut from its painted place, which is then cleared from the background.
 //
 // Run from the repository root (needs the .NET 10 SDK):  dotnet run tools/cut_level_map.cs
 #:property TargetFramework=net10.0-windows
@@ -166,9 +166,6 @@ Inpaint(clean, card, new Rectangle(1262, 140, 352, 37), 220);
 // The caption of the big button: its gold is smooth, so it is filled in from the edges.
 Smooth(clean, (x, y) => x >= 584 && x <= 1090 && y >= 829 && y <= 876);
 
-clean.Save(Backgrounds + "level_map.png");
-clean.Blurred(6).Save(Backgrounds + "level_map_blur.png");
-
 // The big button over its painted place, shaped like the banner.
 {
     const int X0 = 494, Y0 = 807, W = 685, H = 93;
@@ -177,6 +174,16 @@ clean.Blurred(6).Save(Backgrounds + "level_map_blur.png");
     piece.MaskAlpha((x, y) => Inside(shape, x + X0 + 0.5f, y + Y0 + 0.5f) ? 1f : 0f);
     piece.Save(UI + "map_play.png");
 }
+
+// With the button cut out, the painted banner and the little diamond above it go from the picture: the game places
+// its buttons where it likes (LevelMapScreen.cs). The floor of the hall is rebuilt around them.
+var banner = new bool[src.W * src.H];
+MarkRect(banner, 486, 794, 1188, 904);
+Inpaint(clean, banner, everywhere, 200);
+
+clean.Save(Backgrounds + "level_map.png");
+clean.Blurred(6).Save(Backgrounds + "level_map_blur.png");
+
 
 // A check picture with the cleared areas tinted, for looking over the masks.
 {
