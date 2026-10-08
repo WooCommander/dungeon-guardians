@@ -44,5 +44,19 @@ namespace DungeonGuardians.Persistence
 
             File.Move(tempPath, Path);
         }
+
+        public void Clear()
+        {
+            try
+            {
+                if (File.Exists(Path)) File.Delete(Path);
+                if (File.Exists(Path + ".tmp")) File.Delete(Path + ".tmp");
+                if (File.Exists(Path + ".bak")) File.Delete(Path + ".bak");
+            }
+            catch
+            {
+                // Ignored
+            }
+        }
     }
 }

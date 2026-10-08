@@ -69,7 +69,15 @@ namespace DungeonGuardians.Presentation
 
         private void ResetProgress()
         {
-            progress = new PlayerProgress();
+            if (progress != null)
+            {
+                progress.ResetAll();
+            }
+            else
+            {
+                progress = new PlayerProgress();
+            }
+            progressStore.Clear();
             progressStore.Save(progress);
         }
 

@@ -21,6 +21,13 @@ namespace DungeonGuardians.Persistence
         public int lastSelectedLevelIndex = 0;
         public List<LevelRecord> records = new List<LevelRecord>();
 
+        public void ResetAll()
+        {
+            highestUnlockedIndex = 0;
+            lastSelectedLevelIndex = 0;
+            records.Clear();
+        }
+
         public LevelRecord GetOrCreateRecord(int levelIndex, string levelId)
         {
             foreach (LevelRecord record in records)
