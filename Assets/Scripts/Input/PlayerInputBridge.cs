@@ -168,6 +168,19 @@ namespace DungeonGuardians.Input
             return 0;
         }
 
+        // Debug shortcut: F1 toggles Mobile Touch View with zoom in editor.
+        public bool ReadToggleMobileView()
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.f1Key.wasPressedThisFrame)
+            {
+                return true;
+            }
+#endif
+            return false;
+        }
+
         public void Restart() => restartRequested = true;
         public void TogglePause() => pauseRequested = true;
 

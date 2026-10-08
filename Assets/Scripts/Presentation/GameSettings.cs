@@ -57,10 +57,18 @@ namespace DungeonGuardians.Presentation
         public static float ButtonScale => Mathf.Lerp(MinButtonScale, MaxButtonScale, ButtonSize);
         public static float ButtonAlpha => Mathf.Lerp(MinButtonOpacity, 1f, ButtonOpacity);
 
-        // The on-screen d-pad and dig buttons are shown only on phones and tablets: on a PC the game is played with
-        // the keyboard, and the strip would only take room from the level. The Device Simulator reports a mobile
-        // platform too, so the controls show there in the editor.
+#if UNITY_EDITOR
+        private static bool? forceTouchInEditor;
+        public static bool ForceTouchInEditor
+        {
+            get => forceTouchInEditor ?? true;
+            set => forceTouchInEditor = value;
+        }
+
+        public static bool TouchControlsVisible => Application.isMobilePlatform || ForceTouchInEditor;
+#else
         public static bool TouchControlsVisible => Application.isMobilePlatform;
+#endif
 
         public static void Save()
         {

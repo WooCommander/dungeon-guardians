@@ -134,6 +134,14 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
+            if (input.ReadToggleMobileView())
+            {
+#if UNITY_EDITOR
+                GameSettings.ForceTouchInEditor = !GameSettings.ForceTouchInEditor;
+                hud.RefreshControls();
+#endif
+            }
+
             if (snapshot.Restart)
             {
                 LoadLevel(levelIndex);

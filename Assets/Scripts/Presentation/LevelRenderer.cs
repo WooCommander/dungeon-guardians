@@ -132,19 +132,18 @@ namespace DungeonGuardians.Presentation
         // Following camera (LevelDefinition.view = "follow").
         private const int FollowRows = 13;
         // On a phone a whole 13-row hall is too small to play: every level is followed by the camera, showing
-        // this many rows (and nearly the whole width of a 33-column hall on a wide phone).
-        private const int MobileRows = 8;
-        // Cells of the view's bottom kept clear of the level's floor on a phone (the touch controls' height).
-        private const float ControlsMargin = 2.5f;
+        // 7 rows (larger characters and clear visibility on phones).
+        private const int MobileRows = 7;
+        // The translucent controls float directly over the level without artificial bottom dead zone.
+        private const float ControlsMargin = 0f;
 
         private bool Follow => currentDefinition != null && (currentDefinition.FollowCamera || GameSettings.TouchControlsVisible);
         private int ViewRows => GameSettings.TouchControlsVisible ? MobileRows : FollowRows;
         private const float FollowSmoothTime = 0.25f;
         private const float LookAhead = 2.5f;
         private const float FallLookDown = 2.5f;
-        // Where the explorer sits in the visible height (0 bottom, 1 top): a little below the middle, above the
-        // touch controls in the bottom corners.
-        private const float FollowAnchor = 0.42f;
+        // The explorer sits centered in the view.
+        private const float FollowAnchor = 0.5f;
         private const float LightRefreshInterval = 0.3f;
         private Vector3 cameraVelocity;
         private bool snapCamera = true;
@@ -668,15 +667,15 @@ namespace DungeonGuardians.Presentation
             }
 
             // The whole level on screen (a PC, where there are no touch controls), with a little room at the top for
-            // the HUD text.
-            // On narrow screens the width decides the size; the extra height then goes below the level.
+            // the HUD text, centered vertically.
             float levelTop = definition.height - 0.5f + HudTopMargin;
             float levelBottom = -0.5f;
             float sizeForHeight = (levelTop - levelBottom) / 2f;
             float sizeForWidth = (definition.width + 0.4f) / (2f * camera.aspect);
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             camera.orthographicSize = size;
-            camera.transform.position = new Vector3((definition.width - 1) * 0.5f, levelTop - size, -10f);
+            float centerY = (levelTop + levelBottom) * 0.5f;
+            camera.transform.position = new Vector3((definition.width - 1) * 0.5f, centerY, -10f);
             if (backdrop != null)
             {
                 backdrop.FitToView(camera);
@@ -763,11 +762,9 @@ namespace DungeonGuardians.Presentation
             float minX = -0.5f + halfWidth;
             float maxX = definition.width - 0.5f - halfWidth;
             x = minX > maxX ? (definition.width - 1) * 0.5f : Mathf.Clamp(x, minX, maxX);
-            // With touch controls over the level, the camera may go a little below the floor, so the bottom tier
-            // is not hidden under the d-pad and the dig buttons.
-            float minY = -0.5f - fieldBottom - (GameSettings.TouchControlsVisible ? ControlsMargin : 0f);
+            float minY = -0.5f - fieldBottom;
             float maxY = definition.height - 0.5f - fieldTop;
-            y = minY > maxY ? maxY : Mathf.Clamp(y, minY, maxY);
+            y = minY > maxY ? (minY + maxY) * 0.5f : Mathf.Clamp(y, minY, maxY);
 
             var target = new Vector3(x, y, -10f);
             if (snapCamera)
