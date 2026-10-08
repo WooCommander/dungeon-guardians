@@ -10,35 +10,51 @@ namespace DungeonGuardians.Presentation
 {
     public sealed class LevelMapScreen : MonoBehaviour
     {
-        private static readonly Vector2 CanvasReference = new Vector2(1672f, 941f);
+        private static readonly Vector2 CanvasReference = new Vector2(1024f, 576f);
         private static readonly Color GoldColor = new Color(1f, 0.84f, 0.42f);
         private static readonly Color CyanGlow = new Color(0.35f, 0.95f, 1f);
-        private static readonly Color LockedColor = new Color(0.25f, 0.25f, 0.28f, 0.85f);
-        private static readonly Color CompletedColor = new Color(0.95f, 0.78f, 0.32f);
-        private static readonly Color PathActiveColor = new Color(1f, 0.82f, 0.35f, 0.75f);
-        private static readonly Color PathLockedColor = new Color(0.2f, 0.22f, 0.26f, 0.45f);
+        private static readonly Color LockedColor = new Color(0.18f, 0.20f, 0.24f, 0.92f);
+        private static readonly Color CompletedColor = new Color(0.96f, 0.80f, 0.35f);
+        private static readonly Color PathActiveColor = new Color(1f, 0.84f, 0.42f, 0.9f);
+        private static readonly Color PathLockedColor = new Color(0.28f, 0.30f, 0.35f, 0.45f);
 
-        // Map layout nodes (X, Y in 1672x941 space)
+        // 15 Level node positions in 1024x576 space matching reference concept art
         private static readonly Vector2[] NodePositions =
         {
-            new Vector2(410f, 265f),  // Level 1
-            new Vector2(660f, 290f),  // Level 2
-            new Vector2(900f, 310f),  // Level 3
-            new Vector2(980f, 430f),  // Level 4
-            new Vector2(740f, 460f),  // Level 5
-            new Vector2(490f, 440f),  // Level 6
-            new Vector2(420f, 600f),  // Level 7
-            new Vector2(690f, 630f),  // Level 8
-            new Vector2(950f, 640f),  // Level 9
-            new Vector2(930f, 760f),  // Level 10
-            new Vector2(700f, 780f),  // Level 11
-            new Vector2(450f, 760f),  // Level 12
-            new Vector2(510f, 870f),  // Level 13
-            new Vector2(710f, 880f),  // Level 14
-            new Vector2(920f, 875f),  // Level 15
-            new Vector2(1060f, 875f), // Level 16
-            new Vector2(1180f, 875f), // Level 17
-            new Vector2(1300f, 875f), // Level 18
+            new Vector2(248f, 98f),  // Level 1 (Mine Shaft Bridge)
+            new Vector2(395f, 110f), // Level 2
+            new Vector2(536f, 120f), // Level 3
+            new Vector2(286f, 188f), // Level 4 (Ancient Sunken City)
+            new Vector2(441f, 202f), // Level 5
+            new Vector2(586f, 185f), // Level 6
+            new Vector2(250f, 268f), // Level 7 (Flooded Azure Waters)
+            new Vector2(410f, 280f), // Level 8
+            new Vector2(570f, 286f), // Level 9
+            new Vector2(252f, 368f), // Level 10 (Stone Mechanisms & Wheels)
+            new Vector2(410f, 372f), // Level 11
+            new Vector2(556f, 368f), // Level 12
+            new Vector2(310f, 450f), // Level 13 (Magma Core Abyss)
+            new Vector2(430f, 454f), // Level 14
+            new Vector2(595f, 456f)  // Level 15
+        };
+
+        // S-curve connection sequence between nodes matching the art
+        private static readonly (int from, int to)[] PathSegments =
+        {
+            (0, 1),   // 1 -> 2
+            (1, 2),   // 2 -> 3
+            (2, 5),   // 3 -> 6 (curve down right)
+            (5, 4),   // 6 -> 5
+            (4, 3),   // 5 -> 4
+            (3, 6),   // 4 -> 7 (curve down left)
+            (6, 7),   // 7 -> 8
+            (7, 8),   // 8 -> 9
+            (8, 11),  // 9 -> 12 (curve down right)
+            (11, 10), // 12 -> 11
+            (10, 9),  // 11 -> 10
+            (9, 12),  // 10 -> 13 (curve down left)
+            (12, 13), // 13 -> 14
+            (13, 14)  // 14 -> 15
         };
 
         private Transform picture;
@@ -93,7 +109,8 @@ namespace DungeonGuardians.Presentation
             progress = currentProgress;
             catalog = levelCatalog;
 
-            int highestUnlocked = Mathf.Clamp(progress.highestUnlockedIndex, 0, catalog.Levels.Count - 1);
+            int maxLevels = catalog != null && catalog.Levels.Count > 0 ? catalog.Levels.Count : NodePositions.Length;
+            int highestUnlocked = Mathf.Clamp(progress.highestUnlockedIndex, 0, maxLevels - 1);
             selectedIndex = Mathf.Clamp(progress.lastSelectedLevelIndex, 0, highestUnlocked);
             sparkProgress = 0f;
 
@@ -115,7 +132,7 @@ namespace DungeonGuardians.Presentation
 
         private void Build()
         {
-            // Background painted map
+            // Background painted map (1024x576)
             Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.EnvelopeParent);
             backing.raycastTarget = true;
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.FitInParent).transform;
@@ -131,22 +148,23 @@ namespace DungeonGuardians.Presentation
 
         private void BuildPathLines()
         {
-            for (int i = 0; i < NodePositions.Length - 1; i++)
+            for (int i = 0; i < PathSegments.Length; i++)
             {
-                Vector2 start = NodePositions[i];
-                Vector2 end = NodePositions[i + 1];
+                var (from, to) = PathSegments[i];
+                Vector2 start = NodePositions[from];
+                Vector2 end = NodePositions[to];
                 Vector2 mid = (start + end) * 0.5f;
                 float dist = Vector2.Distance(start, end);
                 float angle = Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg;
 
-                var lineObj = new GameObject($"PathLine_{i + 1}_{i + 2}").AddComponent<Image>();
+                var lineObj = new GameObject($"PathLine_{from + 1}_{to + 1}").AddComponent<Image>();
                 lineObj.transform.SetParent(picture, false);
                 lineObj.color = PathLockedColor;
                 lineObj.raycastTarget = false;
 
                 RectTransform rect = lineObj.rectTransform;
                 rect.anchorMin = rect.anchorMax = new Vector2(mid.x / CanvasReference.x, 1f - mid.y / CanvasReference.y);
-                rect.sizeDelta = new Vector2(dist, 6f);
+                rect.sizeDelta = new Vector2(dist, 5f);
                 rect.localEulerAngles = new Vector3(0f, 0f, -angle);
 
                 pathLines.Add(lineObj);
@@ -160,7 +178,7 @@ namespace DungeonGuardians.Presentation
             sparkImage.sprite = ExitGlow.GetHaloSprite();
             sparkImage.color = new Color(1f, 0.95f, 0.55f, 0.95f);
             sparkImage.raycastTarget = false;
-            sparkImage.rectTransform.sizeDelta = new Vector2(40f, 40f);
+            sparkImage.rectTransform.sizeDelta = new Vector2(34f, 34f);
         }
 
         private void BuildUnlockVfx()
@@ -187,32 +205,32 @@ namespace DungeonGuardians.Presentation
         private void BuildTopBar()
         {
             // Back button in top-left
-            var backBtn = MenuStyle.AddPictureButton(picture, "settings_back", new Rect(40f, 35f, 80f, 65f), "<", () => BackRequested?.Invoke());
+            var backBtn = MenuStyle.AddPictureButton(picture, "settings_back", new Rect(28f, 22f, 64f, 54f), "<", () => BackRequested?.Invoke());
             var backLabel = backBtn.GetComponentInChildren<Text>();
             if (backLabel != null)
             {
                 backLabel.text = "←";
-                backLabel.fontSize = 44;
+                backLabel.fontSize = 32;
             }
 
             // Title: ПУТЬ ИСКАТЕЛЯ
-            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 44);
+            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 32);
             title.fontStyle = FontStyle.Bold;
             title.color = GoldColor;
             title.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(400f, 25f, 600f, 55f));
+            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(300f, 15f, 424f, 38f));
 
             // Progress bar and text
-            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 18", 22);
+            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 15", 16);
             progressText.color = new Color(0.95f, 0.95f, 0.95f);
             progressText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(360f, 85f, 240f, 30f));
+            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(260f, 56f, 200f, 22f));
 
             // Progress bar track
             var barTrack = new GameObject("ProgressTrack").AddComponent<Image>();
             barTrack.transform.SetParent(picture, false);
             barTrack.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
-            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(615f, 92f, 260f, 16f));
+            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(470f, 61f, 200f, 12f));
 
             var fillObj = new GameObject("Fill").AddComponent<Image>();
             fillObj.transform.SetParent(barTrack.transform, false);
@@ -223,17 +241,17 @@ namespace DungeonGuardians.Presentation
             MenuStyle.Stretch(fillObj.rectTransform);
             progressBarFill = fillObj;
 
-            percentText = MenuStyle.AddLabel(picture, "0%", 20);
+            percentText = MenuStyle.AddLabel(picture, "0%", 15);
             percentText.color = GoldColor;
             percentText.fontStyle = FontStyle.Bold;
             percentText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(885f, 85f, 90f, 30f));
+            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(680f, 56f, 60f, 22f));
 
-            totalStarsText = MenuStyle.AddLabel(picture, "★ 0", 24);
+            totalStarsText = MenuStyle.AddLabel(picture, "★ 0", 18);
             totalStarsText.color = GoldColor;
             totalStarsText.fontStyle = FontStyle.Bold;
             totalStarsText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(1000f, 85f, 120f, 30f));
+            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(750f, 22f, 100f, 30f));
         }
 
         private void BuildLevelNodes()
@@ -242,127 +260,119 @@ namespace DungeonGuardians.Presentation
             {
                 int index = i;
                 Vector2 pos = NodePositions[i];
-                float size = 68f;
+                float size = 52f;
 
                 var nodeObj = new GameObject($"Node_{i + 1}").AddComponent<Image>();
                 nodeObj.transform.SetParent(picture, false);
                 nodeObj.color = new Color(0.16f, 0.18f, 0.22f, 0.95f);
                 MenuStyle.PlaceOnPicture(nodeObj.rectTransform, new Rect(pos.x - size / 2f, pos.y - size / 2f, size, size));
 
-                var numText = MenuStyle.AddLabel(nodeObj.transform, $"{i + 1}", 26);
-                numText.fontStyle = FontStyle.Bold;
-                numText.alignment = TextAnchor.MiddleCenter;
-                MenuStyle.Stretch(numText.rectTransform);
-
-                var starText = MenuStyle.AddLabel(nodeObj.transform, string.Empty, 14);
-                starText.color = GoldColor;
-                starText.alignment = TextAnchor.LowerCenter;
-                MenuStyle.Stretch(starText.rectTransform);
-
-                MenuStyle.MakeButton(nodeObj, () => SelectLevel(index));
+                var btn = nodeObj.gameObject.AddComponent<Button>();
+                btn.onClick.AddListener(() =>
+                {
+                    if (progress != null && progress.IsUnlocked(index))
+                    {
+                        selectedIndex = index;
+                        Refresh();
+                    }
+                });
 
                 nodeImages.Add(nodeObj);
-                nodeLabels.Add(numText);
-                nodeStarLabels.Add(starText);
+
+                var label = MenuStyle.AddLabel(nodeObj.transform, $"{i + 1}", 20);
+                label.fontStyle = FontStyle.Bold;
+                label.alignment = TextAnchor.MiddleCenter;
+                MenuStyle.Stretch(label.rectTransform);
+                nodeLabels.Add(label);
+
+                // Stars below node
+                var starsLabel = MenuStyle.AddLabel(nodeObj.transform, string.Empty, 11);
+                starsLabel.color = GoldColor;
+                starsLabel.fontStyle = FontStyle.Bold;
+                starsLabel.alignment = TextAnchor.LowerCenter;
+                MenuStyle.Stretch(starsLabel.rectTransform);
+                starsLabel.rectTransform.anchoredPosition = new Vector2(0f, -16f);
+                nodeStarLabels.Add(starsLabel);
             }
         }
 
         private void BuildInfoCard()
         {
-            var card = new GameObject("InfoCard").AddComponent<Image>();
-            card.transform.SetParent(picture, false);
-            card.color = new Color(0.08f, 0.1f, 0.14f, 0.92f);
-            MenuStyle.PlaceOnPicture(card.rectTransform, new Rect(1240f, 120f, 380f, 680f));
+            // Panel frame on the right side of the screen matching concept stone card
+            var cardPanel = new GameObject("InfoCardPanel").AddComponent<Image>();
+            cardPanel.transform.SetParent(picture, false);
+            cardPanel.color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
+            MenuStyle.PlaceOnPicture(cardPanel.rectTransform, new Rect(750f, 75f, 235f, 410f));
 
-            cardChapterText = MenuStyle.AddLabel(card.transform, "ГЛАВА I", 26);
+            var border = cardPanel.gameObject.AddComponent<Outline>();
+            border.effectColor = new Color(1f, 0.84f, 0.42f, 0.55f);
+            border.effectDistance = new Vector2(2f, 2f);
+
+            cardChapterText = MenuStyle.AddLabel(cardPanel.transform, "ГЛАВА I", 16);
             cardChapterText.color = GoldColor;
             cardChapterText.fontStyle = FontStyle.Bold;
             cardChapterText.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(20f, 30f, 340f, 40f));
+            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(10f, 15f, 215f, 24f));
 
-            cardLevelTitle = MenuStyle.AddLabel(card.transform, "Первые залы", 32);
+            cardLevelTitle = MenuStyle.AddLabel(cardPanel.transform, "Уровень 1", 20);
             cardLevelTitle.color = Color.white;
             cardLevelTitle.fontStyle = FontStyle.Bold;
             cardLevelTitle.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(20f, 80f, 340f, 60f));
+            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(10f, 40f, 215f, 48f));
 
-            // Illustration preview panel
-            var previewPanel = new GameObject("Preview").AddComponent<Image>();
-            previewPanel.transform.SetParent(card.transform, false);
-            previewPanel.color = new Color(0.04f, 0.06f, 0.09f, 0.95f);
-            MenuStyle.PlaceOnPicture(previewPanel.rectTransform, new Rect(30f, 150f, 320f, 260f));
+            // Illustration preview box
+            var previewBox = new GameObject("PreviewBox").AddComponent<Image>();
+            previewBox.transform.SetParent(cardPanel.transform, false);
+            previewBox.color = new Color(0.04f, 0.06f, 0.08f, 0.95f);
+            MenuStyle.PlaceOnPicture(previewBox.rectTransform, new Rect(15f, 95f, 205f, 175f));
 
-            var previewText = MenuStyle.AddLabel(previewPanel.transform, "✦", 64);
-            previewText.color = CyanGlow;
-            previewText.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.Stretch(previewText.rectTransform);
+            var icon = MenuStyle.AddLabel(previewBox.transform, "✦", 48);
+            icon.color = CyanGlow;
+            icon.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.Stretch(icon.rectTransform);
 
-            // Stats
-            var statsHeader = MenuStyle.AddLabel(card.transform, "СТАТИСТИКА", 22);
-            statsHeader.color = GoldColor;
-            statsHeader.fontStyle = FontStyle.Bold;
-            statsHeader.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.PlaceOnPicture(statsHeader.rectTransform, new Rect(20f, 430f, 340f, 30f));
-
-            cardBestTimeText = MenuStyle.AddLabel(card.transform, "Лучшее время: —:—", 20);
-            cardBestTimeText.color = new Color(0.9f, 0.9f, 0.95f);
+            cardBestTimeText = MenuStyle.AddLabel(cardPanel.transform, "Лучшее время: —:—", 14);
+            cardBestTimeText.color = new Color(0.85f, 0.85f, 0.88f);
             cardBestTimeText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardBestTimeText.rectTransform, new Rect(40f, 475f, 300f, 30f));
+            MenuStyle.PlaceOnPicture(cardBestTimeText.rectTransform, new Rect(15f, 280f, 205f, 24f));
 
-            cardStarsText = MenuStyle.AddLabel(card.transform, "Звёзды: ☆☆☆", 20);
+            cardStarsText = MenuStyle.AddLabel(cardPanel.transform, "Звёзды: ☆☆☆", 16);
             cardStarsText.color = GoldColor;
+            cardStarsText.fontStyle = FontStyle.Bold;
             cardStarsText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardStarsText.rectTransform, new Rect(40f, 515f, 300f, 30f));
+            MenuStyle.PlaceOnPicture(cardStarsText.rectTransform, new Rect(15f, 310f, 205f, 24f));
 
-            cardStatusText = MenuStyle.AddLabel(card.transform, "Статус: ДОСТУПЕН", 20);
+            cardStatusText = MenuStyle.AddLabel(cardPanel.transform, "Статус: ДОСТУПЕН", 15);
             cardStatusText.color = CyanGlow;
             cardStatusText.fontStyle = FontStyle.Bold;
             cardStatusText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(cardStatusText.rectTransform, new Rect(40f, 555f, 300f, 30f));
+            MenuStyle.PlaceOnPicture(cardStatusText.rectTransform, new Rect(15f, 345f, 205f, 24f));
         }
 
         private void BuildBottomPlayButton()
         {
-            var btnImage = new GameObject("PlayLevelButton").AddComponent<Image>();
-            btnImage.transform.SetParent(picture, false);
-            btnImage.color = new Color(0.95f, 0.72f, 0.22f, 0.95f);
-            MenuStyle.PlaceOnPicture(btnImage.rectTransform, new Rect(450f, 845f, 620f, 75f));
+            var btn = MenuStyle.AddPictureButton(
+                picture,
+                "menu_gold_btn",
+                new Rect(300f, 495f, 424f, 58f),
+                "ПРОДОЛЖИТЬ",
+                OnPlayClicked
+            );
 
-            playButtonText = MenuStyle.AddLabel(btnImage.transform, "ПРОДОЛЖИТЬ • УРОВЕНЬ 1", 32);
-            playButtonText.fontStyle = FontStyle.Bold;
-            playButtonText.color = new Color(0.12f, 0.08f, 0.04f);
-            playButtonText.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.Stretch(playButtonText.rectTransform);
-
-            MenuStyle.MakeButton(btnImage, LaunchSelectedLevel);
+            playButtonText = btn.GetComponentInChildren<Text>();
+            if (playButtonText != null)
+            {
+                playButtonText.fontSize = 22;
+                playButtonText.fontStyle = FontStyle.Bold;
+                playButtonText.color = new Color(0.12f, 0.08f, 0.03f);
+            }
         }
 
-        private void SelectLevel(int index)
+        private void OnPlayClicked()
         {
-            if (catalog == null || index < 0 || index >= catalog.Levels.Count)
+            if (progress != null && progress.IsUnlocked(selectedIndex))
             {
-                return;
-            }
-
-            if (!progress.IsUnlocked(index))
-            {
-                return;
-            }
-
-            selectedIndex = index;
-            progress.lastSelectedLevelIndex = selectedIndex;
-            Refresh();
-        }
-
-        private void LaunchSelectedLevel()
-        {
-            if (catalog == null || selectedIndex < 0 || selectedIndex >= catalog.Levels.Count)
-            {
-                return;
-            }
-
-            if (progress.IsUnlocked(selectedIndex))
-            {
+                progress.lastSelectedLevelIndex = selectedIndex;
                 LevelSelected?.Invoke(selectedIndex);
             }
         }
@@ -523,7 +533,7 @@ namespace DungeonGuardians.Presentation
             }
 
             // Animate spark running along the unlocked path
-            int maxStep = Mathf.Clamp(progress.highestUnlockedIndex, 0, NodePositions.Length - 1);
+            int maxStep = Mathf.Clamp(progress.highestUnlockedIndex, 0, PathSegments.Length);
             if (maxStep > 0 && sparkImage != null)
             {
                 sparkProgress += Time.unscaledDeltaTime * SparkSpeed;
@@ -540,8 +550,9 @@ namespace DungeonGuardians.Presentation
                     segT = 1f;
                 }
 
-                Vector2 start = NodePositions[segIndex];
-                Vector2 end = NodePositions[segIndex + 1];
+                var (from, to) = PathSegments[segIndex];
+                Vector2 start = NodePositions[from];
+                Vector2 end = NodePositions[to];
                 Vector2 currentPos = Vector2.Lerp(start, end, segT);
 
                 sparkImage.gameObject.SetActive(true);
@@ -565,7 +576,7 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            int totalLevels = catalog.Levels.Count;
+            int totalLevels = catalog.Levels.Count > 0 ? catalog.Levels.Count : NodePositions.Length;
             int completed = progress.GetCompletedCount();
             int totalStars = progress.GetTotalStars();
             float ratio = totalLevels > 0 ? (float)completed / totalLevels : 0f;
@@ -576,9 +587,10 @@ namespace DungeonGuardians.Presentation
             totalStarsText.text = $"★ {totalStars}";
 
             // Update path lines
-            for (int i = 0; i < pathLines.Count; i++)
+            for (int i = 0; i < pathLines.Count && i < PathSegments.Length; i++)
             {
-                bool lineActive = progress.IsUnlocked(i + 1);
+                var (_, to) = PathSegments[i];
+                bool lineActive = progress.IsUnlocked(to);
                 pathLines[i].color = lineActive ? PathActiveColor : PathLockedColor;
             }
 
@@ -593,7 +605,8 @@ namespace DungeonGuardians.Presentation
 
                 nodeImages[i].gameObject.SetActive(true);
                 bool unlocked = progress.IsUnlocked(i);
-                LevelRecord record = progress.GetOrCreateRecord(i, catalog.Levels[i].id);
+                string levelId = i < catalog.Levels.Count ? catalog.Levels[i].id : $"level_{i + 1}";
+                LevelRecord record = progress.GetOrCreateRecord(i, levelId);
 
                 if (!unlocked)
                 {
@@ -611,19 +624,21 @@ namespace DungeonGuardians.Presentation
                 }
                 else
                 {
-                    nodeImages[i].color = i == selectedIndex ? CyanGlow : new Color(0.25f, 0.55f, 0.65f);
+                    // Current active level: Cyan glow circle with explorer icon
+                    nodeImages[i].color = CyanGlow;
                     nodeLabels[i].text = $"{i + 1}";
-                    nodeLabels[i].color = Color.white;
+                    nodeLabels[i].color = new Color(0.05f, 0.15f, 0.18f);
                     nodeStarLabels[i].text = string.Empty;
                 }
             }
 
             // Update Card
-            LevelDefinition def = catalog.Levels[selectedIndex];
-            LevelRecord selRecord = progress.GetOrCreateRecord(selectedIndex, def.id);
+            int validIndex = Mathf.Clamp(selectedIndex, 0, catalog.Levels.Count - 1);
+            LevelDefinition def = catalog.Levels[validIndex];
+            LevelRecord selRecord = progress.GetOrCreateRecord(validIndex, def.id);
 
-            cardChapterText.text = GetChapterName(selectedIndex);
-            cardLevelTitle.text = $"{selectedIndex + 1:00}. {def.title}";
+            cardChapterText.text = GetChapterName(validIndex);
+            cardLevelTitle.text = $"{validIndex + 1:00}. {def.title}";
 
             if (selRecord.completed && selRecord.bestTimeSeconds > 0.01f)
             {
@@ -642,7 +657,7 @@ namespace DungeonGuardians.Presentation
             {
                 cardStatusText.text = "Статус: <color=#FFE7B0>ПРОЙДЕН</color>";
             }
-            else if (progress.IsUnlocked(selectedIndex))
+            else if (progress.IsUnlocked(validIndex))
             {
                 cardStatusText.text = "Статус: <color=#5AFFDF>ДОСТУПЕН</color>";
             }
@@ -651,7 +666,7 @@ namespace DungeonGuardians.Presentation
                 cardStatusText.text = "Статус: <color=#999999>ЗАКРЫТ</color>";
             }
 
-            playButtonText.text = $"ИГРАТЬ • УРОВЕНЬ {selectedIndex + 1}";
+            playButtonText.text = $"ПРОДОЛЖИТЬ • УРОВЕНЬ {validIndex + 1}";
         }
 
         private static string GetStarsString(int stars)

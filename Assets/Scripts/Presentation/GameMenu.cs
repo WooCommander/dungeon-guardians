@@ -45,8 +45,18 @@ namespace DungeonGuardians.Presentation
             // their painted places whatever the screen shape.
             Image picture = MenuStyle.CreatePicture(canvas.transform, "Backgrounds/menu", AspectRatioFitter.AspectMode.EnvelopeParent);
             AddEyeGlows(picture.transform);
+            
+            // 1. ИГРАТЬ (Main gold banner button)
             MenuStyle.AddPictureButton(picture.transform, "menu_play", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", StartGame);
-            MenuStyle.AddPictureButton(picture.transform, "menu_settings", new Rect(659f, 617f, 351f, 79f), "НАСТРОЙКИ", OpenSettings);
+
+            // 2. НАСТРОЙКИ (Matching stone plate with cyan diamonds)
+            MenuStyle.CreatePlateButtonOnPicture(picture.transform, "НАСТРОЙКИ", new Rect(636f, 615f, 400f, 78f), OpenSettings);
+
+            // 3. ВЫХОД (Directly below Settings with identical plate size and typography)
+            if (!Application.isMobilePlatform)
+            {
+                MenuStyle.CreatePlateButtonOnPicture(picture.transform, "ВЫХОД", new Rect(636f, 712f, 400f, 78f), Application.Quit);
+            }
 
             settings = SettingsScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
@@ -63,7 +73,6 @@ namespace DungeonGuardians.Presentation
                 Show();
             };
 
-            AddQuitButton(picture.transform);
             settings.Changed += () => SettingsChanged?.Invoke();
             settings.ResetProgress += () => ResetProgress?.Invoke();
             Show();
@@ -123,22 +132,6 @@ namespace DungeonGuardians.Presentation
                 glow.color = new Color(EyeColor.r, EyeColor.g, EyeColor.b, level * 0.85f);
                 glow.rectTransform.localScale = Vector3.one * (0.85f + 0.3f * level);
             }
-        }
-
-        // A PC game needs a way out; on a phone the system's own navigation closes the app.
-        private void AddQuitButton(Transform picture)
-        {
-            if (Application.isMobilePlatform)
-            {
-                return;
-            }
-
-            Button quit = MenuStyle.CreatePlateButton(canvas.transform, "ВЫХОД", new Vector2(240f, 64f), Application.Quit);
-            var rect = (RectTransform)quit.transform;
-            rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
-            rect.anchoredPosition = new Vector2(-150f, 60f);
-            // Above the picture but under the settings and story screens, which open over it.
-            rect.SetSiblingIndex(picture.GetSiblingIndex() + 1);
         }
 
         // Android's back button (Esc on a keyboard): closes the settings, and on the start screen leaves the game.
@@ -294,6 +287,26 @@ namespace DungeonGuardians.Presentation
             }
 
             AddLabel(image.transform, label, 30);
+            return MakeButton(image, onClick);
+        }
+
+        public static Button CreatePlateButtonOnPicture(Transform picture, string label, Rect box, Action onClick)
+        {
+            var image = new GameObject(string.IsNullOrEmpty(label) ? "PlateButton" : label).AddComponent<Image>();
+            image.transform.SetParent(picture, false);
+            PlaceOnPicture(image.rectTransform, box);
+            Sprite sprite = GetPlate();
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+                image.type = Image.Type.Sliced;
+            }
+            else
+            {
+                image.color = PlainPlateColor;
+            }
+
+            AddLabel(image.transform, label, 28);
             return MakeButton(image, onClick);
         }
 

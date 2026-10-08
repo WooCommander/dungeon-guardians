@@ -356,27 +356,55 @@ namespace DungeonGuardians.Presentation
 
         private void AddCameraStyleSwitch(float row)
         {
+            // Opaque dark stone backing that completely covers the underlying painted row texture
+            var leftBacking = new GameObject("CameraRowBacking").AddComponent<Image>();
+            leftBacking.transform.SetParent(picture, false);
+            leftBacking.color = new Color(0.12f, 0.14f, 0.17f, 1f);
+            leftBacking.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(leftBacking.rectTransform, new Rect(235f, row - 34f, 465f, 68f));
+
+            // Icon for camera
+            var iconLabel = new GameObject("CameraIcon").AddComponent<Text>();
+            iconLabel.transform.SetParent(picture, false);
+            iconLabel.font = MenuStyle.Font;
+            iconLabel.fontStyle = FontStyle.Bold;
+            iconLabel.fontSize = 30;
+            iconLabel.alignment = TextAnchor.MiddleCenter;
+            iconLabel.color = new Color(1f, 0.88f, 0.58f);
+            iconLabel.text = "🔍";
+            iconLabel.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(iconLabel.rectTransform, new Rect(245f, row - 25f, 50f, 50f));
+
+            // Harmonious left label matching other settings rows
             var label = new GameObject("CameraStyleLabel").AddComponent<Text>();
             label.transform.SetParent(picture, false);
             label.font = MenuStyle.Font;
             label.fontStyle = FontStyle.Bold;
-            label.fontSize = 28;
-            label.alignment = TextAnchor.MiddleRight;
-            label.color = new Color(1f, 0.85f, 0.65f);
-            label.text = "МАСШТАБ КАМЕРЫ";
+            label.fontSize = 32;
+            label.alignment = TextAnchor.MiddleLeft;
+            label.color = new Color(1f, 0.88f, 0.58f);
+            label.text = "Масштаб камеры";
             label.raycastTarget = false;
-            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(260f, row - 22f, 450f, 44f));
+            var outline = label.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(315f, row - 30f, 380f, 60f));
 
+            // Sliced plate button covering the right side dropdown area
             var buttonImage = new GameObject("CameraStyleButton").AddComponent<Image>();
             buttonImage.transform.SetParent(picture, false);
-            buttonImage.color = new Color(0.18f, 0.14f, 0.11f, 0.95f);
-            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, new Rect(TrackLeft, row - 22f, TrackRight - TrackLeft + (ValueRight - ValueLeft) + 40f, 46f));
+            buttonImage.color = new Color(0.16f, 0.18f, 0.22f, 1f);
+            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, new Rect(737f, row - 32f, 586f, 64f));
+
+            var buttonBorder = buttonImage.gameObject.AddComponent<Outline>();
+            buttonBorder.effectColor = new Color(1f, 0.84f, 0.42f, 0.65f);
+            buttonBorder.effectDistance = new Vector2(2f, 2f);
 
             cameraStyleText = new GameObject("Text").AddComponent<Text>();
             cameraStyleText.transform.SetParent(buttonImage.transform, false);
             cameraStyleText.font = MenuStyle.Font;
             cameraStyleText.fontStyle = FontStyle.Bold;
-            cameraStyleText.fontSize = 20;
+            cameraStyleText.fontSize = 22;
             cameraStyleText.alignment = TextAnchor.MiddleCenter;
             cameraStyleText.color = ValueColor;
             cameraStyleText.raycastTarget = false;
@@ -397,8 +425,8 @@ namespace DungeonGuardians.Presentation
             if (cameraStyleText != null)
             {
                 cameraStyleText.text = GameSettings.CameraStyle == 0
-                    ? "КРУПНЫЙ ПЛАН (7 РЯДОВ) — ТЕЛЕФОН"
-                    : "ОБЗОРНЫЙ ПЛАН (11 РЯДОВ) — ПЛАНШЕТ";
+                    ? "КРУПНЫЙ ПЛАН (7 РЯДОВ) — ТЕЛЕФОН ▾"
+                    : "ОБЗОРНЫЙ ПЛАН (11 РЯДОВ) — ПЛАНШЕТ ▾";
             }
         }
 
