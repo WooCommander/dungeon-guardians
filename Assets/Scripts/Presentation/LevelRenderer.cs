@@ -131,14 +131,11 @@ namespace DungeonGuardians.Presentation
         private static readonly Color PlatePressed = new Color(1.6f, 1.35f, 0.8f);
         // Following camera (LevelDefinition.view = "follow").
         private const int FollowRows = 13;
-        // On a phone a whole 13-row hall is too small to play: every level is followed by the camera, showing
-        // 7 rows (larger characters and clear visibility on phones).
-        private const int MobileRows = 7;
         // The translucent controls float directly over the level without artificial bottom dead zone.
         private const float ControlsMargin = 0f;
 
         private bool Follow => currentDefinition != null && (currentDefinition.FollowCamera || GameSettings.TouchControlsVisible);
-        private int ViewRows => GameSettings.TouchControlsVisible ? MobileRows : FollowRows;
+        private int ViewRows => GameSettings.TouchControlsVisible ? GameSettings.MobileRows : FollowRows;
         private const float FollowSmoothTime = 0.25f;
         private const float LookAhead = 2.5f;
         private const float FallLookDown = 2.5f;

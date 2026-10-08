@@ -11,6 +11,7 @@ namespace DungeonGuardians.Presentation
         private const string VibrationKey = "settings_vibration";
         private const string ButtonSizeKey = "settings_button_size";
         private const string ButtonOpacityKey = "settings_button_opacity";
+        private const string CameraStyleKey = "settings_camera_style";
 
         // Defaults as on the settings concept; buttons start at their normal size.
         public const float DefaultMusic = 0.6f;
@@ -18,10 +19,21 @@ namespace DungeonGuardians.Presentation
         public const float DefaultButtonSize = 0.5f;
         // The buttons lie over the level, so by default the level shows through them a little.
         public const float DefaultButtonOpacity = 0.7f;
+        public const int DefaultCameraRows = 7;
+        public const int OverviewCameraRows = 11;
 
         private const float MinButtonScale = 0.6f;
         private const float MaxButtonScale = 1.4f;
         private const float MinButtonOpacity = 0.2f;
+
+        // 0 = Close (7 rows), 1 = Overview (11 rows)
+        public static int CameraStyle
+        {
+            get => PlayerPrefs.GetInt(CameraStyleKey, 0);
+            set => PlayerPrefs.SetInt(CameraStyleKey, Mathf.Clamp(value, 0, 1));
+        }
+
+        public static int MobileRows => CameraStyle == 0 ? DefaultCameraRows : OverviewCameraRows;
 
         public static float Music
         {

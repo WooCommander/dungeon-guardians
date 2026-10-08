@@ -25,6 +25,7 @@ namespace DungeonGuardians.Presentation
         private const float SoundRow = 331f;
         private const float ButtonSizeRow = 518f;
         private const float ButtonOpacityRow = 611f;
+        private const float CameraStyleRow = 688f;
         private static readonly Rect ToggleBox = new Rect(1205f, 393f, 122f, 60f);
         private static readonly Color ValueColor = new Color(1f, 0.9f, 0.72f);
 
@@ -36,6 +37,8 @@ namespace DungeonGuardians.Presentation
         private Image vibration;
         private Sprite vibrationOn;
         private Sprite vibrationOff;
+        private Button cameraStyleButton;
+        private Text cameraStyleText;
 
         public event Action Changed;
         public event Action ResetProgress;
@@ -74,6 +77,7 @@ namespace DungeonGuardians.Presentation
             buttonSize = AddSlider(ButtonSizeRow, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
             buttonOpacity = AddSlider(ButtonOpacityRow, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
             AddVibrationSwitch();
+            AddCameraStyleSwitch(CameraStyleRow);
 
             MenuStyle.AddPictureButton(picture, "settings_back", new Rect(298f, 105f, 97f, 80f), "<", Close);
             MenuStyle.AddPictureButton(picture, "settings_done", new Rect(835f, 763f, 435f, 112f), "ГОТОВО", Close);
@@ -92,6 +96,7 @@ namespace DungeonGuardians.Presentation
             }
 
             vibration.sprite = GameSettings.Vibration ? vibrationOn : vibrationOff;
+            UpdateCameraStyleText();
         }
 
         // "Start over": progress is wiped, every setting goes back to its default and the story is shown again.
@@ -102,6 +107,7 @@ namespace DungeonGuardians.Presentation
             GameSettings.Vibration = true;
             GameSettings.ButtonSize = GameSettings.DefaultButtonSize;
             GameSettings.ButtonOpacity = GameSettings.DefaultButtonOpacity;
+            GameSettings.CameraStyle = 0;
             GameSettings.Save();
             // A fresh start tells the legend again.
             StoryScreen.Seen = false;
@@ -205,6 +211,54 @@ namespace DungeonGuardians.Presentation
                 GameSettings.Vibrate();
                 Changed?.Invoke();
             });
+        }
+
+        private void AddCameraStyleSwitch(float row)
+        {
+            var label = new GameObject("CameraStyleLabel").AddComponent<Text>();
+            label.transform.SetParent(picture, false);
+            label.font = MenuStyle.Font;
+            label.fontStyle = FontStyle.Bold;
+            label.fontSize = 28;
+            label.alignment = TextAnchor.MiddleRight;
+            label.color = new Color(1f, 0.85f, 0.65f);
+            label.text = "МАСШТАБ КАМЕРЫ";
+            label.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(260f, row - 22f, 450f, 44f));
+
+            var buttonImage = new GameObject("CameraStyleButton").AddComponent<Image>();
+            buttonImage.transform.SetParent(picture, false);
+            buttonImage.color = new Color(0.18f, 0.14f, 0.11f, 0.95f);
+            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, new Rect(TrackLeft, row - 22f, TrackRight - TrackLeft + (ValueRight - ValueLeft) + 40f, 46f));
+
+            cameraStyleText = new GameObject("Text").AddComponent<Text>();
+            cameraStyleText.transform.SetParent(buttonImage.transform, false);
+            cameraStyleText.font = MenuStyle.Font;
+            cameraStyleText.fontStyle = FontStyle.Bold;
+            cameraStyleText.fontSize = 20;
+            cameraStyleText.alignment = TextAnchor.MiddleCenter;
+            cameraStyleText.color = ValueColor;
+            cameraStyleText.raycastTarget = false;
+            MenuStyle.Stretch(cameraStyleText.rectTransform);
+
+            cameraStyleButton = MenuStyle.MakeButton(buttonImage, () =>
+            {
+                GameSettings.CameraStyle = GameSettings.CameraStyle == 0 ? 1 : 0;
+                UpdateCameraStyleText();
+                Changed?.Invoke();
+            });
+
+            UpdateCameraStyleText();
+        }
+
+        private void UpdateCameraStyleText()
+        {
+            if (cameraStyleText != null)
+            {
+                cameraStyleText.text = GameSettings.CameraStyle == 0
+                    ? "КРУПНЫЙ ПЛАН (7 РЯДОВ) — ТЕЛЕФОН"
+                    : "ОБЗОРНЫЙ ПЛАН (11 РЯДОВ) — ПЛАНШЕТ";
+            }
         }
 
         private static string Percent(float value)

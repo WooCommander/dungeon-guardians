@@ -63,6 +63,7 @@ namespace DungeonGuardians.Editor
 
         private static void ApplyCommonSettings()
         {
+            SetupURP.EnsureURPConfigured();
             PlayerSettings.productName = ProductName;
             PlayerSettings.companyName = CompanyName;
             PlayerSettings.bundleVersion = Version;
@@ -74,9 +75,9 @@ namespace DungeonGuardians.Editor
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             // Google Play requires 64-bit; current phones are all ARM64.
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
+            // Minimum Android 8.0 (API level 26) is the baseline for Unity 6.
+            PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)26;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
-            PlayerSettings.Android.startInFullscreen = true;
             PlayerSettings.Android.renderOutsideSafeArea = true;
 
             // Landscape only (TZ section 9), turning between the two landscape sides.
