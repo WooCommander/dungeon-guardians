@@ -2,7 +2,7 @@
 //
 // - Backgrounds/level_map.png: the picture with everything that depends on progress removed and rebuilt from the
 //   surrounding art: the level circles, the golden and dashed paths, "Пройдено 6 из 15", the bar's fill, "40%",
-//   the chapter name on the card and the caption of the big button.
+//   the chapter name on the card, the caption of the big button and the back arrow in the corner.
 //   Backgrounds/level_map_blur.png: a small blurred copy that fills the screen around it.
 // - UI/map_node_done.png, map_node_current.png, map_node_locked.png: the three kinds of circle (passed with its
 //   tick, the current one, locked with its padlock), number cleared, centred in a 97 x 97 square.
@@ -138,6 +138,11 @@ foreach (var line in dashed) MarkPath(hole, line, 7f);
 
 var everywhere = new Rectangle(0, 0, src.W, src.H);
 Inpaint(clean, hole, everywhere, 70);
+
+// The painted back arrow in the top-left corner: the game draws its own buttons (LevelMapScreen.cs).
+var arrow = new bool[src.W * src.H];
+MarkRect(arrow, 26, 18, 160, 100);
+Inpaint(clean, arrow, everywhere, 160);
 
 // "Пройдено 6 из 15" and "40%" on the dark plate under the title.
 var plate = new bool[src.W * src.H];

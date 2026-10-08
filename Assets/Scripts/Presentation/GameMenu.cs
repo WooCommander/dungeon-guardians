@@ -270,6 +270,11 @@ namespace DungeonGuardians.Presentation
             if (art != null)
             {
                 image.sprite = art;
+                // A plate with fixed ends (a border in its .meta) stretches in the middle only.
+                if (art.border != Vector4.zero)
+                {
+                    image.type = Image.Type.Sliced;
+                }
             }
             else
             {

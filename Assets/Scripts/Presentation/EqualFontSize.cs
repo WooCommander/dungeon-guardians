@@ -5,11 +5,12 @@ using UnityEngine.UI;
 namespace DungeonGuardians.Presentation
 {
     // One font size for a group of captions: the largest at which every one of them fits its own box, so a short
-    // word is not written bigger than a long one beside it. Worked out again whenever a box changes size.
+    // word is not written bigger than a long one beside it. Worked out again whenever a box or a caption changes.
     public sealed class EqualFontSize : MonoBehaviour
     {
         private readonly List<Text> texts = new List<Text>();
         private readonly List<Vector2> sizes = new List<Vector2>();
+        private readonly List<string> captions = new List<string>();
         private int maxSize = 60;
 
         public static void Apply(GameObject host, int maxSize, params Text[] captions)
@@ -25,6 +26,7 @@ namespace DungeonGuardians.Presentation
             {
                 group.texts.Add(text);
                 group.sizes.Add(Vector2.zero);
+                group.captions.Add(null);
             }
         }
 
@@ -34,9 +36,10 @@ namespace DungeonGuardians.Presentation
             for (int i = 0; i < texts.Count; i++)
             {
                 Vector2 size = texts[i].rectTransform.rect.size;
-                if (size != sizes[i])
+                if (size != sizes[i] || texts[i].text != captions[i])
                 {
                     sizes[i] = size;
+                    captions[i] = texts[i].text;
                     changed = true;
                 }
             }
@@ -53,6 +56,12 @@ namespace DungeonGuardians.Presentation
             var generator = new TextGenerator();
             foreach (Text text in texts)
             {
+                // A caption not written yet sets no limit.
+                if (string.IsNullOrEmpty(text.text))
+                {
+                    continue;
+                }
+
                 Vector2 box = text.rectTransform.rect.size;
                 if (box.x <= 0f || box.y <= 0f)
                 {

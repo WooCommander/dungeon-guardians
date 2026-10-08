@@ -4,6 +4,8 @@
 // - UI/menu_button.png from UI/menu_play.png: "НАСТРОЙКИ" and "ВЫХОД" under "ИГРАТЬ" (GameMenu.cs).
 // - UI/menu_play_blank.png: "ИГРАТЬ" itself with its caption cleared but its gold kept, so all three captions are
 //   written alike.
+// - UI/map_button.png from UI/map_play.png (already blank, cut by tools/cut_level_map.cs): "НАЗАД" and "НАЧАТЬ
+//   ЗАНОВО" on the level map, stretched in the middle only (its .meta keeps 72 px at each end).
 // - UI/settings_done_blank.png: "ГОТОВО" the same way, its caption written in code like "ОТМЕНА".
 // Run from the repository root (needs the .NET 10 SDK):  dotnet run tools/unlit_buttons.cs
 #:property TargetFramework=net10.0-windows
@@ -20,6 +22,7 @@ Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_can
 Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_done_blank.png", 124, 320, 27, 84, false);
 Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_button.png", 90, 344, 26, 97, true);
 Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_play_blank.png", 90, 344, 26, 97, false);
+Unlit("Assets/Resources/UI/map_play.png", "Assets/Resources/UI/map_button.png", 1, 0, 1, 0, true);
 
 static void Unlit(string source, string target, int x0, int x1, int y0, int y1, bool dim)
 {
@@ -36,7 +39,7 @@ static void Unlit(string source, string target, int x0, int x1, int y0, int y1, 
             b[i] = bytes[s]; g[i] = bytes[s + 1]; r[i] = bytes[s + 2];
         }
 
-    // The caption is filled in from the edges of its box: rows blended end to end, then relaxed.
+    // The caption is filled in from the edges of its box (none when x1 < x0): rows blended end to end, then relaxed.
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
         {
@@ -44,7 +47,7 @@ static void Unlit(string source, string target, int x0, int x1, int y0, int y1, 
             int i = y * w + x, a = y * w + x0 - 1, z = y * w + x1 + 1;
             r[i] = r[a] + (r[z] - r[a]) * t; g[i] = g[a] + (g[z] - g[a]) * t; b[i] = b[a] + (b[z] - b[a]) * t;
         }
-    for (int pass = 0; pass < 3000; pass++)
+    for (int pass = 0; pass < 3000 && x1 >= x0; pass++)
         for (int y = y0; y <= y1; y++)
             for (int x = x0; x <= x1; x++)
             {

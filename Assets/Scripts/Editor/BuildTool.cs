@@ -24,6 +24,8 @@ namespace DungeonGuardians.Editor
         private const string WindowsOutput = "Builds/Windows/DungeonGuardians.exe";
         private const string AndroidApkOutput = "Builds/Android/DungeonGuardians.apk";
         private const string AndroidBundleOutput = "Builds/Android/DungeonGuardians.aab";
+        // The app icons, made by tools/make_icons.cs from the guardian statue of the start screen.
+        private const string IconFolder = "Assets/Art/Icons/";
 
         [MenuItem("Dungeon Guardians/Собрать для Windows")]
         public static void BuildWindows()
@@ -67,6 +69,69 @@ namespace DungeonGuardians.Editor
             PlayerSettings.productName = ProductName;
             PlayerSettings.companyName = CompanyName;
             PlayerSettings.bundleVersion = Version;
+
+            // The default icon: Windows takes its sizes from it.
+            Texture2D icon = LoadIcon("icon.png");
+            if (icon != null)
+            {
+                PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+            }
+        }
+
+        // Puts the app icons into the player settings now, for builds made from Unity's own Build window too.
+        [MenuItem("Dungeon Guardians/Применить иконки приложения")]
+        public static void ApplyIcons()
+        {
+            Texture2D icon = LoadIcon("icon.png");
+            if (icon != null)
+            {
+                PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+            }
+
+            ApplyAndroidIcons();
+            AssetDatabase.SaveAssets();
+        }
+
+        private static Texture2D LoadIcon(string file)
+        {
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(IconFolder + file);
+            if (texture == null)
+            {
+                Debug.LogWarning($"App icon {IconFolder + file} is missing; run tools/make_icons.cs.");
+            }
+
+            return texture;
+        }
+
+        // Android's three kinds of icon: adaptive (a background layer and a foreground one, masked by the launcher),
+        // round and legacy. The kinds are found by name, so this compiles without the Android editor extensions.
+        private static void ApplyAndroidIcons()
+        {
+            Texture2D square = LoadIcon("icon.png");
+            Texture2D round = LoadIcon("icon_round.png");
+            Texture2D background = LoadIcon("icon_adaptive_background.png");
+            Texture2D foreground = LoadIcon("icon_adaptive_foreground.png");
+            foreach (PlatformIconKind kind in PlayerSettings.GetSupportedIconKinds(NamedBuildTarget.Android))
+            {
+                PlatformIcon[] icons = PlayerSettings.GetPlatformIcons(NamedBuildTarget.Android, kind);
+                foreach (PlatformIcon icon in icons)
+                {
+                    switch (kind.ToString())
+                    {
+                        case "Adaptive":
+                            icon.SetTextures(background, foreground);
+                            break;
+                        case "Round":
+                            icon.SetTexture(round);
+                            break;
+                        default:
+                            icon.SetTexture(square);
+                            break;
+                    }
+                }
+
+                PlayerSettings.SetPlatformIcons(NamedBuildTarget.Android, kind, icons);
+            }
         }
 
         private static void ApplyAndroidSettings()
@@ -79,6 +144,7 @@ namespace DungeonGuardians.Editor
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)26;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.Android.renderOutsideSafeArea = true;
+            ApplyAndroidIcons();
 
             // Landscape only (TZ section 9), turning between the two landscape sides.
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;

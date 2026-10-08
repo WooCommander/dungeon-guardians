@@ -71,7 +71,6 @@ namespace DungeonGuardians.Presentation
 
         private static readonly Color Cream = new Color(1f, 0.92f, 0.76f);
         private static readonly Color Gold = new Color(1f, 0.82f, 0.45f);
-        private static readonly Color Ink = new Color(0.22f, 0.11f, 0.03f);
         private static readonly Color Shadow = new Color(0.08f, 0.04f, 0.01f, 0.9f);
 
         private enum NodeState { Done, Current, Locked }
@@ -368,26 +367,13 @@ namespace DungeonGuardians.Presentation
 
         private void BuildButtons()
         {
-            // The painted back arrow in the top-left corner.
-            var back = new GameObject("Back").AddComponent<Image>();
-            back.transform.SetParent(picture, false);
-            back.color = Color.clear;
-            MenuStyle.PlaceOnPicture(back.rectTransform, new Rect(34f, 24f, 122f, 74f));
-            MenuStyle.MakeButton(back, () => BackRequested?.Invoke());
-
-            MenuStyle.AddPictureButton(picture, "map_play", new Rect(494f, 807f, 685f, 93f), string.Empty, OnPlayClicked);
-            playText = AddText(picture, string.Empty, Ink, TextAnchor.MiddleCenter, 60, serif);
-            playText.GetComponent<Outline>().effectColor = new Color(1f, 0.93f, 0.7f, 0.35f);
-            MenuStyle.PlaceOnPicture(playText.rectTransform, new Rect(588f, 830f, 498f, 46f));
-
-            // Starting over, small and out of the way in the bottom-left corner.
-            Button reset = MenuStyle.CreatePlateButtonOnPicture(picture, "Начать заново", new Rect(150f, 840f, 330f, 60f), ShowConfirmModal);
-            Text label = reset.GetComponentInChildren<Text>();
-            label.resizeTextForBestFit = true;
-            label.resizeTextMinSize = 8;
-            label.resizeTextMaxSize = 26;
-            label.rectTransform.offsetMin = new Vector2(50f, 6f);
-            label.rectTransform.offsetMax = new Vector2(-50f, -6f);
+            // Three buttons of one kind: the golden banner to play, and its unlit twin (UI/map_button.png, stretched
+            // in the middle) to go back beside it and, away in the top-left corner, to start over. One caption size
+            // for all three. The painted back arrow is gone from the picture (tools/cut_level_map.cs).
+            playText = MenuStyle.AddCaptionedButton(picture, "map_play", new Rect(494f, 807f, 685f, 93f), string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
+            Text back = MenuStyle.AddQuietButton(picture, "map_button", new Rect(54f, 807f, 420f, 93f), "НАЗАД", () => BackRequested?.Invoke());
+            Text reset = MenuStyle.AddQuietButton(picture, "map_button", new Rect(24f, 14f, 420f, 93f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
+            EqualFontSize.Apply(picture.gameObject, 60, playText, back, reset);
         }
 
         private void OnPlayClicked()
