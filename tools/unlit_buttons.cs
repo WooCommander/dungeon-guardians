@@ -4,6 +4,7 @@
 // - UI/menu_button.png from UI/menu_play.png: "НАСТРОЙКИ" and "ВЫХОД" under "ИГРАТЬ" (GameMenu.cs).
 // - UI/menu_play_blank.png: "ИГРАТЬ" itself with its caption cleared but its gold kept, so all three captions are
 //   written alike.
+// - UI/settings_done_blank.png: "ГОТОВО" the same way, its caption written in code like "ОТМЕНА".
 // Run from the repository root (needs the .NET 10 SDK):  dotnet run tools/unlit_buttons.cs
 #:property TargetFramework=net10.0-windows
 #:property UseWindowsForms=true
@@ -16,6 +17,7 @@ using System.Runtime.InteropServices;
 
 // Source, target and the box of the caption to clear.
 Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_cancel.png", 124, 320, 27, 84, true);
+Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_done_blank.png", 124, 320, 27, 84, false);
 Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_button.png", 90, 344, 26, 97, true);
 Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_play_blank.png", 90, 344, 26, 97, false);
 

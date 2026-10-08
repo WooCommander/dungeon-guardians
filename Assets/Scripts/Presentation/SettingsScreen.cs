@@ -123,8 +123,10 @@ namespace DungeonGuardians.Presentation
             // tools/unlit_buttons.cs) puts the settings back, "ГОТОВО" keeps them. Both are drawn here:
             // tools/settings_bottom_row.ps1 clears the painted bottom buttons and tools/settings_back_corner.ps1 the
             // arrow in the top-left corner. Starting over lives on the level map.
-            MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), "ОТМЕНА", Cancel);
-            MenuStyle.AddPictureButton(picture, "settings_done", new Rect(855f, 763f, 435f, 112f), "ГОТОВО", Close);
+            // Both captions are written in code, one size and face (the largest at which both fit).
+            Text cancel = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), "ОТМЕНА", Cancel);
+            Text done = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), "ГОТОВО", MenuStyle.GoldCaption, Close);
+            EqualFontSize.Apply(picture.gameObject, 60, cancel, done);
         }
 
         private void Refresh()
