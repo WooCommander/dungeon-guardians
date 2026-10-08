@@ -9,25 +9,36 @@ namespace DungeonGuardians.Presentation
     // their painted places. Changes are saved at once and reported through Changed.
     public sealed class SettingsScreen : MonoBehaviour
     {
-        // Picture pixels: slider tracks, the knob's travel, the percentage boxes and the switch.
-        private const float TrackLeft = 737f;
-        private const float TrackRight = 1172f;
-        private const float KnobHalf = 27f;
-        private const float FillInset = 4f;
-        private const float FillTop = 10f;
-        private const float FillBottom = 11f;
-        private const float KnobTravelLeft = 750f;
-        private const float KnobTravelRight = 1160f;
-        private const float ValueLeft = 1207f;
-        private const float ValueRight = 1323f;
-        private const float ValueHalf = 19f;
+        // Picture reference dimensions (1672x941) matching tools/cut_settings.py
         private const float MusicRow = 241f;
         private const float SoundRow = 331f;
         private const float ButtonSizeRow = 518f;
         private const float ButtonOpacityRow = 611f;
-        private const float CameraStyleRow = 688f;
+        private const float CameraStyleRow = 705f;
+
+        private const float TrackLeft = 737f;
+        private const float TrackRight = 1172f;
+        private const float TrackHalf = 15f;
+        private const float KnobHalf = 27f;
+        private const float KnobTravelLeft = TrackLeft + 12f;
+        private const float KnobTravelRight = TrackRight - 12f;
+        private const float FillInset = 4f;
+        private const float FillTop = 9f;
+        private const float FillBottom = 10f;
+
+        private const float ValueLeft = 1207f;
+        private const float ValueRight = 1323f;
+        private const float ValueHalf = 19f;
+
+        // Row 6: where the painted labels start, and the painted dropdown frame with its chevron.
+        private const float LabelLeft = 455f;
+        private const float LabelHalf = 21f;
+        private const float CameraChevronLeft = 1282f;
+        private static readonly Rect CameraBox = new Rect(948f, 673f, 386f, 64f);
+
         private static readonly Rect ToggleBox = new Rect(1205f, 393f, 122f, 60f);
         private static readonly Color ValueColor = new Color(1f, 0.9f, 0.72f);
+        private static readonly Color LabelGold = new Color(1f, 0.88f, 0.58f);
 
         private Transform picture;
         private Slider music;
@@ -62,9 +73,9 @@ namespace DungeonGuardians.Presentation
             {
                 confirmModal.SetActive(false);
             }
-            if (toastText != null)
+            if (toastText != null && toastText.transform.parent != null)
             {
-                toastText.gameObject.SetActive(false);
+                toastText.transform.parent.gameObject.SetActive(false);
             }
             gameObject.SetActive(true);
         }
@@ -82,13 +93,26 @@ namespace DungeonGuardians.Presentation
             backing.raycastTarget = true;
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/settings", AspectRatioFitter.AspectMode.FitInParent).transform;
 
-            music = AddSlider(MusicRow, value => GameSettings.Music = value, value => Percent(value));
-            sound = AddSlider(SoundRow, value => GameSettings.Sound = value, value => Percent(value));
-            buttonSize = AddSlider(ButtonSizeRow, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
-            buttonOpacity = AddSlider(ButtonOpacityRow, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
+            // Interactive controls over their exact painted slots on the stone frame:
+            // Row 1: Музыка
+            music = AddSlider(MusicRow, value => GameSettings.Music = value, _ => Percent(GameSettings.Music));
+
+            // Row 2: Звуки
+            sound = AddSlider(SoundRow, value => GameSettings.Sound = value, _ => Percent(GameSettings.Sound));
+
+            // Row 3: Вибрация
             AddVibrationSwitch();
+
+            // Row 4: Размер кнопок
+            buttonSize = AddSlider(ButtonSizeRow, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
+
+            // Row 5: Прозрачность кнопок
+            buttonOpacity = AddSlider(ButtonOpacityRow, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
+
+            // Row 6: Масштаб камеры (вместо выбора языка)
             AddCameraStyleSwitch(CameraStyleRow);
 
+            // Bottom Buttons
             MenuStyle.AddPictureButton(picture, "settings_back", new Rect(298f, 105f, 97f, 80f), "<", Close);
             MenuStyle.AddPictureButton(picture, "settings_done", new Rect(835f, 763f, 435f, 112f), "ГОТОВО", Close);
             MenuStyle.AddPictureButton(picture, "settings_reset", new Rect(405f, 772f, 390f, 96f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
@@ -151,11 +175,11 @@ namespace DungeonGuardians.Presentation
             var toastObj = new GameObject("ToastNotification");
             toastObj.transform.SetParent(picture, false);
             var bg = toastObj.AddComponent<Image>();
-            bg.color = new Color(0.1f, 0.4f, 0.2f, 0.92f);
+            bg.color = new Color(0.1f, 0.4f, 0.2f, 0.95f);
             MenuStyle.PlaceOnPicture(bg.rectTransform, new Rect(520f, 690f, 630f, 50f));
 
             var outline = toastObj.AddComponent<Outline>();
-            outline.effectColor = new Color(0.4f, 1f, 0.6f, 0.6f);
+            outline.effectColor = new Color(0.4f, 1f, 0.6f, 0.7f);
             outline.effectDistance = new Vector2(2f, 2f);
 
             toastText = MenuStyle.AddLabel(toastObj.transform, "✓ ПРОГРЕСС СБРОШЕН", 20);
@@ -169,7 +193,7 @@ namespace DungeonGuardians.Presentation
 
         private void ShowToast(string message)
         {
-            if (toastText != null)
+            if (toastText != null && toastText.transform.parent != null)
             {
                 toastText.text = message;
                 toastText.transform.parent.gameObject.SetActive(true);
@@ -354,61 +378,45 @@ namespace DungeonGuardians.Presentation
             });
         }
 
+        // The painted row 6, which tools/settings_camera_row.ps1 gives a magnifier and clears of "Язык" and "Русский":
+        // the label goes where "Язык" was, the current choice into the painted dropdown frame.
         private void AddCameraStyleSwitch(float row)
         {
-            // Opaque dark stone backing that completely covers the underlying painted row texture
-            var leftBacking = new GameObject("CameraRowBacking").AddComponent<Image>();
-            leftBacking.transform.SetParent(picture, false);
-            leftBacking.color = new Color(0.12f, 0.14f, 0.17f, 1f);
-            leftBacking.raycastTarget = false;
-            MenuStyle.PlaceOnPicture(leftBacking.rectTransform, new Rect(235f, row - 34f, 465f, 68f));
-
-            // Icon for camera
-            var iconLabel = new GameObject("CameraIcon").AddComponent<Text>();
-            iconLabel.transform.SetParent(picture, false);
-            iconLabel.font = MenuStyle.Font;
-            iconLabel.fontStyle = FontStyle.Bold;
-            iconLabel.fontSize = 30;
-            iconLabel.alignment = TextAnchor.MiddleCenter;
-            iconLabel.color = new Color(1f, 0.88f, 0.58f);
-            iconLabel.text = "🔍";
-            iconLabel.raycastTarget = false;
-            MenuStyle.PlaceOnPicture(iconLabel.rectTransform, new Rect(245f, row - 25f, 50f, 50f));
-
-            // Harmonious left label matching other settings rows
             var label = new GameObject("CameraStyleLabel").AddComponent<Text>();
             label.transform.SetParent(picture, false);
             label.font = MenuStyle.Font;
             label.fontStyle = FontStyle.Bold;
-            label.fontSize = 32;
             label.alignment = TextAnchor.MiddleLeft;
-            label.color = new Color(1f, 0.88f, 0.58f);
+            label.color = LabelGold;
             label.text = "Масштаб камеры";
             label.raycastTarget = false;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 8;
+            label.resizeTextMaxSize = 60;
             var outline = label.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
             outline.effectDistance = new Vector2(2f, -2f);
-            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(315f, row - 30f, 380f, 60f));
+            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(LabelLeft, row - LabelHalf, CameraBox.xMin - 30f - LabelLeft, 2f * LabelHalf));
 
-            // Sliced plate button covering the right side dropdown area
+            // The whole painted frame is the button; a tap switches between the two framings.
             var buttonImage = new GameObject("CameraStyleButton").AddComponent<Image>();
             buttonImage.transform.SetParent(picture, false);
-            buttonImage.color = new Color(0.16f, 0.18f, 0.22f, 1f);
-            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, new Rect(737f, row - 32f, 586f, 64f));
+            buttonImage.color = Color.clear;
+            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, CameraBox);
 
-            var buttonBorder = buttonImage.gameObject.AddComponent<Outline>();
-            buttonBorder.effectColor = new Color(1f, 0.84f, 0.42f, 0.65f);
-            buttonBorder.effectDistance = new Vector2(2f, 2f);
-
-            cameraStyleText = new GameObject("Text").AddComponent<Text>();
-            cameraStyleText.transform.SetParent(buttonImage.transform, false);
+            cameraStyleText = new GameObject("CameraStyleValue").AddComponent<Text>();
+            cameraStyleText.transform.SetParent(picture, false);
             cameraStyleText.font = MenuStyle.Font;
             cameraStyleText.fontStyle = FontStyle.Bold;
-            cameraStyleText.fontSize = 22;
             cameraStyleText.alignment = TextAnchor.MiddleCenter;
             cameraStyleText.color = ValueColor;
             cameraStyleText.raycastTarget = false;
-            MenuStyle.Stretch(cameraStyleText.rectTransform);
+            cameraStyleText.resizeTextForBestFit = true;
+            cameraStyleText.resizeTextMinSize = 8;
+            cameraStyleText.resizeTextMaxSize = 60;
+            // Between the frame's left edge and its painted chevron.
+            MenuStyle.PlaceOnPicture(cameraStyleText.rectTransform,
+                new Rect(CameraBox.xMin + 22f, row - ValueHalf, CameraChevronLeft - CameraBox.xMin - 34f, 2f * ValueHalf));
 
             cameraStyleButton = MenuStyle.MakeButton(buttonImage, () =>
             {
@@ -425,8 +433,8 @@ namespace DungeonGuardians.Presentation
             if (cameraStyleText != null)
             {
                 cameraStyleText.text = GameSettings.CameraStyle == 0
-                    ? "КРУПНЫЙ ПЛАН (7 РЯДОВ) — ТЕЛЕФОН ▾"
-                    : "ОБЗОРНЫЙ ПЛАН (11 РЯДОВ) — ПЛАНШЕТ ▾";
+                    ? "Телефон · 7 рядов"
+                    : "Планшет · 11 рядов";
             }
         }
 

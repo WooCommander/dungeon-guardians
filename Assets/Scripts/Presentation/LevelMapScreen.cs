@@ -13,10 +13,8 @@ namespace DungeonGuardians.Presentation
         private static readonly Vector2 CanvasReference = new Vector2(1024f, 576f);
         private static readonly Color GoldColor = new Color(1f, 0.84f, 0.42f);
         private static readonly Color CyanGlow = new Color(0.35f, 0.95f, 1f);
-        private static readonly Color LockedColor = new Color(0.18f, 0.20f, 0.24f, 0.92f);
-        private static readonly Color CompletedColor = new Color(0.96f, 0.80f, 0.35f);
-        private static readonly Color PathActiveColor = new Color(1f, 0.84f, 0.42f, 0.9f);
-        private static readonly Color PathLockedColor = new Color(0.28f, 0.30f, 0.35f, 0.45f);
+        private static readonly Color PathActiveColor = new Color(1f, 0.84f, 0.42f, 0.95f);
+        private static readonly Color PathLockedColor = new Color(0.35f, 0.38f, 0.44f, 0.45f);
 
         // 15 Level node positions in 1024x576 space matching reference concept art
         private static readonly Vector2[] NodePositions =
@@ -64,8 +62,23 @@ namespace DungeonGuardians.Presentation
         private int lastSeenUnlockedIndex = -1;
         private readonly List<Image> nodeImages = new List<Image>();
         private readonly List<Text> nodeLabels = new List<Text>();
+        private readonly List<Image> nodeIconOverlays = new List<Image>();
         private readonly List<Text> nodeStarLabels = new List<Text>();
         private readonly List<Image> pathLines = new List<Image>();
+
+        // Sprites from atlas
+        private Sprite nodeGoldSprite;
+        private Sprite nodeCyanSprite;
+        private Sprite nodeLockedSprite;
+        private Sprite iconCheckSprite;
+        private Sprite iconLockSprite;
+        private Sprite iconHelmetSprite;
+        private Sprite cardFrameSprite;
+        private Sprite playBtnSprite;
+        private Sprite backBtnSprite;
+        private Sprite progressTrackSprite;
+        private Sprite progressFillSprite;
+        private Sprite dividerSprite;
 
         private Image sparkImage;
         private float sparkProgress;
@@ -100,8 +113,25 @@ namespace DungeonGuardians.Presentation
             root.transform.SetParent(parent, false);
             MenuStyle.Stretch((RectTransform)root.transform);
             var screen = root.AddComponent<LevelMapScreen>();
+            screen.LoadAtlasSprites();
             screen.Build();
             return screen;
+        }
+
+        private void LoadAtlasSprites()
+        {
+            nodeGoldSprite = Resources.Load<Sprite>("UI/map_node_gold");
+            nodeCyanSprite = Resources.Load<Sprite>("UI/map_node_cyan");
+            nodeLockedSprite = Resources.Load<Sprite>("UI/map_node_locked");
+            iconCheckSprite = Resources.Load<Sprite>("UI/map_icon_check");
+            iconLockSprite = Resources.Load<Sprite>("UI/map_icon_lock");
+            iconHelmetSprite = Resources.Load<Sprite>("UI/map_icon_helmet");
+            cardFrameSprite = Resources.Load<Sprite>("UI/map_card_frame");
+            playBtnSprite = Resources.Load<Sprite>("UI/map_play_btn");
+            backBtnSprite = Resources.Load<Sprite>("UI/map_back_btn");
+            progressTrackSprite = Resources.Load<Sprite>("UI/map_progress_track");
+            progressFillSprite = Resources.Load<Sprite>("UI/map_progress_fill");
+            dividerSprite = Resources.Load<Sprite>("UI/map_divider");
         }
 
         public void Open(PlayerProgress currentProgress, LevelCatalog levelCatalog)
@@ -164,7 +194,7 @@ namespace DungeonGuardians.Presentation
 
                 RectTransform rect = lineObj.rectTransform;
                 rect.anchorMin = rect.anchorMax = new Vector2(mid.x / CanvasReference.x, 1f - mid.y / CanvasReference.y);
-                rect.sizeDelta = new Vector2(dist, 5f);
+                rect.sizeDelta = new Vector2(dist, 6f);
                 rect.localEulerAngles = new Vector3(0f, 0f, -angle);
 
                 pathLines.Add(lineObj);
@@ -204,54 +234,88 @@ namespace DungeonGuardians.Presentation
 
         private void BuildTopBar()
         {
-            // Back button in top-left
-            var backBtn = MenuStyle.AddPictureButton(picture, "settings_back", new Rect(28f, 22f, 64f, 54f), "<", () => BackRequested?.Invoke());
-            var backLabel = backBtn.GetComponentInChildren<Text>();
-            if (backLabel != null)
+            // Back button in top-left using sprite from atlas (240x160 ratio)
+            var backBtnObj = new GameObject("BackButton").AddComponent<Image>();
+            backBtnObj.transform.SetParent(picture, false);
+            if (backBtnSprite != null)
             {
-                backLabel.text = "←";
-                backLabel.fontSize = 32;
+                backBtnObj.sprite = backBtnSprite;
             }
+            else
+            {
+                backBtnObj.color = new Color(0.2f, 0.16f, 0.12f, 0.95f);
+            }
+            MenuStyle.PlaceOnPicture(backBtnObj.rectTransform, new Rect(24f, 16f, 66f, 44f));
+            MenuStyle.MakeButton(backBtnObj, () => BackRequested?.Invoke());
 
             // Title: ПУТЬ ИСКАТЕЛЯ
-            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 32);
+            var title = MenuStyle.AddLabel(picture, "ПУТЬ ИСКАТЕЛЯ", 28);
             title.fontStyle = FontStyle.Bold;
             title.color = GoldColor;
             title.alignment = TextAnchor.MiddleCenter;
-            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(300f, 15f, 424f, 38f));
+            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(320f, 10f, 384f, 32f));
 
-            // Progress bar and text
-            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 15", 16);
-            progressText.color = new Color(0.95f, 0.95f, 0.95f);
+            // Decorative divider below title (285x60 ratio)
+            if (dividerSprite != null)
+            {
+                var divObj = new GameObject("TitleDivider").AddComponent<Image>();
+                divObj.transform.SetParent(picture, false);
+                divObj.sprite = dividerSprite;
+                divObj.raycastTarget = false;
+                MenuStyle.PlaceOnPicture(divObj.rectTransform, new Rect(427f, 40f, 170f, 24f));
+            }
+
+            // Progress text
+            progressText = MenuStyle.AddLabel(picture, "Пройдено 0 из 15", 15);
+            progressText.color = new Color(0.92f, 0.92f, 0.92f);
             progressText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(260f, 56f, 200f, 22f));
+            MenuStyle.PlaceOnPicture(progressText.rectTransform, new Rect(240f, 65f, 180f, 22f));
 
-            // Progress bar track
+            // Progress bar track using atlas sprite (220x60 ratio)
             var barTrack = new GameObject("ProgressTrack").AddComponent<Image>();
             barTrack.transform.SetParent(picture, false);
-            barTrack.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
-            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(470f, 61f, 200f, 12f));
+            if (progressTrackSprite != null)
+            {
+                barTrack.sprite = progressTrackSprite;
+            }
+            else
+            {
+                barTrack.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
+            }
+            MenuStyle.PlaceOnPicture(barTrack.rectTransform, new Rect(430f, 64f, 210f, 24f));
 
             var fillObj = new GameObject("Fill").AddComponent<Image>();
             fillObj.transform.SetParent(barTrack.transform, false);
-            fillObj.color = GoldColor;
+            if (progressFillSprite != null)
+            {
+                fillObj.sprite = progressFillSprite;
+            }
+            else
+            {
+                fillObj.color = GoldColor;
+            }
             fillObj.type = Image.Type.Filled;
             fillObj.fillMethod = Image.FillMethod.Horizontal;
             fillObj.fillOrigin = (int)Image.OriginHorizontal.Left;
-            MenuStyle.Stretch(fillObj.rectTransform);
+            
+            RectTransform fillRect = fillObj.rectTransform;
+            fillRect.anchorMin = new Vector2(0.04f, 0.15f);
+            fillRect.anchorMax = new Vector2(0.96f, 0.85f);
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
             progressBarFill = fillObj;
 
             percentText = MenuStyle.AddLabel(picture, "0%", 15);
             percentText.color = GoldColor;
             percentText.fontStyle = FontStyle.Bold;
             percentText.alignment = TextAnchor.MiddleLeft;
-            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(680f, 56f, 60f, 22f));
+            MenuStyle.PlaceOnPicture(percentText.rectTransform, new Rect(650f, 65f, 60f, 22f));
 
             totalStarsText = MenuStyle.AddLabel(picture, "★ 0", 18);
             totalStarsText.color = GoldColor;
             totalStarsText.fontStyle = FontStyle.Bold;
             totalStarsText.alignment = TextAnchor.MiddleRight;
-            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(750f, 22f, 100f, 30f));
+            MenuStyle.PlaceOnPicture(totalStarsText.rectTransform, new Rect(750f, 18f, 100f, 30f));
         }
 
         private void BuildLevelNodes()
@@ -260,11 +324,12 @@ namespace DungeonGuardians.Presentation
             {
                 int index = i;
                 Vector2 pos = NodePositions[i];
-                float size = 52f;
+                float size = 56f;
 
                 var nodeObj = new GameObject($"Node_{i + 1}").AddComponent<Image>();
                 nodeObj.transform.SetParent(picture, false);
-                nodeObj.color = new Color(0.16f, 0.18f, 0.22f, 0.95f);
+                nodeObj.sprite = nodeLockedSprite;
+                nodeObj.color = Color.white;
                 MenuStyle.PlaceOnPicture(nodeObj.rectTransform, new Rect(pos.x - size / 2f, pos.y - size / 2f, size, size));
 
                 var btn = nodeObj.gameObject.AddComponent<Button>();
@@ -277,7 +342,17 @@ namespace DungeonGuardians.Presentation
                     }
                 });
 
+                // Icon overlay (Lock / Checkmark / Helmet)
+                var iconObj = new GameObject("IconOverlay").AddComponent<Image>();
+                iconObj.transform.SetParent(nodeObj.transform, false);
+                iconObj.raycastTarget = false;
+                var iconRect = iconObj.rectTransform;
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.5f);
+                iconRect.sizeDelta = new Vector2(28f, 28f);
+                iconRect.anchoredPosition = Vector2.zero;
+
                 nodeImages.Add(nodeObj);
+                nodeIconOverlays.Add(iconObj);
 
                 var label = MenuStyle.AddLabel(nodeObj.transform, $"{i + 1}", 20);
                 label.fontStyle = FontStyle.Bold;
@@ -301,7 +376,14 @@ namespace DungeonGuardians.Presentation
             // Panel frame on the right side of the screen matching concept stone card
             var cardPanel = new GameObject("InfoCardPanel").AddComponent<Image>();
             cardPanel.transform.SetParent(picture, false);
-            cardPanel.color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
+            if (cardFrameSprite != null)
+            {
+                cardPanel.sprite = cardFrameSprite;
+            }
+            else
+            {
+                cardPanel.color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
+            }
             MenuStyle.PlaceOnPicture(cardPanel.rectTransform, new Rect(750f, 75f, 235f, 410f));
 
             var border = cardPanel.gameObject.AddComponent<Outline>();
@@ -312,13 +394,13 @@ namespace DungeonGuardians.Presentation
             cardChapterText.color = GoldColor;
             cardChapterText.fontStyle = FontStyle.Bold;
             cardChapterText.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(10f, 15f, 215f, 24f));
+            MenuStyle.PlaceOnPicture(cardChapterText.rectTransform, new Rect(10f, 18f, 215f, 24f));
 
             cardLevelTitle = MenuStyle.AddLabel(cardPanel.transform, "Уровень 1", 20);
             cardLevelTitle.color = Color.white;
             cardLevelTitle.fontStyle = FontStyle.Bold;
             cardLevelTitle.alignment = TextAnchor.UpperCenter;
-            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(10f, 40f, 215f, 48f));
+            MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(10f, 42f, 215f, 48f));
 
             // Illustration preview box
             var previewBox = new GameObject("PreviewBox").AddComponent<Image>();
@@ -351,21 +433,25 @@ namespace DungeonGuardians.Presentation
 
         private void BuildBottomPlayButton()
         {
-            var btn = MenuStyle.AddPictureButton(
-                picture,
-                "menu_gold_btn",
-                new Rect(300f, 495f, 424f, 58f),
-                "ПРОДОЛЖИТЬ",
-                OnPlayClicked
-            );
-
-            playButtonText = btn.GetComponentInChildren<Text>();
-            if (playButtonText != null)
+            var btnImage = new GameObject("PlayButton").AddComponent<Image>();
+            btnImage.transform.SetParent(picture, false);
+            if (playBtnSprite != null)
             {
-                playButtonText.fontSize = 22;
-                playButtonText.fontStyle = FontStyle.Bold;
-                playButtonText.color = new Color(0.12f, 0.08f, 0.03f);
+                btnImage.sprite = playBtnSprite;
             }
+            else
+            {
+                btnImage.color = new Color(0.95f, 0.72f, 0.22f, 0.95f);
+            }
+            MenuStyle.PlaceOnPicture(btnImage.rectTransform, new Rect(300f, 495f, 424f, 58f));
+
+            playButtonText = MenuStyle.AddLabel(btnImage.transform, "ПРОДОЛЖИТЬ", 22);
+            playButtonText.fontStyle = FontStyle.Bold;
+            playButtonText.color = new Color(0.12f, 0.08f, 0.03f);
+            playButtonText.alignment = TextAnchor.MiddleCenter;
+            MenuStyle.Stretch(playButtonText.rectTransform);
+
+            MenuStyle.MakeButton(btnImage, OnPlayClicked);
         }
 
         private void OnPlayClicked()
@@ -608,27 +694,63 @@ namespace DungeonGuardians.Presentation
                 string levelId = i < catalog.Levels.Count ? catalog.Levels[i].id : $"level_{i + 1}";
                 LevelRecord record = progress.GetOrCreateRecord(i, levelId);
 
+                Image overlay = nodeIconOverlays[i];
+
                 if (!unlocked)
                 {
-                    nodeImages[i].color = LockedColor;
-                    nodeLabels[i].text = "🔒";
-                    nodeLabels[i].color = new Color(0.6f, 0.6f, 0.6f);
+                    nodeImages[i].sprite = nodeLockedSprite;
+                    nodeLabels[i].text = string.Empty;
                     nodeStarLabels[i].text = string.Empty;
+
+                    if (iconLockSprite != null)
+                    {
+                        overlay.gameObject.SetActive(true);
+                        overlay.sprite = iconLockSprite;
+                        overlay.color = Color.white;
+                        overlay.rectTransform.sizeDelta = new Vector2(24f, 30f);
+                        overlay.rectTransform.anchoredPosition = Vector2.zero;
+                    }
                 }
                 else if (record.completed)
                 {
-                    nodeImages[i].color = i == selectedIndex ? CyanGlow : CompletedColor;
-                    nodeLabels[i].text = $"{i + 1} ✓";
-                    nodeLabels[i].color = new Color(0.12f, 0.08f, 0.04f);
+                    nodeImages[i].sprite = nodeGoldSprite;
+                    nodeLabels[i].text = $"{i + 1}";
+                    nodeLabels[i].color = new Color(1f, 0.95f, 0.7f);
                     nodeStarLabels[i].text = GetStarsString(record.stars);
+
+                    if (iconCheckSprite != null)
+                    {
+                        overlay.gameObject.SetActive(true);
+                        overlay.sprite = iconCheckSprite;
+                        overlay.color = Color.white;
+                        overlay.rectTransform.sizeDelta = new Vector2(20f, 20f);
+                        overlay.rectTransform.anchoredPosition = new Vector2(16f, -14f);
+                    }
+                    else
+                    {
+                        overlay.gameObject.SetActive(false);
+                    }
                 }
                 else
                 {
-                    // Current active level: Cyan glow circle with explorer icon
-                    nodeImages[i].color = CyanGlow;
+                    // Current active level: Cyan glow node with helmet
+                    nodeImages[i].sprite = nodeCyanSprite;
                     nodeLabels[i].text = $"{i + 1}";
-                    nodeLabels[i].color = new Color(0.05f, 0.15f, 0.18f);
+                    nodeLabels[i].color = Color.white;
                     nodeStarLabels[i].text = string.Empty;
+
+                    if (iconHelmetSprite != null)
+                    {
+                        overlay.gameObject.SetActive(true);
+                        overlay.sprite = iconHelmetSprite;
+                        overlay.color = Color.white;
+                        overlay.rectTransform.sizeDelta = new Vector2(46f, 34f);
+                        overlay.rectTransform.anchoredPosition = new Vector2(0f, 22f);
+                    }
+                    else
+                    {
+                        overlay.gameObject.SetActive(false);
+                    }
                 }
             }
 
