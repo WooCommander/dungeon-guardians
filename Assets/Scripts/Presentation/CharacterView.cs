@@ -232,7 +232,12 @@ namespace DungeonGuardians.Presentation
                     {
                         CopyTexture(own, stone[m], "_MainTex", "_BaseMap");
                         CopyTexture(own, stone[m], "_BumpMap");
-                        if (own.HasProperty("_Color"))
+                        // URP materials keep their tint in _BaseColor, older ones in _Color.
+                        if (own.HasProperty("_BaseColor"))
+                        {
+                            stone[m].color = own.GetColor("_BaseColor");
+                        }
+                        else if (own.HasProperty("_Color"))
                         {
                             stone[m].color = own.color;
                         }
