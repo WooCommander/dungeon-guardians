@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using DungeonGuardians.Core;
 using DungeonGuardians.Persistence;
@@ -12,8 +13,10 @@ namespace DungeonGuardians.Presentation
         private static readonly Vector2 CanvasReference = new Vector2(1672f, 941f);
         private static readonly Color GoldColor = new Color(1f, 0.84f, 0.42f);
         private static readonly Color CyanGlow = new Color(0.35f, 0.95f, 1f);
-        private static readonly Color LockedColor = new Color(0.35f, 0.35f, 0.35f, 0.85f);
+        private static readonly Color LockedColor = new Color(0.25f, 0.25f, 0.28f, 0.85f);
         private static readonly Color CompletedColor = new Color(0.95f, 0.78f, 0.32f);
+        private static readonly Color PathActiveColor = new Color(1f, 0.82f, 0.35f, 0.75f);
+        private static readonly Color PathLockedColor = new Color(0.2f, 0.22f, 0.26f, 0.45f);
 
         // Map layout nodes (X, Y in 1672x941 space)
         private static readonly Vector2[] NodePositions =
@@ -42,9 +45,20 @@ namespace DungeonGuardians.Presentation
         private PlayerProgress progress;
         private LevelCatalog catalog;
         private int selectedIndex;
+        private int lastSeenUnlockedIndex = -1;
         private readonly List<Image> nodeImages = new List<Image>();
         private readonly List<Text> nodeLabels = new List<Text>();
         private readonly List<Text> nodeStarLabels = new List<Text>();
+        private readonly List<Image> pathLines = new List<Image>();
+
+        private Image sparkImage;
+        private float sparkProgress;
+        private const float SparkSpeed = 0.55f;
+
+        // Unlock visual effects
+        private Image burstRing;
+        private readonly List<Image> burstSparks = new List<Image>();
+        private static AudioClip unlockSfxClip;
 
         private Text progressText;
         private Image progressBarFill;
@@ -81,9 +95,17 @@ namespace DungeonGuardians.Presentation
 
             int highestUnlocked = Mathf.Clamp(progress.highestUnlockedIndex, 0, catalog.Levels.Count - 1);
             selectedIndex = Mathf.Clamp(progress.lastSelectedLevelIndex, 0, highestUnlocked);
+            sparkProgress = 0f;
 
             Refresh();
             gameObject.SetActive(true);
+
+            // Trigger unlock ceremony if newly unlocked
+            if (lastSeenUnlockedIndex >= 0 && highestUnlocked > lastSeenUnlockedIndex)
+            {
+                StartCoroutine(AnimateUnlockSequence(highestUnlocked));
+            }
+            lastSeenUnlockedIndex = highestUnlocked;
         }
 
         public void Close()
@@ -98,10 +120,68 @@ namespace DungeonGuardians.Presentation
             backing.raycastTarget = true;
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/map", AspectRatioFitter.AspectMode.FitInParent).transform;
 
-            BuildTopBar();
+            BuildPathLines();
+            BuildSpark();
+            BuildUnlockVfx();
             BuildLevelNodes();
+            BuildTopBar();
             BuildInfoCard();
             BuildBottomPlayButton();
+        }
+
+        private void BuildPathLines()
+        {
+            for (int i = 0; i < NodePositions.Length - 1; i++)
+            {
+                Vector2 start = NodePositions[i];
+                Vector2 end = NodePositions[i + 1];
+                Vector2 mid = (start + end) * 0.5f;
+                float dist = Vector2.Distance(start, end);
+                float angle = Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg;
+
+                var lineObj = new GameObject($"PathLine_{i + 1}_{i + 2}").AddComponent<Image>();
+                lineObj.transform.SetParent(picture, false);
+                lineObj.color = PathLockedColor;
+                lineObj.raycastTarget = false;
+
+                RectTransform rect = lineObj.rectTransform;
+                rect.anchorMin = rect.anchorMax = new Vector2(mid.x / CanvasReference.x, 1f - mid.y / CanvasReference.y);
+                rect.sizeDelta = new Vector2(dist, 6f);
+                rect.localEulerAngles = new Vector3(0f, 0f, -angle);
+
+                pathLines.Add(lineObj);
+            }
+        }
+
+        private void BuildSpark()
+        {
+            sparkImage = new GameObject("PathSpark").AddComponent<Image>();
+            sparkImage.transform.SetParent(picture, false);
+            sparkImage.sprite = ExitGlow.GetHaloSprite();
+            sparkImage.color = new Color(1f, 0.95f, 0.55f, 0.95f);
+            sparkImage.raycastTarget = false;
+            sparkImage.rectTransform.sizeDelta = new Vector2(40f, 40f);
+        }
+
+        private void BuildUnlockVfx()
+        {
+            burstRing = new GameObject("BurstRing").AddComponent<Image>();
+            burstRing.transform.SetParent(picture, false);
+            burstRing.sprite = ExitGlow.GetHaloSprite();
+            burstRing.color = Color.clear;
+            burstRing.raycastTarget = false;
+            burstRing.rectTransform.sizeDelta = new Vector2(90f, 90f);
+
+            for (int i = 0; i < 12; i++)
+            {
+                var spark = new GameObject($"BurstSpark_{i}").AddComponent<Image>();
+                spark.transform.SetParent(picture, false);
+                spark.sprite = ExitGlow.GetHaloSprite();
+                spark.color = Color.clear;
+                spark.raycastTarget = false;
+                spark.rectTransform.sizeDelta = new Vector2(24f, 24f);
+                burstSparks.Add(spark);
+            }
         }
 
         private void BuildTopBar()
@@ -206,7 +286,7 @@ namespace DungeonGuardians.Presentation
             cardLevelTitle.alignment = TextAnchor.UpperCenter;
             MenuStyle.PlaceOnPicture(cardLevelTitle.rectTransform, new Rect(20f, 80f, 340f, 60f));
 
-            // Illustration placeholder panel
+            // Illustration preview panel
             var previewPanel = new GameObject("Preview").AddComponent<Image>();
             previewPanel.transform.SetParent(card.transform, false);
             previewPanel.color = new Color(0.04f, 0.06f, 0.09f, 0.95f);
@@ -287,6 +367,197 @@ namespace DungeonGuardians.Presentation
             }
         }
 
+        private IEnumerator AnimateUnlockSequence(int nodeIndex)
+        {
+            if (nodeIndex < 0 || nodeIndex >= NodePositions.Length)
+            {
+                yield break;
+            }
+
+            Vector2 targetPos = NodePositions[nodeIndex];
+            PlayUnlockSound();
+
+            // Setup burst ring
+            burstRing.rectTransform.anchorMin = burstRing.rectTransform.anchorMax =
+                new Vector2(targetPos.x / CanvasReference.x, 1f - targetPos.y / CanvasReference.y);
+            burstRing.rectTransform.anchoredPosition = Vector2.zero;
+
+            // Setup radial sparks
+            for (int i = 0; i < burstSparks.Count; i++)
+            {
+                burstSparks[i].rectTransform.anchorMin = burstSparks[i].rectTransform.anchorMax =
+                    new Vector2(targetPos.x / CanvasReference.x, 1f - targetPos.y / CanvasReference.y);
+                burstSparks[i].rectTransform.anchoredPosition = Vector2.zero;
+            }
+
+            float duration = 0.85f;
+            float elapsed = 0f;
+            Transform nodeTransform = nodeImages[nodeIndex].transform;
+            Vector3 originalNodePos = nodeTransform.localPosition;
+            Vector3 originalPicPos = picture.localPosition;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+
+                // Expand ring with fading alpha
+                float ringScale = Mathf.Lerp(0.2f, 3.2f, Mathf.Sqrt(t));
+                float ringAlpha = Mathf.Sin(t * Mathf.PI);
+                burstRing.color = new Color(1f, 0.88f, 0.45f, ringAlpha * 0.95f);
+                burstRing.transform.localScale = Vector3.one * ringScale;
+
+                // Move 12 radial sparks outwards with varied speeds
+                for (int i = 0; i < burstSparks.Count; i++)
+                {
+                    float angle = (i * (360f / burstSparks.Count) + Mathf.Sin(i * 1.5f) * 15f) * Mathf.Deg2Rad;
+                    float speedMultiplier = 0.8f + 0.4f * Mathf.Sin(i * 2.3f);
+                    float sparkDist = Mathf.Lerp(0f, 110f * speedMultiplier, 1f - Mathf.Pow(1f - t, 2.5f));
+                    Vector2 offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * sparkDist;
+                    burstSparks[i].rectTransform.anchoredPosition = offset;
+                    burstSparks[i].color = new Color(1f, 0.96f, 0.65f, (1f - t) * 0.95f);
+                    burstSparks[i].transform.localScale = Vector3.one * Mathf.Lerp(1.4f, 0.1f, t);
+                }
+
+                // Node bounce & ancient mechanism shake
+                float bounce = 1f + 0.4f * Mathf.Sin(t * Mathf.PI * 2.5f) * (1f - t);
+                nodeTransform.localScale = Vector3.one * bounce;
+
+                // Lock rattle / screen micro-shake in the first 0.28 seconds
+                if (elapsed < 0.28f)
+                {
+                    float shakeIntensity = (1f - elapsed / 0.28f) * 6f;
+                    float shakeX = Mathf.Sin(elapsed * 90f) * shakeIntensity;
+                    float shakeY = Mathf.Cos(elapsed * 75f) * shakeIntensity * 0.7f;
+                    nodeTransform.localPosition = originalNodePos + new Vector3(shakeX, shakeY, 0f);
+                    picture.localPosition = originalPicPos + new Vector3(shakeX * 0.35f, shakeY * 0.35f, 0f);
+                }
+                else
+                {
+                    nodeTransform.localPosition = originalNodePos;
+                    picture.localPosition = originalPicPos;
+                }
+
+                yield return null;
+            }
+
+            burstRing.color = Color.clear;
+            for (int i = 0; i < burstSparks.Count; i++)
+            {
+                burstSparks[i].color = Color.clear;
+            }
+            nodeTransform.localScale = Vector3.one;
+            nodeTransform.localPosition = originalNodePos;
+            picture.localPosition = originalPicPos;
+        }
+
+        private static void PlayUnlockSound()
+        {
+            if (unlockSfxClip == null)
+            {
+                int sampleRate = 44100;
+                float duration = 0.55f;
+                int samplesCount = (int)(sampleRate * duration);
+                float[] samples = new float[samplesCount];
+
+                for (int i = 0; i < samplesCount; i++)
+                {
+                    float t = (float)i / sampleRate;
+
+                    // 1. Initial sharp metal pick / tumbler click (1950Hz + 2800Hz)
+                    float click1 = Mathf.Sin(2f * Mathf.PI * 1950f * t) * Mathf.Exp(-t * 110f);
+                    click1 += Mathf.Sin(2f * Mathf.PI * 2800f * t) * Mathf.Exp(-t * 130f) * 0.6f;
+
+                    // 2. Heavy stone/bronze latch release latch-spring thud at t = 0.055s (180Hz - 320Hz)
+                    float latchThud = 0f;
+                    if (t > 0.055f)
+                    {
+                        float dt = t - 0.055f;
+                        latchThud = Mathf.Sin(2f * Mathf.PI * 220f * dt) * Mathf.Exp(-dt * 45f) * 0.75f;
+                        latchThud += Mathf.Sin(2f * Mathf.PI * 960f * dt) * Mathf.Exp(-dt * 70f) * 0.5f;
+                    }
+
+                    // 3. Resonant crystal / golden chime chord (1568Hz G6 + 2349Hz D7 + 3136Hz G7)
+                    float chime = 0f;
+                    if (t > 0.02f)
+                    {
+                        float dt = t - 0.02f;
+                        chime += Mathf.Sin(2f * Mathf.PI * 1568f * dt) * Mathf.Exp(-dt * 7.5f) * 0.45f;
+                        chime += Mathf.Sin(2f * Mathf.PI * 2349f * dt) * Mathf.Exp(-dt * 11.0f) * 0.25f;
+                        chime += Mathf.Sin(2f * Mathf.PI * 3136f * dt) * Mathf.Exp(-dt * 14.0f) * 0.15f;
+                    }
+
+                    samples[i] = Mathf.Clamp(click1 * 0.6f + latchThud + chime, -1f, 1f);
+                }
+
+                unlockSfxClip = AudioClip.Create("UnlockSFX", samplesCount, 1, sampleRate, false);
+                unlockSfxClip.SetData(samples, 0);
+            }
+
+            if (GameSettings.Sound > 0.01f)
+            {
+                var audioObj = new GameObject("UnlockSoundTemp");
+                var src = audioObj.AddComponent<AudioSource>();
+                src.clip = unlockSfxClip;
+                src.volume = GameSettings.Sound * 0.95f;
+                src.pitch = UnityEngine.Random.Range(0.98f, 1.03f);
+                src.Play();
+                UnityEngine.Object.Destroy(audioObj, 0.7f);
+            }
+        }
+
+        private void Update()
+        {
+            if (catalog == null || progress == null || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            float time = Time.unscaledTime;
+
+            // Pulse currently selected node
+            float pulse = 1f + 0.08f * Mathf.Sin(time * 5f);
+            if (selectedIndex >= 0 && selectedIndex < nodeImages.Count)
+            {
+                nodeImages[selectedIndex].transform.localScale = Vector3.one * pulse;
+            }
+
+            // Animate spark running along the unlocked path
+            int maxStep = Mathf.Clamp(progress.highestUnlockedIndex, 0, NodePositions.Length - 1);
+            if (maxStep > 0 && sparkImage != null)
+            {
+                sparkProgress += Time.unscaledDeltaTime * SparkSpeed;
+                if (sparkProgress > maxStep)
+                {
+                    sparkProgress = 0f;
+                }
+
+                int segIndex = Mathf.FloorToInt(sparkProgress);
+                float segT = sparkProgress - segIndex;
+                if (segIndex >= maxStep)
+                {
+                    segIndex = maxStep - 1;
+                    segT = 1f;
+                }
+
+                Vector2 start = NodePositions[segIndex];
+                Vector2 end = NodePositions[segIndex + 1];
+                Vector2 currentPos = Vector2.Lerp(start, end, segT);
+
+                sparkImage.gameObject.SetActive(true);
+                sparkImage.rectTransform.anchorMin = sparkImage.rectTransform.anchorMax =
+                    new Vector2(currentPos.x / CanvasReference.x, 1f - currentPos.y / CanvasReference.y);
+                sparkImage.rectTransform.anchoredPosition = Vector2.zero;
+
+                float sparkScale = 1f + 0.3f * Mathf.Sin(time * 12f);
+                sparkImage.transform.localScale = Vector3.one * sparkScale;
+            }
+            else if (sparkImage != null)
+            {
+                sparkImage.gameObject.SetActive(false);
+            }
+        }
+
         private void Refresh()
         {
             if (catalog == null || progress == null)
@@ -303,6 +574,13 @@ namespace DungeonGuardians.Presentation
             progressBarFill.fillAmount = ratio;
             percentText.text = $"{Mathf.RoundToInt(ratio * 100f)}%";
             totalStarsText.text = $"★ {totalStars}";
+
+            // Update path lines
+            for (int i = 0; i < pathLines.Count; i++)
+            {
+                bool lineActive = progress.IsUnlocked(i + 1);
+                pathLines[i].color = lineActive ? PathActiveColor : PathLockedColor;
+            }
 
             // Update nodes
             for (int i = 0; i < nodeImages.Count; i++)
