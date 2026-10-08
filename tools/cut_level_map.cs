@@ -142,7 +142,8 @@ Inpaint(clean, hole, everywhere, 70);
 // The painted back arrow in the top-left corner: the game draws its own buttons (LevelMapScreen.cs).
 var arrow = new bool[src.W * src.H];
 MarkRect(arrow, 26, 18, 160, 100);
-Inpaint(clean, arrow, everywhere, 160);
+// Patches come from the cave and the column above the corner ornament only, so no piece of it is copied in.
+Inpaint(clean, arrow, new Rectangle(0, 0, 300, 86), 220);
 
 // "Пройдено 6 из 15" and "40%" on the dark plate under the title.
 var plate = new bool[src.W * src.H];

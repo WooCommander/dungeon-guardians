@@ -367,12 +367,13 @@ namespace DungeonGuardians.Presentation
 
         private void BuildButtons()
         {
-            // Three buttons of one kind: the golden banner to play, and its unlit twin (UI/map_button.png, stretched
-            // in the middle) to go back beside it and, away in the top-left corner, to start over. One caption size
-            // for all three. The painted back arrow is gone from the picture (tools/cut_level_map.cs).
-            playText = MenuStyle.AddCaptionedButton(picture, "map_play", new Rect(544f, 807f, 685f, 93f), string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
-            Text back = MenuStyle.AddQuietButton(picture, "map_button", new Rect(104f, 807f, 420f, 93f), "НАЗАД", () => BackRequested?.Invoke());
-            Text reset = MenuStyle.AddQuietButton(picture, "map_button", new Rect(24f, 14f, 420f, 93f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
+            // One row of three buttons of one kind and width along the floor of the hall: start over, back, and the
+            // golden banner to play; the other two are its unlit twin (UI/map_button.png). Both stretch in the middle
+            // only. One caption size for all three. The painted banner and back arrow are gone from the picture
+            // (tools/cut_level_map.cs).
+            playText = MenuStyle.AddCaptionedButton(picture, "map_play", new Rect(848f, 807f, 380f, 93f), string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
+            Text back = MenuStyle.AddQuietButton(picture, "map_button", new Rect(448f, 807f, 380f, 93f), "НАЗАД", () => BackRequested?.Invoke());
+            Text reset = MenuStyle.AddQuietButton(picture, "map_button", new Rect(48f, 807f, 380f, 93f), "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
             EqualFontSize.Apply(picture.gameObject, 60, playText, back, reset);
         }
 
