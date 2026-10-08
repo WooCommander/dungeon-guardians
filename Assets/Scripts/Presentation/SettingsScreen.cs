@@ -120,24 +120,10 @@ namespace DungeonGuardians.Presentation
             AddCameraStyleSwitch(CameraStyleRow);
 
             // The bottom row, either side of the centre: "ОТМЕНА" (the same plate as "ГОТОВО", unlit:
-            // tools/settings_cancel_button.cs) puts the settings back, "ГОТОВО" keeps them. Both are drawn here:
+            // tools/unlit_buttons.cs) puts the settings back, "ГОТОВО" keeps them. Both are drawn here:
             // tools/settings_bottom_row.ps1 clears the painted bottom buttons and tools/settings_back_corner.ps1 the
             // arrow in the top-left corner. Starting over lives on the level map.
-            Button cancel = MenuStyle.AddPictureButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), string.Empty, Cancel);
-            Text cancelLabel = MenuStyle.AddLabel(cancel.transform, "ОТМЕНА", 60);
-            Font serif = Resources.Load<Font>("Fonts/PTSerif-Bold");
-            if (serif != null)
-            {
-                cancelLabel.font = serif;
-            }
-            cancelLabel.color = new Color(1f, 0.88f, 0.63f);
-            cancelLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
-            cancelLabel.resizeTextForBestFit = true;
-            cancelLabel.resizeTextMinSize = 8;
-            cancelLabel.resizeTextMaxSize = 60;
-            // Inside the plate, clear of the diamonds at its ends.
-            cancelLabel.rectTransform.anchorMin = new Vector2(0.27f, 0.26f);
-            cancelLabel.rectTransform.anchorMax = new Vector2(0.73f, 0.74f);
+            MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), "ОТМЕНА", Cancel);
             MenuStyle.AddPictureButton(picture, "settings_done", new Rect(855f, 763f, 435f, 112f), "ГОТОВО", Close);
         }
 

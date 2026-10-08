@@ -46,17 +46,22 @@ namespace DungeonGuardians.Presentation
             Image picture = MenuStyle.CreatePicture(canvas.transform, "Backgrounds/menu", AspectRatioFitter.AspectMode.EnvelopeParent);
             AddEyeGlows(picture.transform);
             
-            // 1. ИГРАТЬ (Main gold banner button)
-            MenuStyle.AddPictureButton(picture.transform, "menu_play", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", StartGame);
+            // 1. ИГРАТЬ (Main gold banner button). Its caption is written in code like the others below it.
+            var captions = new System.Collections.Generic.List<Text>
+            {
+                MenuStyle.AddCaptionedButton(picture.transform, "menu_play_blank", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", MenuStyle.GoldCaption, StartGame),
+            };
 
-            // 2. НАСТРОЙКИ (Matching stone plate with cyan diamonds)
-            MenuStyle.CreatePlateButtonOnPicture(picture.transform, "НАСТРОЙКИ", new Rect(636f, 615f, 400f, 78f), OpenSettings);
-
-            // 3. ВЫХОД (Directly below Settings with identical plate size and typography)
+            // 2. НАСТРОЙКИ and 3. ВЫХОД (desktop only): the size and shape of ИГРАТЬ, unlit. Each covers the small painted
+            // plate under it.
+            captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 615f, 434f, 124f), "НАСТРОЙКИ", OpenSettings));
             if (!Application.isMobilePlatform)
             {
-                MenuStyle.CreatePlateButtonOnPicture(picture.transform, "ВЫХОД", new Rect(636f, 712f, 400f, 78f), Application.Quit);
+                captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 763f, 434f, 124f), "ВЫХОД", Application.Quit));
             }
+
+            // One size and face for all three captions: the largest at which "НАСТРОЙКИ" still fits.
+            EqualFontSize.Apply(picture.gameObject, 60, captions.ToArray());
 
             settings = SettingsScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
@@ -274,6 +279,42 @@ namespace DungeonGuardians.Presentation
             }
 
             return MakeButton(image, onClick);
+        }
+
+        public static readonly Color QuietCaption = new Color(1f, 0.88f, 0.63f);
+        public static readonly Color GoldCaption = new Color(0.2f, 0.1f, 0.03f);
+
+        // A picture button whose caption is written in code (the plate itself is blank: tools/unlit_buttons.cs) in
+        // the serif of the painted captions, between the diamonds at its ends. Returns the caption.
+        public static Text AddCaptionedButton(Transform picture, string sprite, Rect box, string caption, Color color, Action onClick)
+        {
+            Button button = AddPictureButton(picture, sprite, box, string.Empty, onClick);
+            Text label = AddLabel(button.transform, caption, 60);
+            Font serif = Resources.Load<Font>("Fonts/PTSerif-Bold");
+            if (serif != null)
+            {
+                label.font = serif;
+                label.fontStyle = FontStyle.Normal;
+            }
+            label.color = color;
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 8;
+            label.resizeTextMaxSize = 60;
+            label.rectTransform.anchorMin = new Vector2(0.19f, 0.25f);
+            label.rectTransform.anchorMax = new Vector2(0.81f, 0.75f);
+            // Dark letters on gold get a faint light rim; light letters on bronze keep the dark one.
+            if (color.grayscale < 0.5f)
+            {
+                label.GetComponent<Outline>().effectColor = new Color(1f, 0.93f, 0.7f, 0.35f);
+            }
+            return label;
+        }
+
+        // The unlit twin of a golden button, with a light caption.
+        public static Text AddQuietButton(Transform picture, string sprite, Rect box, string caption, Action onClick)
+        {
+            return AddCaptionedButton(picture, sprite, box, caption, QuietCaption, onClick);
         }
 
         public static Button CreatePlateButton(Transform parent, string label, Vector2 size, Action onClick)
