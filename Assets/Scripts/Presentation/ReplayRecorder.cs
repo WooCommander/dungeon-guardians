@@ -31,9 +31,65 @@ namespace DungeonGuardians.Presentation
             replay.AddRevive();
         }
 
+        private const string PrefsPrefix = "dg_replay_";
+
+        public static LevelReplay LoadBestReplay(string levelId, LevelDefinition level, BalanceConfig balance)
+        {
+            if (string.IsNullOrEmpty(levelId))
+            {
+                return null;
+            }
+
+            string serialized = null;
+#if UNITY_EDITOR
+            try
+            {
+                string path = Path.Combine(Folder, levelId + ".txt");
+                if (File.Exists(path))
+                {
+                    serialized = File.ReadAllText(path);
+                }
+            }
+            catch
+            {
+            }
+#endif
+            if (string.IsNullOrEmpty(serialized))
+            {
+                serialized = PlayerPrefs.GetString(PrefsPrefix + levelId, null);
+            }
+
+            if (string.IsNullOrEmpty(serialized))
+            {
+                return null;
+            }
+
+            try
+            {
+                LevelReplay parsed = LevelReplay.Parse(serialized);
+                if (level != null && balance != null)
+                {
+                    LevelReplay.RunResult result = parsed.Run(level, balance);
+                    if (!result.Won)
+                    {
+                        return null;
+                    }
+                }
+                return parsed;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public void SaveWin(LevelDefinition level, BalanceConfig balance)
         {
-#if UNITY_EDITOR
+            if (level == null || balance == null)
+            {
+                return;
+            }
+
             try
             {
                 LevelReplay.RunResult check = replay.Run(level, balance);
@@ -43,28 +99,40 @@ namespace DungeonGuardians.Presentation
                     return;
                 }
 
-                string path = Path.Combine(Folder, level.id + ".txt");
-                if (File.Exists(path))
+                LevelReplay existing = LoadBestReplay(level.id, level, balance);
+                if (existing != null)
                 {
-                    LevelReplay kept = LevelReplay.Parse(File.ReadAllText(path));
-                    LevelReplay.RunResult keptRun = kept.Run(level, balance);
-                    bool better = !keptRun.Won || check.LivesLost < keptRun.LivesLost
-                        || (check.LivesLost == keptRun.LivesLost && check.Ticks < keptRun.Ticks);
+                    LevelReplay.RunResult existingRun = existing.Run(level, balance);
+                    bool better = !existingRun.Won
+                        || check.LivesLost < existingRun.LivesLost
+                        || (check.LivesLost == existingRun.LivesLost && check.Ticks < existingRun.Ticks);
                     if (!better)
                     {
                         return;
                     }
                 }
 
-                Directory.CreateDirectory(Folder);
-                File.WriteAllText(path, replay.Serialize($"recorded in the editor {DateTime.Now:yyyy-MM-dd HH:mm}"));
-                Debug.Log($"Replay of {level.id} kept: {check.Ticks} ticks, {check.LivesLost} lives lost ({path}).");
+                string serialized = replay.Serialize($"record {DateTime.Now:yyyy-MM-dd HH:mm}");
+                PlayerPrefs.SetString(PrefsPrefix + level.id, serialized);
+                PlayerPrefs.Save();
+
+#if UNITY_EDITOR
+                try
+                {
+                    Directory.CreateDirectory(Folder);
+                    string path = Path.Combine(Folder, level.id + ".txt");
+                    File.WriteAllText(path, serialized);
+                    Debug.Log($"Replay of {level.id} kept: {check.Ticks} ticks, {check.LivesLost} lives lost ({path}).");
+                }
+                catch
+                {
+                }
+#endif
             }
             catch (Exception exception)
             {
                 Debug.LogWarning($"Replay of {level.id} not kept: {exception.Message}");
             }
-#endif
         }
     }
 }

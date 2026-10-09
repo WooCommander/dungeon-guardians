@@ -16,6 +16,7 @@ namespace DungeonGuardians.Presentation
         private MusicPlayer music;
         private FootstepPlayer footsteps;
         private SoundEffectPlayer sfx;
+        private GhostRunner ghost;
         private DefeatSequence defeat;
         private BalanceConfig balance;
         private ProgressStore progressStore;
@@ -52,7 +53,9 @@ namespace DungeonGuardians.Presentation
             footsteps = gameObject.AddComponent<FootstepPlayer>();
             sfx = gameObject.AddComponent<SoundEffectPlayer>();
             defeat = gameObject.AddComponent<DefeatSequence>();
+            ghost = gameObject.AddComponent<GhostRunner>();
             this.balance = balance;
+            ghost.Initialize(levelRenderer.transform, balance);
             this.progressStore = progressStore;
             progress = progressStore.Load();
             catalog = LevelCatalog.LoadFromResources();
@@ -94,6 +97,10 @@ namespace DungeonGuardians.Presentation
             {
                 sfx.BindSimulation(null);
             }
+            if (ghost != null)
+            {
+                ghost.SetVisible(false);
+            }
             simulation = null;
             paused = false;
             defeat.Stop();
@@ -130,6 +137,10 @@ namespace DungeonGuardians.Presentation
             if (sfx != null)
             {
                 sfx.BindSimulation(null);
+            }
+            if (ghost != null)
+            {
+                ghost.SetVisible(false);
             }
             simulation = null;
             paused = false;
@@ -216,6 +227,10 @@ namespace DungeonGuardians.Presentation
                 }
 
                 simulation.Tick(tickInput);
+                if (ghost != null)
+                {
+                    ghost.Tick();
+                }
 
                 if (simulation.State.Won)
                 {
@@ -291,6 +306,10 @@ namespace DungeonGuardians.Presentation
             if (sfx != null)
             {
                 sfx.BindSimulation(simulation);
+            }
+            if (ghost != null)
+            {
+                ghost.BeginLevel(catalog.Levels[levelIndex]);
             }
             hud.Bind(input);
             hud.RefreshControls();
