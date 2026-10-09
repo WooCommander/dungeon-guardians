@@ -1,0 +1,9 @@
+# Dungeon Guardians replay: the keys held each tick (see Assets/Scripts/Core/LevelReplay.cs).
+# recorded in the editor 2026-10-09 23:40
+# 1965 ticks, 1 lives lost
+level: level_02
+.:82 R:6 .:5 L:15 .:119 R:18 .:25 R:3 .:6 R:2 .:1 E:1 .:13 L:9 .:2 E:1
+.:8 R:270 .:1 L:6 .:5 D:22 LD:1 L:261 LU:1 U:40 RU:1 R:194 RU:1 U:55 RU:1 R:38
+.:2 L:62 LU:1 U:21 RU:1 R:22 .:137 D:6 .:9 * .:13 R:55 .:5 L:8 .:2 L:4
+.:3 Q:1 .:9 L:12 .:24 R:32 .:19 R:7 .:38 E:1 .:28 R:126 RU:1 U:37 RU:1 R:65
+

@@ -15,6 +15,7 @@ namespace DungeonGuardians.Presentation
         private GameMenu menu;
         private MusicPlayer music;
         private FootstepPlayer footsteps;
+        private SoundEffectPlayer sfx;
         private DefeatSequence defeat;
         private BalanceConfig balance;
         private ProgressStore progressStore;
@@ -49,6 +50,7 @@ namespace DungeonGuardians.Presentation
             this.menu = menu;
             this.music = music;
             footsteps = gameObject.AddComponent<FootstepPlayer>();
+            sfx = gameObject.AddComponent<SoundEffectPlayer>();
             defeat = gameObject.AddComponent<DefeatSequence>();
             this.balance = balance;
             this.progressStore = progressStore;
@@ -86,6 +88,10 @@ namespace DungeonGuardians.Presentation
 
         private void ShowLevelMap()
         {
+            if (sfx != null)
+            {
+                sfx.BindSimulation(null);
+            }
             simulation = null;
             paused = false;
             defeat.Stop();
@@ -119,6 +125,10 @@ namespace DungeonGuardians.Presentation
         private void ShowMenu()
         {
             // The level stops; it stays built behind the opaque start screen until the next one replaces it.
+            if (sfx != null)
+            {
+                sfx.BindSimulation(null);
+            }
             simulation = null;
             paused = false;
             defeat.Stop();
@@ -276,6 +286,10 @@ namespace DungeonGuardians.Presentation
             recorder.Begin(catalog.Levels[levelIndex]);
             simulation.StateChanged += Render;
             footsteps.BeginLevel();
+            if (sfx != null)
+            {
+                sfx.BindSimulation(simulation);
+            }
             hud.Bind(input);
             hud.RefreshControls();
             hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);

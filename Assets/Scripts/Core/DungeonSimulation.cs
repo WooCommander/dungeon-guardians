@@ -18,6 +18,14 @@ namespace DungeonGuardians.Core
         public RuntimeLevelState State { get; private set; }
         public BalanceConfig Balance => balance;
         public event Action StateChanged;
+        public event Action<GridPoint, int> DigStarted;
+        public event Action<GridPoint> GoldCollected;
+        public event Action ExitOpened;
+        public event Action<GridPoint> HoleRestored;
+        public event Action<GridPoint, bool> PlateStateChanged;
+        public event Action<bool> GatesStateChanged;
+        public event Action<GridPoint> FragileFloorBroken;
+        public event Action LevelWon;
 
         public DungeonSimulation(LevelDefinition level, BalanceConfig balance)
         {
@@ -215,6 +223,7 @@ namespace DungeonGuardians.Core
             MakeNoise(target);
             State.PlayerDigTicks = balance.DigTicks;
             State.PlayerDigDirection = horizontalOffset;
+            DigStarted?.Invoke(target, horizontalOffset);
         }
 
         private void UpdateHoles()
@@ -255,6 +264,7 @@ namespace DungeonGuardians.Core
                 }
 
                 State.Tiles[hole.Position.x, hole.Position.y] = hole.RestoresTo;
+                HoleRestored?.Invoke(hole.Position);
                 State.Holes.RemoveAt(i);
             }
         }
@@ -480,6 +490,7 @@ namespace DungeonGuardians.Core
             if (InBounds(below) && GetTile(below) == TileType.FragileFloor)
             {
                 State.Tiles[below.x, below.y] = TileType.Air;
+                FragileFloorBroken?.Invoke(below);
             }
         }
 
@@ -682,18 +693,25 @@ namespace DungeonGuardians.Core
             if (taken)
             {
                 MakeNoise(State.PlayerPosition);
+                GoldCollected?.Invoke(State.PlayerPosition);
             }
 
             if (taken && State.RemainingGold.Count == 0)
             {
                 State.ExitOpen = true;
                 State.Tiles[State.Definition.exit.x, State.Definition.exit.y] = TileType.ExitOpen;
+                ExitOpened?.Invoke();
             }
         }
 
         private void CheckExit()
         {
+            bool wasWon = State.Won;
             State.Won = State.ExitOpen && State.PlayerPosition.Equals(State.Definition.exit);
+            if (!wasWon && State.Won)
+            {
+                LevelWon?.Invoke();
+            }
         }
 
         private void CheckDefeat()
@@ -786,6 +804,8 @@ namespace DungeonGuardians.Core
         private void UpdateSeals()
         {
             LevelDefinition level = State.Definition;
+            bool wasPressed = State.PlatePressed;
+            bool wereGatesOpen = State.GatesOpen;
             bool pressed = false;
             foreach (GuardianState guardian in State.Guardians)
             {
@@ -794,6 +814,11 @@ namespace DungeonGuardians.Core
 
             pressed |= level.playerPressesPlates && GetTile(State.PlayerPosition) == TileType.PressurePlate;
             State.PlatePressed = pressed;
+
+            if (pressed != wasPressed)
+            {
+                PlateStateChanged?.Invoke(State.PlayerPosition, pressed);
+            }
 
             bool open;
             if (level.GatesLatch)
@@ -806,7 +831,7 @@ namespace DungeonGuardians.Core
                 open = State.GateOpenTicks > 0;
             }
 
-            if (open == State.GatesOpen)
+            if (open == wereGatesOpen)
             {
                 return;
             }
@@ -830,6 +855,10 @@ namespace DungeonGuardians.Core
             }
 
             State.GatesOpen = open || AnyGateOpen();
+            if (State.GatesOpen != wereGatesOpen)
+            {
+                GatesStateChanged?.Invoke(State.GatesOpen);
+            }
         }
 
         private bool AnyGateOpen()
