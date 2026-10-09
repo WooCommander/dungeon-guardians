@@ -35,17 +35,13 @@ namespace DungeonGuardians.Presentation
         private const float RopeBracketWidth = RopeBracketHeight * 80f / 121f;
         // How far the bracket's inner edge reaches into the bar's end cell.
         private const float RopeBracketInset = 0.1f;
-        // The door model is about 1.5 x 1.9; shrink it to roughly one cell wide.
-        private const float DoorScale = 0.62f;
         private const float DoorDepth = 0.25f;
         // The painted door from the concept (tools/cut_door.py), standing on the exit cell's floor and rising above
         // it like the concept's tall arched door.
         private const float DoorHeight = 1.7f;
-        // The scaled door is about 0.95 x 1.2 cells; the glow is centred on it and spills well past its edges.
+        // The glow is centred on the door and spills well past its edges.
         private const float ExitGlowHeight = 0.85f;
         private const float ExitGlowSize = 3f;
-        // Fallback 3D models (Tripo, ArtSource/Environment/import_tripo_prop.py) are already exported at cell size.
-        private const float GoldScale = 1f;
         // Painted props (tools/cutout_props.py), sized in cells.
         private const float GoldWidth = 0.55f;
         private const float GoldRestHeight = 0.04f;
@@ -56,20 +52,10 @@ namespace DungeonGuardians.Presentation
         // Just behind the characters, so the explorer passes in front of the bar he picks up.
         private const float GoldDepth = 0.05f;
         private const float LadderWidth = 0.78f;
-        private const float TorchHolderHeight = 0.5f;
-        private const float BackWallDepth = 0.45f;
-        private const int FrameWallColumns = 3;
-        // Slightly behind the gameplay plane so the level's own border reads as the front edge.
-        private const float FrameWallDepth = 0.1f;
         private const float HudTopMargin = 0.9f;
         private const int TorchSpacing = 6;
         private const int TorchRowStagger = 3;
         private const int MaxTorchLights = 8;
-        // The torch model is about 0.86 tall with its fire bowl at the top; the flame sprite sits on the bowl.
-        private const float TorchScale = 1f;
-        private const float TorchMountHeight = 0.15f;
-        private const float TorchFlameHeight = 0.62f;
-        private const float TorchFlameSize = 0.38f;
         // Floor torches on iron stands, as beside the concept's exit door (tools/cut_torch_stand.py). The cavern has
         // hardly any back wall, so the torches stand on the floor, between the painting and the characters.
         private const float TorchStandHeight = 0.85f;
@@ -313,8 +299,7 @@ namespace DungeonGuardians.Presentation
             foreach (GridPoint point in definition.gold ?? System.Array.Empty<GridPoint>())
             {
                 var bottom = new Vector3(point.x, point.y - 0.5f + GoldRestHeight, GoldDepth);
-                GameObject gold = SpawnSprite("gold", levelRoot, bottom, GoldWidth, 0f)
-                    ?? Spawn("gold", levelRoot, bottom, GoldScale, new Color(1f, 0.78f, 0.14f));
+                GameObject gold = SpawnSprite("gold", levelRoot, bottom, GoldWidth, 0f);
                 goldPieces[point] = gold;
                 goldRestY[point] = gold.transform.localPosition.y;
                 goldHalos[point] = AddGoldHalo(gold);
@@ -325,12 +310,7 @@ namespace DungeonGuardians.Presentation
             }
 
             BuildDecor(state);
-            backdrop = CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.id.GetHashCode(), definition.background);
-            if (!backdrop.HasPainting)
-            {
-                // The painting has its own carved side walls; the plain stand-in needs masonry beside the map.
-                BuildFrameWalls(definition);
-            }
+            backdrop = CavernBackdrop.Build(levelRoot, definition.width, definition.height, definition.background);
         }
 
         private void RenderTiles(RuntimeLevelState state)
@@ -391,31 +371,16 @@ namespace DungeonGuardians.Presentation
                     break;
                 case TileType.Ladder:
                     // One seamless three-rung tile per cell; stacked cells continue the rails.
-                    if (SpawnSprite("ladder", parent, new Vector3(0f, 0f, LadderDepth), LadderWidth, 1f) == null)
-                    {
-                        SpawnLocal("ladder_section", parent, new Vector3(0f, 0f, LadderDepth), 1f, new Color(0.55f, 0.35f, 0.18f));
-                    }
-
+                    SpawnSprite("ladder", parent, new Vector3(0f, 0f, LadderDepth), LadderWidth, 1f);
                     break;
                 case TileType.Bar:
-                    if (!BuildRope(parent, x, y))
-                    {
-                        SpawnLocal("rope_section", parent, new Vector3(0f, 0.5f + BarHeight, 0f), 1f, new Color(0.7f, 0.55f, 0.3f));
-                    }
-
+                    BuildRope(parent, x, y);
                     break;
                 case TileType.ExitClosed:
-                    if (SpawnSprite("door_closed", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight) == null)
-                    {
-                        SpawnLocal("door_closed", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.35f, 0.22f, 0.12f));
-                    }
-
+                    SpawnSprite("door_closed", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight);
                     break;
                 case TileType.ExitOpen:
-                    if (SpawnSprite("door_open", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight) == null)
-                    {
-                        SpawnLocal("door_open", parent, new Vector3(0f, 0f, DoorDepth), DoorScale, new Color(0.18f, 0.82f, 0.75f));
-                    }
+                    SpawnSprite("door_open", parent, new Vector3(0f, 0f, DoorDepth), 0f, DoorHeight);
 
                     // All gold is collected: the door glows. The halo sits behind the door, centred on its middle.
                     ExitGlow.Create(parent, new Vector3(0f, ExitGlowHeight, DoorDepth + 0.15f), ExitGlowSize);
@@ -504,23 +469,8 @@ namespace DungeonGuardians.Presentation
                 bool lit = i % lightEvery == 0;
                 // The painted stand ends at the cup; the animated flame sits on its rim.
                 Vector3 floor = torches[i] + new Vector3(0f, 0f, TorchStandDepth);
-                if (SpawnSprite("torch_stand", levelRoot, floor, 0f, TorchStandHeight) != null)
-                {
-                    torchFlames.Add(TorchFlame.Create(levelRoot, floor + new Vector3(0f, TorchStandHeight * TorchStandCup, -0.05f), StandFlameSize, lit));
-                    continue;
-                }
-
-                // Without the stand: the wall torch as before.
-                Vector3 wall = torches[i] + new Vector3(0f, TorchMountHeight, BackWallDepth);
-                GameObject holder = SpawnSprite("torch", levelRoot, wall, 0f, TorchHolderHeight);
-                float cupTop = TorchHolderHeight - 0.03f;
-                if (holder == null)
-                {
-                    Spawn("torch", levelRoot, wall, TorchScale, new Color(1f, 0.6f, 0.2f));
-                    cupTop = TorchFlameHeight;
-                }
-
-                torchFlames.Add(TorchFlame.Create(levelRoot, wall + new Vector3(0f, cupTop, -0.05f), TorchFlameSize, lit));
+                SpawnSprite("torch_stand", levelRoot, floor, 0f, TorchStandHeight);
+                torchFlames.Add(TorchFlame.Create(levelRoot, floor + new Vector3(0f, TorchStandHeight * TorchStandCup, -0.05f), StandFlameSize, lit));
             }
         }
 
@@ -797,35 +747,13 @@ namespace DungeonGuardians.Presentation
             }
         }
 
-        // Thick sandstone walls outside the level's left and right edges, as on the concept screen, so wide screens
-        // show masonry rather than empty space beside the map.
-        private void BuildFrameWalls(LevelDefinition definition)
-        {
-            for (int column = 1; column <= FrameWallColumns; column++)
-            {
-                foreach (int x in new[] { -column, definition.width - 1 + column })
-                {
-                    for (int y = 0; y < definition.height; y++)
-                    {
-                        var cell = new Vector3(x, y - 0.5f, FrameWallDepth);
-                        SpawnLocal("block_diggable", levelRoot, cell, 1f, new Color(0.62f, 0.45f, 0.28f));
-                        SpawnLocal("block_diggable", levelRoot, cell + new Vector3(0f, BlockHeight, 0f), 1f, new Color(0.62f, 0.45f, 0.28f));
-                    }
-                }
-            }
-        }
-
         // The rope across a bar cell, with a wall bracket where the bar ends on either side.
-        private bool BuildRope(Transform parent, int x, int y)
+        private void BuildRope(Transform parent, int x, int y)
         {
             float centre = 0.5f + BarHeight;
             float bottom = centre - RopeThickness * 0.5f;
             // Slightly wider than half a cell, so neighbouring pieces overlap instead of leaving a hairline gap.
-            if (SpawnSprite("rope", parent, new Vector3(-0.25f, bottom, RopeDepth), 0.505f, RopeThickness) == null)
-            {
-                return false;
-            }
-
+            SpawnSprite("rope", parent, new Vector3(-0.25f, bottom, RopeDepth), 0.505f, RopeThickness);
             SpawnSprite("rope", parent, new Vector3(0.25f, bottom, RopeDepth), 0.505f, RopeThickness);
             float bracketBottom = centre - RopeBracketHeight * RopeBracketCentre;
             foreach (int side in new[] { -1, 1 })
@@ -844,12 +772,10 @@ namespace DungeonGuardians.Presentation
                     bracket.GetComponent<SpriteRenderer>().flipX = side > 0;
                 }
             }
-
-            return true;
         }
 
         // A painted cut-out from Resources/Sprites standing on bottomCenter. Give the width or the height (0 keeps the
-        // aspect ratio), or both to stretch. Returns null when the sprite is missing so callers can fall back to a model.
+        // aspect ratio), or both to stretch. Returns null when the sprite is missing.
         private GameObject SpawnSprite(string asset, Transform parent, Vector3 bottomCenter, float width, float height)
         {
             if (!sprites.TryGetValue(asset, out Sprite sprite))
@@ -894,13 +820,6 @@ namespace DungeonGuardians.Presentation
             halo.sprite = ExitGlow.GetHaloSprite();
             halo.color = GoldHaloColor;
             return halo;
-        }
-
-        private GameObject Spawn(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)
-        {
-            GameObject instance = SpawnLocal(asset, parent, localPosition, scale, fallbackColor);
-            instance.name = asset;
-            return instance;
         }
 
         private GameObject SpawnLocal(string asset, Transform parent, Vector3 localPosition, float scale, Color fallbackColor)

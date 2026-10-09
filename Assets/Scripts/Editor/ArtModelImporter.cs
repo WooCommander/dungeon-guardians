@@ -23,7 +23,7 @@ namespace DungeonGuardians.Editor
         // Bump whenever the rules below change: Unity then reimports every model and texture this postprocessor touches.
         public override uint GetVersion()
         {
-            return 8;
+            return 9;
         }
 
         private void OnPreprocessTexture()
@@ -95,6 +95,9 @@ namespace DungeonGuardians.Editor
             var importer = (ModelImporter)assetImporter;
             importer.importCameras = false;
             importer.importLights = false;
+            // Materials keep their Tripo names (ModelTextures binds the maps at runtime). Textures are looked for only
+            // next to the model: searching the whole project picked up raw Tripo downloads and put them in the build.
+            importer.materialSearch = ModelImporterMaterialSearch.Local;
 
             if (character)
             {

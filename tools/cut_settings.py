@@ -5,7 +5,8 @@
   behind it.
 - UI/settings_fill.png: a full-length golden slider fill, UI/settings_knob.png: the diamond knob.
 - UI/settings_toggle_on.png / settings_toggle_off.png: the vibration switch in both states.
-- UI/settings_back.png, settings_reset.png, settings_done.png: the buttons, laid over the picture to darken when pressed.
+- ArtSource/UI/settings_done.png: the "done" button, the source of the settings buttons that tools/unlit_buttons.cs
+  makes from it (not shipped: it is outside Resources).
 
 GameSettingsScreen.cs places everything by the same pixel boxes. Run from the repository root:
 python tools/cut_settings.py
@@ -28,9 +29,8 @@ VALUE_LEFT, VALUE_RIGHT, VALUE_HALF = 1207, 1323, 19
 # The empty part of the music track, past its knob: stretched over every track.
 EMPTY_COLUMN = 1120
 TOGGLE = (1205, 393, 1327, 453)
+SOURCE_PIECES = "ArtSource/UI/"
 BUTTONS = {
-    "settings_back": ((298, 105, 395, 185), 14),
-    "settings_reset": ((405, 772, 795, 868), 16),
     "settings_done": ((835, 763, 1270, 875), 20),
 }
 
@@ -122,7 +122,7 @@ def main():
     for name, (box, corner) in BUTTONS.items():
         piece = source.crop(box)
         piece.putalpha(chamfer_mask(piece.size, corner))
-        piece.save(UI + name + ".png")
+        piece.save(SOURCE_PIECES + name + ".png")
 
     print("settings pieces written")
 

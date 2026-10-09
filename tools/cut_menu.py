@@ -1,8 +1,8 @@
 """Cuts the start screen (map-images/menu.png, 1672 x 941) into the pieces the game uses.
 
 - Backgrounds/menu.png: the whole picture, title and buttons included, shown behind the menu.
-- UI/menu_play.png, menu_settings.png: the two buttons, cut out with their chamfered corners,
-  laid exactly over the picture so they can darken when pressed.
+- ArtSource/UI/menu_play.png: the play button, cut out with its chamfered corners: the source of the menu's
+  buttons, which tools/unlit_buttons.cs makes from it (not shipped: it is outside Resources).
 - UI/menu_plate.png: the "settings" plate with its text removed, for the buttons of the pause panel
   (sliced at runtime: the diamonds stay at the ends, the middle stretches).
 
@@ -13,12 +13,12 @@ from PIL import Image, ImageDraw, ImageFilter
 SOURCE = "map-images/menu.png"
 BACKGROUND = "Assets/Resources/Backgrounds/menu.png"
 UI = "Assets/Resources/UI/"
+SOURCE_PIECES = "ArtSource/UI/"
 
 # Button boxes in source pixels (left, top, right, bottom) and the size of their cut corners.
 # GameMenu.cs places the buttons by the same boxes.
 BUTTONS = {
     "menu_play": ((619, 467, 1053, 591), 20),
-    "menu_settings": ((659, 617, 1010, 696), 12),
 }
 
 # The plate: the left and right ends with their diamonds and a text-free column to stretch between them.
@@ -44,7 +44,7 @@ def main():
     for name, (box, corner) in BUTTONS.items():
         piece = source.crop(box)
         piece.putalpha(chamfer_mask(piece.size, corner))
-        piece.save(UI + name + ".png")
+        piece.save(SOURCE_PIECES + name + ".png")
 
     left, top, right, bottom = PLATE_BOX
     plate = source.crop(PLATE_BOX)

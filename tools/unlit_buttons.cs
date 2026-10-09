@@ -1,7 +1,8 @@
 // Makes the quiet twins of the golden buttons: the same chamfered plate with its diamonds, the caption smoothed
 // away and the bright gold dimmed to unlit bronze. The game writes the caption over them.
-// - UI/settings_cancel.png from UI/settings_done.png: "ОТМЕНА" beside "ГОТОВО" (SettingsScreen.cs).
-// - UI/menu_button.png from UI/menu_play.png: "НАСТРОЙКИ" and "ВЫХОД" under "ИГРАТЬ" (GameMenu.cs).
+// Sources are the golden buttons cut from the painted screens into ArtSource/UI (tools/cut_settings.py, cut_menu.py).
+// - UI/settings_cancel.png from settings_done.png: "ОТМЕНА" beside "ГОТОВО" (SettingsScreen.cs).
+// - UI/menu_button.png from menu_play.png: "НАСТРОЙКИ" and "ВЫХОД" under "ИГРАТЬ" (GameMenu.cs).
 // - UI/menu_play_blank.png: "ИГРАТЬ" itself with its caption cleared but its gold kept, so all three captions are
 //   written alike.
 // - UI/map_button.png from UI/map_play.png (already blank, cut by tools/cut_level_map.cs): "НАЗАД" and "НАЧАТЬ
@@ -18,10 +19,10 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 // Source, target and the box of the caption to clear.
-Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_cancel.png", 124, 320, 27, 84, true);
-Unlit("Assets/Resources/UI/settings_done.png", "Assets/Resources/UI/settings_done_blank.png", 124, 320, 27, 84, false);
-Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_button.png", 90, 344, 26, 97, true);
-Unlit("Assets/Resources/UI/menu_play.png", "Assets/Resources/UI/menu_play_blank.png", 90, 344, 26, 97, false);
+Unlit("ArtSource/UI/settings_done.png", "Assets/Resources/UI/settings_cancel.png", 124, 320, 27, 84, true);
+Unlit("ArtSource/UI/settings_done.png", "Assets/Resources/UI/settings_done_blank.png", 124, 320, 27, 84, false);
+Unlit("ArtSource/UI/menu_play.png", "Assets/Resources/UI/menu_button.png", 90, 344, 26, 97, true);
+Unlit("ArtSource/UI/menu_play.png", "Assets/Resources/UI/menu_play_blank.png", 90, 344, 26, 97, false);
 Unlit("Assets/Resources/UI/map_play.png", "Assets/Resources/UI/map_button.png", 1, 0, 1, 0, true);
 
 static void Unlit(string source, string target, int x0, int x1, int y0, int y1, bool dim)

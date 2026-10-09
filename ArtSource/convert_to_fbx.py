@@ -10,10 +10,9 @@ RESOURCES = SOURCE.parent / "Assets" / "Resources"
 
 # The explorer and the guardian are built from their Tripo models by Characters/build_explorer.py and build_guardian.py.
 CHARACTERS = []
-ENVIRONMENT = [
-    "altar", "block_diggable", "block_solid", "column", "door_closed", "door_open",
-    "gold", "ladder_section", "rope_section", "rubble", "torch",
-]
+# Only the models the game shows: gold, ladders, ropes, doors and torches are painted sprites (tools/cutout_props.py),
+# and the column and rubble were never placed. Their GLBs stay here as source art.
+ENVIRONMENT = ["altar", "block_diggable", "block_solid"]
 
 
 def import_glb(path):
