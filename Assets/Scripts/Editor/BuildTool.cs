@@ -59,6 +59,28 @@ namespace DungeonGuardians.Editor
         {
             ApplyCommonSettings();
             ApplyAndroidSettings();
+            if (appBundle)
+            {
+                // Google Play turns away a bundle signed with the debug key, and any upload whose version code it has
+                // already seen: so no key, no bundle, and each bundle gets the next version code (kept in the project
+                // settings, which go into git with the build).
+                if (!PlayerSettings.Android.useCustomKeystore)
+                {
+                    const string message = "Нет ключа загрузки: задайте переменные окружения DG_KEYSTORE, DG_KEYSTORE_PASS, " +
+                        "DG_KEY_ALIAS и DG_KEY_PASS и перезапустите Unity Hub и Unity. AAB не собран.";
+                    if (!Application.isBatchMode)
+                    {
+                        EditorUtility.DisplayDialog("Сборка для Google Play", message, "OK");
+                    }
+
+                    throw new BuildFailedException(message);
+                }
+
+                PlayerSettings.Android.bundleVersionCode++;
+                AssetDatabase.SaveAssets();
+                Debug.Log($"Android version code {PlayerSettings.Android.bundleVersionCode} (version {PlayerSettings.bundleVersion}).");
+            }
+
             EditorUserBuildSettings.buildAppBundle = appBundle;
             Build(BuildTarget.Android, BuildTargetGroup.Android, appBundle ? AndroidBundleOutput : AndroidApkOutput);
         }
@@ -155,19 +177,33 @@ namespace DungeonGuardians.Editor
 
             // A release key can be given through environment variables; without them the build is signed with the
             // debug key, which is fine for testing on a phone but not for Google Play.
-            string keystore = Environment.GetEnvironmentVariable("DG_KEYSTORE");
+            string keystore = SigningSetting("DG_KEYSTORE");
             if (!string.IsNullOrEmpty(keystore) && File.Exists(keystore))
             {
                 PlayerSettings.Android.useCustomKeystore = true;
                 PlayerSettings.Android.keystoreName = keystore;
-                PlayerSettings.Android.keystorePass = Environment.GetEnvironmentVariable("DG_KEYSTORE_PASS");
-                PlayerSettings.Android.keyaliasName = Environment.GetEnvironmentVariable("DG_KEY_ALIAS");
-                PlayerSettings.Android.keyaliasPass = Environment.GetEnvironmentVariable("DG_KEY_PASS");
+                PlayerSettings.Android.keystorePass = SigningSetting("DG_KEYSTORE_PASS");
+                PlayerSettings.Android.keyaliasName = SigningSetting("DG_KEY_ALIAS");
+                PlayerSettings.Android.keyaliasPass = SigningSetting("DG_KEY_PASS");
             }
             else
             {
                 PlayerSettings.Android.useCustomKeystore = false;
             }
+        }
+
+        // A signing setting from the environment. Unity keeps the environment it was started with (often handed down by a
+        // Unity Hub that stayed in the tray), so on Windows the user's saved variables are read too: set once, they
+        // work without restarting anything.
+        private static string SigningSetting(string name)
+        {
+            string value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrEmpty(value) && Application.platform == RuntimePlatform.WindowsEditor)
+            {
+                value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
+            }
+
+            return value;
         }
 
         private static void Build(BuildTarget target, BuildTargetGroup group, string output)
