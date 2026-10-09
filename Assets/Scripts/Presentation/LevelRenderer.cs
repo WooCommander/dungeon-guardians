@@ -138,6 +138,7 @@ namespace DungeonGuardians.Presentation
         private readonly List<TorchFlame> torchFlames = new List<TorchFlame>();
         // Dark halls (LevelDefinition.dark).
         private DarknessOverlay darkness;
+        private ContextualHintOverlay contextualHints;
         private readonly List<(Vector3 head, int facing)?> guardianHeads = new List<(Vector3 head, int facing)?>();
         // Between the guardian's eyes, as a share of its height.
         private const float GuardianEyeHeight = 0.8f;
@@ -163,6 +164,10 @@ namespace DungeonGuardians.Presentation
             RenderAltarWarning(simulation);
             RenderPlates(state);
             RenderNoise(state);
+            if (contextualHints != null)
+            {
+                contextualHints.UpdateHints(simulation);
+            }
             PositionCamera(state.Definition);
         }
 
@@ -297,6 +302,18 @@ namespace DungeonGuardians.Presentation
             {
                 darkness = DarknessOverlay.Create(transform);
             }
+
+            if (contextualHints == null)
+            {
+                contextualHints = ContextualHintOverlay.Create(transform);
+            }
+            int levelNum = 1;
+            if (definition.id != null && int.TryParse(definition.id.Replace("level_", ""), out int parsed))
+            {
+                levelNum = parsed;
+            }
+            contextualHints.BeginLevel(levelNum - 1, definition);
+
             cellObjects = new GameObject[definition.width, definition.height];
             cellTypes = new TileType[definition.width, definition.height];
 
