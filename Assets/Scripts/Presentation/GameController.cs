@@ -254,12 +254,12 @@ namespace DungeonGuardians.Presentation
                         bool buried = simulation.State.LossCause == LossCause.Buried;
                         if (livesLeft > 0)
                         {
-                            hud.ShowMessage(livesLeft == 1 ? "Осталась последняя жизнь" : $"Осталось жизней: {livesLeft}");
+                            hud.ShowMessage(livesLeft == 1 ? Localization.T("hud_last_life") : Localization.T("hud_lives_left", livesLeft));
                             defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, buried, () => NextLife(buried));
                         }
                         else
                         {
-                            string title = buried ? "Тебя замуровало в камне" : "Хранитель остановил тебя";
+                            string title = buried ? Localization.T("hud_defeat_buried") : Localization.T("hud_defeat_caught");
                             defeat.Play(levelRenderer.Player, levelRenderer.PlayerLamp, buried, () => hud.ShowDefeat(title));
                         }
                     }
@@ -313,7 +313,7 @@ namespace DungeonGuardians.Presentation
             }
             hud.Bind(input);
             hud.RefreshControls();
-            hud.SetLevel(catalog.Levels[levelIndex].title, levelIndex + 1, catalog.Levels.Count);
+            hud.SetLevel(Localization.GetLevelTitle(catalog.Levels[levelIndex].id, catalog.Levels[levelIndex].title), levelIndex + 1, catalog.Levels.Count);
             hud.SetPaused(false);
             hud.HideDefeat();
             hud.HideVictory();
@@ -382,15 +382,16 @@ namespace DungeonGuardians.Presentation
             LevelDefinition level = catalog.Levels[levelIndex];
             bool hasNext = levelIndex + 1 < catalog.Levels.Count;
             float targetTime = level.GetTargetTime();
+            string localizedTitle = Localization.GetLevelTitle(level.id, level.title);
 
             if (hasNext)
             {
-                hud.ShowVictory("Уровень пройден", $"«{level.title}» — печать снята", lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, true);
+                hud.ShowVictory(Localization.T("hud_victory_title"), Localization.T("hud_victory_subtitle", localizedTitle), lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, true);
             }
             else
             {
-                hud.ShowVictory("Все залы пройдены",
-                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, false);
+                hud.ShowVictory(Localization.T("hud_all_won_title"),
+                    Localization.T("hud_all_won_subtitle"), lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, false);
             }
         }
 

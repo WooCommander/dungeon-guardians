@@ -1,4 +1,5 @@
 using System;
+using DungeonGuardians.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -18,16 +19,7 @@ namespace DungeonGuardians.Presentation
         private static readonly Color BackgroundTint = new Color(0.42f, 0.45f, 0.48f);
         private static readonly Color TextColor = new Color(1f, 0.9f, 0.72f);
 
-        private static readonly string[] Pages =
-        {
-            "Много веков назад под горой построили город. Его жители обнаружили необычный минерал — чёрное сердце, " +
-            "которое выделяло тепло и освещало подземные залы. Благодаря ему город процветал.",
-            "Но постепенно из глубины стали доноситься голоса. Людям снились чужие воспоминания, рабочие исчезали, " +
-            "а тоннели возникали там, где ещё вчера была сплошная скала.",
-            "Тогда мастера создали каменных хранителей и запечатали нижние своды. Для печатей использовали золото: " +
-            "оно сдерживало влияние того, что проснулось под городом. Жители ушли, а хранители остались охранять пустые залы.",
-            "Со временем настоящее назначение города забылось. Осталась легенда о сокровищах.",
-        };
+        private string[] Pages => Localization.GetStoryParagraphs();
 
         private Image background;
         private Text body;
@@ -105,18 +97,18 @@ namespace DungeonGuardians.Presentation
             pageDots.rectTransform.sizeDelta = new Vector2(400f, 50f);
             pageDots.rectTransform.anchoredPosition = new Vector2(0f, -250f);
 
-            hint = MenuStyle.AddLabel(transform, "нажми, чтобы продолжить", 24);
+            hint = MenuStyle.AddLabel(transform, Localization.T("story_hint"), 24);
             hint.color = new Color(1f, 0.9f, 0.72f, 0.6f);
             hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 0f);
             hint.rectTransform.sizeDelta = new Vector2(600f, 40f);
             hint.rectTransform.anchoredPosition = new Vector2(0f, 70f);
 
-            Button skip = MenuStyle.CreatePlateButton(transform, "ПРОПУСТИТЬ", new Vector2(260f, 64f), Finish);
+            Button skip = MenuStyle.CreatePlateButton(transform, Localization.T("story_skip"), new Vector2(260f, 64f), Finish);
             var skipRect = (RectTransform)skip.transform;
             skipRect.anchorMin = skipRect.anchorMax = new Vector2(1f, 1f);
             skipRect.anchoredPosition = new Vector2(-160f, -60f);
 
-            go = MenuStyle.CreatePlateButton(transform, "В ПУТЬ", new Vector2(340f, 80f), Finish);
+            go = MenuStyle.CreatePlateButton(transform, Localization.T("story_go"), new Vector2(340f, 80f), Finish);
             var goRect = (RectTransform)go.transform;
             goRect.anchorMin = goRect.anchorMax = new Vector2(0.5f, 0f);
             goRect.anchoredPosition = new Vector2(0f, 110f);

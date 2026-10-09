@@ -1,4 +1,5 @@
 using System;
+using DungeonGuardians.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -124,8 +125,8 @@ namespace DungeonGuardians.Presentation
             // tools/settings_bottom_row.ps1 clears the painted bottom buttons and tools/settings_back_corner.ps1 the
             // arrow in the top-left corner. Starting over lives on the level map.
             // Both captions are written in code, one size and face (the largest at which both fit).
-            Text cancel = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), "ОТМЕНА", Cancel);
-            Text done = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), "ГОТОВО", MenuStyle.GoldCaption, Close);
+            Text cancel = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), Localization.T("settings_cancel"), Cancel);
+            Text done = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), Localization.T("settings_done"), MenuStyle.GoldCaption, Close);
             EqualFontSize.Apply(picture.gameObject, 60, cancel, done);
         }
 
@@ -252,7 +253,7 @@ namespace DungeonGuardians.Presentation
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleLeft;
             label.color = LabelGold;
-            label.text = "Масштаб камеры";
+            label.text = Localization.T("settings_camera");
             label.raycastTarget = false;
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 8;
@@ -297,8 +298,8 @@ namespace DungeonGuardians.Presentation
             if (cameraStyleText != null)
             {
                 cameraStyleText.text = GameSettings.CameraStyle == 0
-                    ? "Телефон · 7 рядов"
-                    : "Планшет · 11 рядов";
+                    ? Localization.T("settings_phone")
+                    : Localization.T("settings_tablet");
             }
         }
 

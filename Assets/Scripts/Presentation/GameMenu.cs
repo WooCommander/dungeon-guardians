@@ -49,15 +49,15 @@ namespace DungeonGuardians.Presentation
             // 1. ИГРАТЬ (Main gold banner button). Its caption is written in code like the others below it.
             var captions = new System.Collections.Generic.List<Text>
             {
-                MenuStyle.AddCaptionedButton(picture.transform, "menu_play_blank", new Rect(619f, 467f, 434f, 124f), "ИГРАТЬ", MenuStyle.GoldCaption, StartGame),
+                MenuStyle.AddCaptionedButton(picture.transform, "menu_play_blank", new Rect(619f, 467f, 434f, 124f), Localization.T("menu_play"), MenuStyle.GoldCaption, StartGame),
             };
 
             // 2. НАСТРОЙКИ and 3. ВЫХОД (desktop only): the size and shape of ИГРАТЬ, unlit. Each covers the small painted
             // plate under it.
-            captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 615f, 434f, 124f), "НАСТРОЙКИ", OpenSettings));
+            captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 615f, 434f, 124f), Localization.T("menu_settings"), OpenSettings));
             if (!Application.isMobilePlatform)
             {
-                captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 763f, 434f, 124f), "ВЫХОД", Application.Quit));
+                captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 763f, 434f, 124f), Localization.T("menu_exit"), Application.Quit));
             }
 
             // One size and face for all three captions: the largest at which "НАСТРОЙКИ" still fits.

@@ -1,4 +1,5 @@
 using System;
+using DungeonGuardians.Core;
 using DungeonGuardians.Input;
 using UnityEngine;
 using UnityEngine.UI;
@@ -76,8 +77,9 @@ namespace DungeonGuardians.Presentation
 
         public void SetLevel(string title, int index, int count)
         {
-            levelText.text = conceptTopBar ? $"УРОВЕНЬ <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
-            titleBanner.text = $"<size=30>УРОВЕНЬ {index}</size>\n{title}";
+            string levelWord = Localization.T("hud_level", index).ToUpperInvariant();
+            levelText.text = conceptTopBar ? $"{levelWord} <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
+            titleBanner.text = $"<size=30>{levelWord}</size>\n{title}";
             titleShownAt = Time.unscaledTime;
         }
 
@@ -297,17 +299,17 @@ namespace DungeonGuardians.Presentation
             victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 10f);
 
             // Three buttons: [ КАРТА ]  [ ЗАНОВО ]  [ ДАЛЕЕ ]
-            Button map = MenuStyle.CreatePlateButton(overlay.transform, "КАРТА", new Vector2(250f, 75f), () => MapRequested?.Invoke());
+            Button map = MenuStyle.CreatePlateButton(overlay.transform, Localization.T("hud_btn_map"), new Vector2(250f, 75f), () => MapRequested?.Invoke());
             var mapRect = (RectTransform)map.transform;
             mapRect.anchorMin = mapRect.anchorMax = new Vector2(0.5f, 0.5f);
             mapRect.anchoredPosition = new Vector2(-280f, -80f);
 
-            Button restart = MenuStyle.CreatePlateButton(overlay.transform, "ЗАНОВО", new Vector2(250f, 75f), () => RestartLevelRequested?.Invoke());
+            Button restart = MenuStyle.CreatePlateButton(overlay.transform, Localization.T("hud_btn_retry"), new Vector2(250f, 75f), () => RestartLevelRequested?.Invoke());
             var restartRect = (RectTransform)restart.transform;
             restartRect.anchorMin = restartRect.anchorMax = new Vector2(0.5f, 0.5f);
             restartRect.anchoredPosition = new Vector2(0f, -80f);
 
-            victoryNextButton = MenuStyle.CreatePlateButton(overlay.transform, "ДАЛЕЕ", new Vector2(250f, 75f), () => NextLevelRequested?.Invoke());
+            victoryNextButton = MenuStyle.CreatePlateButton(overlay.transform, Localization.T("hud_btn_next"), new Vector2(250f, 75f), () => NextLevelRequested?.Invoke());
             var nextRect = (RectTransform)victoryNextButton.transform;
             nextRect.anchorMin = nextRect.anchorMax = new Vector2(0.5f, 0.5f);
             nextRect.anchoredPosition = new Vector2(280f, -80f);
@@ -357,13 +359,17 @@ namespace DungeonGuardians.Presentation
 
             string flawlessTag = flawless ? "<color=#73FF94>✓</color>" : "<color=#FF7766>✗</color>";
             string speedTag = speedBeat ? "<color=#73FF94>✓</color>" : "<color=#FF8866>✗</color>";
-            string recordBadge = isNewBest ? "  <color=#5AFFDF>★ РЕКОРД! ★</color>" : string.Empty;
+            string recordBadge = isNewBest ? $"  <color=#5AFFDF>★ {Localization.T("hud_new_best")} ★</color>" : string.Empty;
 
-            victoryStats.text = $"Время: <color=#FFE7B0>{timeStr}</color> (цель: {targetStr}) {speedTag}{recordBadge}\nЖизни: <color=#FF6B6B>{livesLeft}/{totalLives}</color> {flawlessTag}";
+            string timeLabel = Localization.IsRussian ? "Время" : "Time";
+            string targetLabel = Localization.IsRussian ? "цель" : "par";
+            string livesLabel = Localization.IsRussian ? "Жизни" : "Lives";
 
-            string req1 = "<color=#FFE7B0>★ Все золото</color>";
-            string req2 = flawless ? "<color=#FFE7B0>★ Без потерь</color>" : "<color=#7A7064>☆ Без потерь</color>";
-            string req3 = speedBeat ? "<color=#FFE7B0>★ На скорость</color>" : "<color=#7A7064>☆ На скорость</color>";
+            victoryStats.text = $"{timeLabel}: <color=#FFE7B0>{timeStr}</color> ({targetLabel}: {targetStr}) {speedTag}{recordBadge}\n{livesLabel}: <color=#FF6B6B>{livesLeft}/{totalLives}</color> {flawlessTag}";
+
+            string req1 = Localization.IsRussian ? "<color=#FFE7B0>★ Все золото</color>" : "<color=#FFE7B0>★ All Gold</color>";
+            string req2 = flawless ? (Localization.IsRussian ? "<color=#FFE7B0>★ Без потерь</color>" : "<color=#FFE7B0>★ No Deaths</color>") : (Localization.IsRussian ? "<color=#7A7064>☆ Без потерь</color>" : "<color=#7A7064>☆ No Deaths</color>");
+            string req3 = speedBeat ? (Localization.IsRussian ? "<color=#FFE7B0>★ На скорость</color>" : "<color=#FFE7B0>★ Speed Target</color>") : (Localization.IsRussian ? "<color=#7A7064>☆ На скорость</color>" : "<color=#7A7064>☆ Speed Target</color>");
 
             victorySubtitle.text = $"{req1}   •   {req2}   •   {req3}\n<size=20><color=#C8C3B8>{subtitle}</color></size>";
 

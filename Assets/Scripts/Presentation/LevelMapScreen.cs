@@ -364,7 +364,7 @@ namespace DungeonGuardians.Presentation
 
             if (!progress.IsUnlocked(index))
             {
-                ShowToast($"Сначала пройдите уровень {index}");
+                ShowToast(Localization.T("map_toast_locked", index + 1));
                 return;
             }
 
@@ -455,8 +455,8 @@ namespace DungeonGuardians.Presentation
             // Three buttons of one kind and width: start over, back, and the golden banner to play; the other two are
             // its unlit twin (UI/map_button.png). Both stretch in the middle only. One caption size for all three.
             var box = new Rect(0f, 0f, ButtonWidth, ButtonHeight);
-            Text reset = MenuStyle.AddQuietButton(hudFront, "map_button", box, "НАЧАТЬ ЗАНОВО", ShowConfirmModal);
-            Text back = MenuStyle.AddQuietButton(hudFront, "map_button", box, "НАЗАД", () => BackRequested?.Invoke());
+            Text reset = MenuStyle.AddQuietButton(hudFront, "map_button", box, Localization.T("map_reset"), ShowConfirmModal);
+            Text back = MenuStyle.AddQuietButton(hudFront, "map_button", box, Localization.T("map_back"), () => BackRequested?.Invoke());
             playText = MenuStyle.AddCaptionedButton(hudFront, "map_play", box, string.Empty, MenuStyle.GoldCaption, OnPlayClicked);
             buttons = new[] { ButtonOf(reset), ButtonOf(back), ButtonOf(playText) };
             EqualFontSize.Apply(hudFront.gameObject, 60, playText, back, reset);
@@ -689,7 +689,7 @@ namespace DungeonGuardians.Presentation
             }
 
             float ratio = levelCount > 0 ? (float)completed / levelCount : 0f;
-            passedText.text = $"Пройдено {completed} из {levelCount}";
+            passedText.text = Localization.T("map_progress", completed, levelCount);
             percentText.text = $"{Mathf.RoundToInt(ratio * 100f)}%";
             float end = Mathf.Lerp(BarLeft, BarRight, ratio);
             barFill.gameObject.SetActive(ratio > 0f);
@@ -698,7 +698,7 @@ namespace DungeonGuardians.Presentation
             PlaceIn(barCap.rectTransform, BarSize, new Rect(Mathf.Max(end - 6f, BarLeft), 4f, 18f, 19f));
 
             starsText.text = $"★ {stars} / {levelCount * StarsPerLevel}";
-            timeText.text = completed > 0 ? $"Общее время {FormatTime(time)}" : string.Empty;
+            timeText.text = completed > 0 ? Localization.T("map_total_time", FormatTime(time)) : string.Empty;
 
             RefreshSelection();
         }
@@ -716,8 +716,8 @@ namespace DungeonGuardians.Presentation
                 new Rect(Nodes[selectedIndex].x + HelmetOffset.x - HelmetSize.x / 2f, Nodes[selectedIndex].y + HelmetOffset.y - HelmetSize.y / 2f, HelmetSize.x, HelmetSize.y));
 
             int chapter = ChapterOf(selectedIndex);
-            chapterNumber.text = "Глава " + ChapterNumbers[chapter];
-            chapterName.text = ChapterNames[chapter];
+            chapterNumber.text = Localization.T("map_chapter", ChapterNumbers[chapter]);
+            chapterName.text = Localization.GetChapterTitle(chapter);
             Rect? view = ChapterViews[chapter];
             chapterView.gameObject.SetActive(view.HasValue && chapterView.texture != null);
             if (view.HasValue)
@@ -728,13 +728,13 @@ namespace DungeonGuardians.Presentation
             }
 
             LevelRecord record = FindRecord(selectedIndex);
-            string title = catalog.Levels[selectedIndex].title;
+            string title = Localization.GetLevelTitle(catalog.Levels[selectedIndex].id, catalog.Levels[selectedIndex].title);
             levelTitle.text = $"{selectedIndex + 1}. {title}";
             levelRecord.text = record != null && record.completed
-                ? $"{StarLine(record.stars)}   рекорд {FormatTime(record.bestTimeSeconds)}"
-                : "ещё не пройден";
+                ? $"{StarLine(record.stars)}   {Localization.T("map_record", FormatTime(record.bestTimeSeconds))}"
+                : Localization.T("map_not_passed");
 
-            string verb = selected.State == NodeState.Done ? "ИГРАТЬ" : selectedIndex == 0 && FindRecord(0) == null ? "НАЧАТЬ" : "ПРОДОЛЖИТЬ";
+            string verb = selected.State == NodeState.Done ? Localization.T("map_action_play") : selectedIndex == 0 && FindRecord(0) == null ? Localization.T("map_action_start") : Localization.T("map_action_continue");
             // The level itself is named on the card.
             playText.text = verb;
         }
@@ -853,7 +853,7 @@ namespace DungeonGuardians.Presentation
             lastSeenUnlocked = 0;
             poppingIndex = -1;
             Refresh();
-            ShowToast("Прогресс сброшен");
+            ShowToast(Localization.T("map_toast_reset"));
         }
 
         private void BuildConfirmModal()
@@ -875,17 +875,17 @@ namespace DungeonGuardians.Presentation
             border.effectColor = new Color(0.85f, 0.6f, 0.25f, 0.95f);
             border.effectDistance = new Vector2(4f, 4f);
 
-            Text title = AddText(box.transform, "Начать игру заново?", Gold, TextAnchor.MiddleCenter, 40, serif);
+            Text title = AddText(box.transform, Localization.T("map_modal_title"), Gold, TextAnchor.MiddleCenter, 40, serif);
             Center(title.rectTransform, new Vector2(0f, 130f), new Vector2(700f, 60f));
 
             Text desc = AddText(box.transform,
-                "Все пройденные уровни, рекорды времени и звёзды будут удалены безвозвратно.", Cream, TextAnchor.MiddleCenter, 28, serif);
+                Localization.T("map_modal_body"), Cream, TextAnchor.MiddleCenter, 28, serif);
             Center(desc.rectTransform, new Vector2(0f, 30f), new Vector2(640f, 110f));
 
-            Button cancel = MenuStyle.CreatePlateButton(box.transform, "ОТМЕНА", new Vector2(280f, 70f), HideConfirmModal);
+            Button cancel = MenuStyle.CreatePlateButton(box.transform, Localization.T("map_modal_cancel"), new Vector2(280f, 70f), HideConfirmModal);
             Center((RectTransform)cancel.transform, new Vector2(-165f, -115f), new Vector2(280f, 70f));
 
-            Button confirm = MenuStyle.CreatePlateButton(box.transform, "СБРОСИТЬ", new Vector2(280f, 70f), ExecuteStartOver);
+            Button confirm = MenuStyle.CreatePlateButton(box.transform, Localization.T("map_modal_confirm"), new Vector2(280f, 70f), ExecuteStartOver);
             Center((RectTransform)confirm.transform, new Vector2(165f, -115f), new Vector2(280f, 70f));
             confirm.GetComponent<Image>().color = new Color(1f, 0.55f, 0.48f);
 
