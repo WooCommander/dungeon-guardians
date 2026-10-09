@@ -166,6 +166,12 @@ namespace DungeonGuardians.Presentation
 #endif
             }
 
+            float zoomDelta = input.ReadPinchZoomDelta();
+            if (Mathf.Abs(zoomDelta) > 0.0001f)
+            {
+                levelRenderer.ApplyZoomDelta(zoomDelta);
+            }
+
             if (snapshot.Restart)
             {
                 LoadLevel(levelIndex);

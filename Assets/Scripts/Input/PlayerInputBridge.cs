@@ -181,6 +181,65 @@ namespace DungeonGuardians.Input
             return false;
         }
 
+        // Pinch-to-zoom gesture on touchscreens, mouse wheel on PC/Editor, and +/- hotkeys.
+        public float ReadPinchZoomDelta()
+        {
+            float delta = 0f;
+
+            // 1. Pinch gesture with 2 or more touches
+            var touches = Touch.activeTouches;
+            if (touches.Count >= 2)
+            {
+                Touch t0 = touches[0];
+                Touch t1 = touches[1];
+                if (t0.phase == TouchPhase.Moved || t1.phase == TouchPhase.Moved)
+                {
+                    Vector2 cur0 = t0.screenPosition;
+                    Vector2 cur1 = t1.screenPosition;
+                    Vector2 prev0 = cur0 - t0.delta;
+                    Vector2 prev1 = cur1 - t1.delta;
+                    float curDist = Vector2.Distance(cur0, cur1);
+                    float prevDist = Vector2.Distance(prev0, prev1);
+                    float minDim = Mathf.Min(Screen.width, Screen.height);
+                    if (minDim > 0f)
+                    {
+                        float diff = (curDist - prevDist) / minDim;
+                        if (Mathf.Abs(diff) > 0.0005f)
+                        {
+                            delta += diff * 12f;
+                        }
+                    }
+                }
+            }
+
+            // 2. Mouse scroll wheel for Editor & PC
+            Mouse mouse = Mouse.current;
+            if (mouse != null)
+            {
+                float scroll = mouse.scroll.ReadValue().y;
+                if (Mathf.Abs(scroll) > 0.01f)
+                {
+                    delta += Mathf.Sign(scroll) * 0.75f;
+                }
+            }
+
+            // 3. Keyboard zoom shortcuts (Numpad +/- and =/-)
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.numpadPlusKey.isPressed || keyboard.equalsKey.isPressed)
+                {
+                    delta += 3f * Time.deltaTime;
+                }
+                else if (keyboard.numpadMinusKey.isPressed || keyboard.minusKey.isPressed)
+                {
+                    delta -= 3f * Time.deltaTime;
+                }
+            }
+
+            return delta;
+        }
+
         public void Restart() => restartRequested = true;
         public void TogglePause() => pauseRequested = true;
 

@@ -133,6 +133,8 @@ namespace DungeonGuardians.Presentation
         private float lastPlayerY;
         private float lookDown;
         private float lightRefreshAt;
+        private float targetOrthoSize = -1f;
+        private float zoomVelocity;
         private readonly List<TorchFlame> torchFlames = new List<TorchFlame>();
         // Dark halls (LevelDefinition.dark).
         private DarknessOverlay darkness;
@@ -273,6 +275,8 @@ namespace DungeonGuardians.Presentation
             torchFlames.Clear();
             plates.Clear();
             snapCamera = true;
+            targetOrthoSize = -1f;
+            zoomVelocity = 0f;
             goldPieces.Clear();
             goldRestY.Clear();
             goldHalos.Clear();
@@ -591,6 +595,59 @@ namespace DungeonGuardians.Presentation
             return simulation.HasSupport(position) ? CharacterPose.Ground : CharacterPose.Fall;
         }
 
+        public void ResetZoom()
+        {
+            Camera camera = Camera.main;
+            if (camera != null && currentDefinition != null)
+            {
+                targetOrthoSize = GetDefaultOrthoSize(camera, currentDefinition);
+                snapCamera = true;
+            }
+        }
+
+        public void ApplyZoomDelta(float delta)
+        {
+            Camera camera = Camera.main;
+            if (camera == null || currentDefinition == null || Mathf.Abs(delta) < 0.0001f)
+            {
+                return;
+            }
+
+            var (minSize, maxSize) = GetOrthoSizeLimits(camera, currentDefinition);
+            if (targetOrthoSize <= 0f)
+            {
+                targetOrthoSize = camera.orthographicSize > 0f ? camera.orthographicSize : GetDefaultOrthoSize(camera, currentDefinition);
+            }
+
+            targetOrthoSize = Mathf.Clamp(targetOrthoSize - delta, minSize, maxSize);
+        }
+
+        private float GetFullFitSize(Camera camera, LevelDefinition definition)
+        {
+            float levelTop = definition.height - 0.5f + HudTopMargin;
+            float levelBottom = -0.5f;
+            float sizeForHeight = (levelTop - levelBottom) / 2f;
+            float sizeForWidth = (definition.width + 0.4f) / (2f * Mathf.Max(0.1f, camera.aspect));
+            return Mathf.Max(sizeForHeight, sizeForWidth);
+        }
+
+        private float GetDefaultOrthoSize(Camera camera, LevelDefinition definition)
+        {
+            if (Follow)
+            {
+                return (ViewRows + HudTopMargin) / 2f;
+            }
+
+            return GetFullFitSize(camera, definition);
+        }
+
+        private (float min, float max) GetOrthoSizeLimits(Camera camera, LevelDefinition definition)
+        {
+            float minSize = (4.0f + HudTopMargin) / 2f; // Minimum ~4 rows close-up view
+            float maxSize = Mathf.Max(GetFullFitSize(camera, definition), (FollowRows + HudTopMargin) / 2f);
+            return (minSize, maxSize);
+        }
+
         private void PositionCamera(LevelDefinition definition)
         {
             Camera camera = Camera.main;
@@ -606,10 +663,15 @@ namespace DungeonGuardians.Presentation
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.02f, 0.05f, 0.06f);
 
-            if (Follow)
+            if (targetOrthoSize <= 0f)
             {
-                // The cell size of a 13-row hall (8 rows on a phone); LateUpdate moves the camera after the explorer.
-                camera.orthographicSize = (ViewRows + HudTopMargin) / 2f;
+                targetOrthoSize = GetDefaultOrthoSize(camera, definition);
+                camera.orthographicSize = targetOrthoSize;
+            }
+
+            float fullFit = GetFullFitSize(camera, definition);
+            if (Follow || targetOrthoSize < fullFit - 0.05f)
+            {
                 return;
             }
 
@@ -617,10 +679,7 @@ namespace DungeonGuardians.Presentation
             // the HUD text, centered vertically.
             float levelTop = definition.height - 0.5f + HudTopMargin;
             float levelBottom = -0.5f;
-            float sizeForHeight = (levelTop - levelBottom) / 2f;
-            float sizeForWidth = (definition.width + 0.4f) / (2f * camera.aspect);
-            float size = Mathf.Max(sizeForHeight, sizeForWidth);
-            camera.orthographicSize = size;
+            camera.orthographicSize = targetOrthoSize;
             float centerY = (levelTop + levelBottom) * 0.5f;
             camera.transform.position = new Vector3((definition.width - 1) * 0.5f, centerY, -10f);
             if (backdrop != null)
@@ -637,13 +696,32 @@ namespace DungeonGuardians.Presentation
                 return;
             }
 
-            if (Follow && player != null)
+            if (targetOrthoSize > 0f)
+            {
+                camera.orthographicSize = Mathf.SmoothDamp(camera.orthographicSize, targetOrthoSize, ref zoomVelocity, 0.1f);
+            }
+
+            float fullFit = GetFullFitSize(camera, currentDefinition);
+            bool shouldFollow = (Follow || camera.orthographicSize < fullFit - 0.05f) && player != null;
+
+            if (shouldFollow)
             {
                 FollowExplorer(camera);
                 if (Time.time >= lightRefreshAt)
                 {
                     lightRefreshAt = Time.time + LightRefreshInterval;
                     LightNearestTorches(camera.transform.position);
+                }
+            }
+            else
+            {
+                float levelTop = currentDefinition.height - 0.5f + HudTopMargin;
+                float levelBottom = -0.5f;
+                float centerY = (levelTop + levelBottom) * 0.5f;
+                camera.transform.position = new Vector3((currentDefinition.width - 1) * 0.5f, centerY, -10f);
+                if (backdrop != null)
+                {
+                    backdrop.FitToView(camera);
                 }
             }
 
