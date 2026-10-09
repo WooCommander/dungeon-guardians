@@ -8,9 +8,9 @@ namespace DungeonGuardians.Presentation
     // Gives visual feedback for speedrunning and race-against-best-time.
     public sealed class GhostRunner : MonoBehaviour
     {
-        private const float GhostHeight = 1.1f;
-        private const float GhostWalkPlayback = 1.6f;
-        private static readonly Color GhostTint = new Color(0.25f, 0.85f, 1.0f, 0.45f);
+        private const float GhostHeight = 0.92f;
+        private const float GhostWalkPlayback = 1.8f;
+        private static readonly Color GhostTint = new Color(0.65f, 0.88f, 1.0f, 0.22f);
 
         private CharacterView ghostView;
         private DungeonSimulation ghostSimulation;
@@ -32,7 +32,7 @@ namespace DungeonGuardians.Presentation
             {
                 ghostView = CharacterView.Create("explorer", parent, GhostHeight, balance.PlayerSpeed, GhostTint, GhostWalkPlayback);
                 ghostView.gameObject.name = "Ghost Explorer";
-                ghostView.SetTint(GhostTint);
+                ghostView.ApplyGhostMode(GhostTint);
                 ghostView.SetVisible(false);
             }
         }
@@ -89,8 +89,9 @@ namespace DungeonGuardians.Presentation
             ghostSimulation = new DungeonSimulation(level, currentBalance);
             if (ghostView != null)
             {
+                ghostView.ApplyGhostMode(GhostTint);
+                ghostView.SetOneShotDuration("Dig", currentBalance.DigTicks / currentBalance.TickRate);
                 ghostView.SetVisible(true);
-                ghostView.SetTint(GhostTint);
                 ghostView.SnapNextMove();
                 ghostView.SetTarget(ToWorld(ghostSimulation.State.PlayerPosition));
             }
@@ -153,7 +154,7 @@ namespace DungeonGuardians.Presentation
 
         private static Vector3 ToWorld(GridPoint point)
         {
-            return new Vector3(point.x, point.y, 0.02f);
+            return new Vector3(point.x, point.y - 0.5f, -0.01f);
         }
 
         private static CharacterPose MovementPose(DungeonSimulation simulation, GridPoint position)

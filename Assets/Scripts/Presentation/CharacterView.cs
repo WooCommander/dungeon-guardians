@@ -250,6 +250,53 @@ namespace DungeonGuardians.Presentation
             return true;
         }
 
+        private static Shader ghostShader;
+
+        // Applies transparent, pale ethereal ghost shader to the character model.
+        public void ApplyGhostMode(Color? tint = null)
+        {
+            if (ghostShader == null)
+            {
+                ghostShader = Resources.Load<Shader>("Shaders/Ghost");
+                if (ghostShader == null)
+                {
+                    ghostShader = Shader.Find("Transparent/Diffuse");
+                }
+            }
+
+            if (model == null)
+            {
+                return;
+            }
+
+            Color ghostColor = tint ?? new Color(0.45f, 0.8f, 0.95f, 0.28f);
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                Material[] materials = renderer.sharedMaterials;
+                var ghostMats = new Material[materials.Length];
+                for (int m = 0; m < materials.Length; m++)
+                {
+                    Material own = materials[m];
+                    if (ghostShader != null)
+                    {
+                        ghostMats[m] = new Material(ghostShader) { name = (own != null ? own.name : "Model") + " (ghost)" };
+                        if (own != null)
+                        {
+                            CopyTexture(own, ghostMats[m], "_MainTex", "_BaseMap");
+                        }
+                        ghostMats[m].color = ghostColor;
+                    }
+                    else if (own != null)
+                    {
+                        ghostMats[m] = new Material(own);
+                        ghostMats[m].color = ghostColor;
+                    }
+                }
+
+                renderer.sharedMaterials = ghostMats;
+            }
+        }
+
         private static void CopyTexture(Material from, Material to, params string[] properties)
         {
             foreach (string property in properties)
