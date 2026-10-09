@@ -51,6 +51,7 @@ namespace DungeonGuardians.Presentation
         private Sprite vibrationOff;
         private Button cameraStyleButton;
         private Text cameraStyleText;
+        private Text headerText;
         private Text musicLabelText;
         private Text soundLabelText;
         private Text vibrationLabelText;
@@ -115,6 +116,9 @@ namespace DungeonGuardians.Presentation
             Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/settings_blur", AspectRatioFitter.AspectMode.EnvelopeParent);
             backing.raycastTarget = true;
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/settings", AspectRatioFitter.AspectMode.FitInParent).transform;
+
+            // Top Header: НАСТРОЙКИ / SETTINGS
+            headerText = AddHeaderTitle();
 
             // Interactive controls over their exact painted slots on the stone frame:
             // Row 1: Музыка / Music
@@ -300,6 +304,29 @@ namespace DungeonGuardians.Presentation
             return (buttonImage, text);
         }
 
+        private Text AddHeaderTitle()
+        {
+            var title = new GameObject("HeaderTitle").AddComponent<Text>();
+            title.transform.SetParent(picture, false);
+            title.font = MenuStyle.Font;
+            title.fontStyle = FontStyle.Bold;
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = new Color(1f, 0.94f, 0.74f);
+            title.text = Localization.T("settings_header");
+            title.raycastTarget = false;
+            title.resizeTextForBestFit = true;
+            title.resizeTextMinSize = 24;
+            title.resizeTextMaxSize = 62;
+
+            var outline = title.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.14f, 0.07f, 0.02f, 0.95f);
+            outline.effectDistance = new Vector2(3f, -3f);
+
+            // Centered plaque area between the two crystals
+            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(570f, 65f, 532f, 92f));
+            return title;
+        }
+
         private Text AddRowLabel(float rowY, string key)
         {
             var label = new GameObject("Label_" + key).AddComponent<Text>();
@@ -330,6 +357,7 @@ namespace DungeonGuardians.Presentation
             SetLangButtonState(langRuBg, langRuText, selected == AppLanguage.Russian, Localization.T("settings_lang_ru"), activeSprite, inactiveSprite);
             SetLangButtonState(langEnBg, langEnText, selected == AppLanguage.English, Localization.T("settings_lang_en"), activeSprite, inactiveSprite);
 
+            if (headerText != null) headerText.text = Localization.T("settings_header");
             if (musicLabelText != null) musicLabelText.text = Localization.T("settings_music");
             if (soundLabelText != null) soundLabelText.text = Localization.T("settings_sound");
             if (vibrationLabelText != null) vibrationLabelText.text = Localization.T("settings_vibration");

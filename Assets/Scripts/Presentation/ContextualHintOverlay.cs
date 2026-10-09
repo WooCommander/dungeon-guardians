@@ -19,10 +19,13 @@ namespace DungeonGuardians.Presentation
         private SpriteRenderer digRendererRight;
         private SpriteRenderer digHaloLeft;
         private SpriteRenderer digHaloRight;
+        private TextMesh digTextLeft;
+        private TextMesh digTextRight;
 
         private GameObject exitArrow;
         private SpriteRenderer exitArrowRenderer;
         private SpriteRenderer exitGlowRenderer;
+        private TextMesh exitText;
 
         private LevelDefinition currentLevel;
         private int currentLevelIndex;
@@ -62,6 +65,18 @@ namespace DungeonGuardians.Presentation
             digRendererLeft.color = new Color(1f, 1f, 1f, 0.65f);
             digRendererLeft.sortingOrder = 20;
 
+            var textLeftObj = new GameObject("Label");
+            textLeftObj.transform.SetParent(digHintLeft.transform, false);
+            textLeftObj.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+            digTextLeft = textLeftObj.AddComponent<TextMesh>();
+            digTextLeft.font = MenuStyle.Font;
+            digTextLeft.fontSize = 28;
+            digTextLeft.characterSize = 0.055f;
+            digTextLeft.alignment = TextAlignment.Center;
+            digTextLeft.anchor = TextAnchor.MiddleCenter;
+            digTextLeft.color = new Color(1f, 0.94f, 0.75f, 0.85f);
+            textLeftObj.GetComponent<MeshRenderer>().sortingOrder = 22;
+
             digHintLeft.transform.localScale = Vector3.one * 0.65f;
             digHintLeft.SetActive(false);
 
@@ -83,6 +98,18 @@ namespace DungeonGuardians.Presentation
             digRendererRight.sprite = digRightSprite;
             digRendererRight.color = new Color(1f, 1f, 1f, 0.65f);
             digRendererRight.sortingOrder = 20;
+
+            var textRightObj = new GameObject("Label");
+            textRightObj.transform.SetParent(digHintRight.transform, false);
+            textRightObj.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+            digTextRight = textRightObj.AddComponent<TextMesh>();
+            digTextRight.font = MenuStyle.Font;
+            digTextRight.fontSize = 28;
+            digTextRight.characterSize = 0.055f;
+            digTextRight.alignment = TextAlignment.Center;
+            digTextRight.anchor = TextAnchor.MiddleCenter;
+            digTextRight.color = new Color(1f, 0.94f, 0.75f, 0.85f);
+            textRightObj.GetComponent<MeshRenderer>().sortingOrder = 22;
 
             digHintRight.transform.localScale = Vector3.one * 0.65f;
             digHintRight.SetActive(false);
@@ -107,8 +134,35 @@ namespace DungeonGuardians.Presentation
             exitArrowRenderer.sortingOrder = 20;
             arrowIconObj.transform.localScale = new Vector3(0.6f, 0.9f, 1f);
 
+            var exitTextObj = new GameObject("Label");
+            exitTextObj.transform.SetParent(exitArrow.transform, false);
+            exitTextObj.transform.localPosition = new Vector3(0f, 0.55f, 0f);
+            exitText = exitTextObj.AddComponent<TextMesh>();
+            exitText.font = MenuStyle.Font;
+            exitText.fontSize = 28;
+            exitText.characterSize = 0.055f;
+            exitText.alignment = TextAlignment.Center;
+            exitText.anchor = TextAnchor.MiddleCenter;
+            exitText.color = new Color(1f, 0.94f, 0.75f, 0.85f);
+            exitTextObj.GetComponent<MeshRenderer>().sortingOrder = 22;
+
             exitArrow.transform.localScale = Vector3.one * 0.85f;
             exitArrow.SetActive(false);
+
+            RefreshLocalizedText();
+            Localization.LanguageChanged += RefreshLocalizedText;
+        }
+
+        private void OnDestroy()
+        {
+            Localization.LanguageChanged -= RefreshLocalizedText;
+        }
+
+        private void RefreshLocalizedText()
+        {
+            if (digTextLeft != null) digTextLeft.text = Localization.T("hint_dig");
+            if (digTextRight != null) digTextRight.text = Localization.T("hint_dig");
+            if (exitText != null) exitText.text = Localization.T("hint_exit");
         }
 
         private static Sprite fallbackPickaxeLeft;
@@ -184,6 +238,7 @@ namespace DungeonGuardians.Presentation
             currentLevel = level;
             hasDugOnThisLevel = false;
 
+            RefreshLocalizedText();
             if (digHintLeft != null) digHintLeft.SetActive(false);
             if (digHintRight != null) digHintRight.SetActive(false);
             if (exitArrow != null) exitArrow.SetActive(false);

@@ -128,6 +128,7 @@ namespace DungeonGuardians.Core
             { "menu_exit", new[] { "ВЫХОД", "EXIT" } },
 
             // Settings
+            { "settings_header", new[] { "НАСТРОЙКИ", "SETTINGS" } },
             { "settings_music", new[] { "Музыка", "Music" } },
             { "settings_sound", new[] { "Звуки", "Sound FX" } },
             { "settings_vibration", new[] { "Вибрация", "Vibration" } },
@@ -169,6 +170,9 @@ namespace DungeonGuardians.Core
 
             // In-Game HUD & Victory
             { "hud_level", new[] { "Уровень {0}", "Level {0}" } },
+            { "hud_pause", new[] { "ПАУЗА", "PAUSE" } },
+            { "hint_dig", new[] { "КОПАЙ", "DIG" } },
+            { "hint_exit", new[] { "ВЫХОД", "EXIT" } },
             { "hud_victory_title", new[] { "Уровень пройден", "Level Completed" } },
             { "hud_victory_subtitle", new[] { "«{0}» — печать снята", "«{0}» — seal broken" } },
             { "hud_all_won_title", new[] { "Все залы пройдены", "All Halls Conquered" } },

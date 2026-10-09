@@ -143,9 +143,9 @@ namespace DungeonGuardians.Presentation
 
             if (paused)
             {
-                ShowMessage("PAUSE");
+                ShowMessage(Localization.T("hud_pause"));
             }
-            else if (messageLabel == "PAUSE")
+            else
             {
                 ShowMessage(string.Empty);
             }
