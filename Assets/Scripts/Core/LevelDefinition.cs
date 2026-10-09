@@ -49,6 +49,29 @@ namespace DungeonGuardians.Core
         // Whether the explorer can press the plates, or only a guardian can.
         public bool playerPressesPlates;
 
+        // Benchmark target time for speed-runner 3rd star award (seconds).
+        public float targetTimeSeconds;
+
+        public float GetTargetTime()
+        {
+            if (targetTimeSeconds > 0.01f)
+            {
+                return targetTimeSeconds;
+            }
+
+            int goldCount = gold != null ? gold.Length : 10;
+            float time = 16f + goldCount * 3.0f;
+            if (width > 33)
+            {
+                time += (width - 33) * 0.7f;
+            }
+            if (height > 13)
+            {
+                time += (height - 13) * 1.5f;
+            }
+            return (float)Math.Round(time);
+        }
+
         public bool GatesLatch => gateMode != "hold";
     }
 }

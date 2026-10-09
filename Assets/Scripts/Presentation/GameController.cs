@@ -66,6 +66,8 @@ namespace DungeonGuardians.Presentation
             // Navigation events
             hud.MenuRequested += ShowMenu;
             hud.MapRequested += ShowLevelMap;
+            hud.NextLevelRequested += PlayNextLevel;
+            hud.RestartLevelRequested += RestartCurrentLevel;
             menu.PlayLevel += StartLevel;
             menu.SettingsChanged += hud.RefreshControls;
             menu.ResetProgress += ResetProgress;
@@ -312,10 +314,17 @@ namespace DungeonGuardians.Presentation
 
         private void CompleteLevel()
         {
-            string completedId = catalog.Levels[levelIndex].id;
-            recorder.SaveWin(catalog.Levels[levelIndex], balance);
+            LevelDefinition level = catalog.Levels[levelIndex];
+            string completedId = level.id;
+            recorder.SaveWin(level, balance);
             lastCompletionTime = Mathf.Max(0.1f, Time.time - levelStartTime);
-            lastEarnedStars = livesLeft >= 3 ? 3 : (livesLeft == 2 ? 2 : 1);
+
+            float targetTime = level.GetTargetTime();
+            bool flawless = livesLeft >= Lives;
+            bool beatSpeed = lastCompletionTime <= targetTime;
+
+            // 1 star: complete level, +1 star: no lives lost (3/3), +1 star: beat speed par time
+            lastEarnedStars = 1 + (flawless ? 1 : 0) + (beatSpeed ? 1 : 0);
 
             lastIsNewBest = progress.RecordCompletion(levelIndex, completedId, lastCompletionTime, lastEarnedStars, out bool isNewBestTime);
             progress.lastSelectedLevelIndex = Mathf.Min(levelIndex + 1, catalog.Levels.Count - 1);
@@ -323,6 +332,26 @@ namespace DungeonGuardians.Presentation
 
             StopVictoryDelay();
             victoryDelay = StartCoroutine(ShowVictoryLater());
+        }
+
+        private void PlayNextLevel()
+        {
+            int next = levelIndex + 1;
+            if (next < catalog.Levels.Count)
+            {
+                hud.HideVictory();
+                LoadLevel(next);
+            }
+            else
+            {
+                ShowLevelMap();
+            }
+        }
+
+        private void RestartCurrentLevel()
+        {
+            hud.HideVictory();
+            LoadLevel(levelIndex);
         }
 
         // The explorer steps through the door; a moment later the victory panel. After the last level it closes the
@@ -333,14 +362,16 @@ namespace DungeonGuardians.Presentation
             victoryDelay = null;
             LevelDefinition level = catalog.Levels[levelIndex];
             bool hasNext = levelIndex + 1 < catalog.Levels.Count;
+            float targetTime = level.GetTargetTime();
+
             if (hasNext)
             {
-                hud.ShowVictory("Уровень пройден", $"«{level.title}» — всё золото собрано", lastEarnedStars, lastCompletionTime, lastIsNewBest);
+                hud.ShowVictory("Уровень пройден", $"«{level.title}» — печать снята", lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, true);
             }
             else
             {
                 hud.ShowVictory("Все залы пройдены",
-                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, lastIsNewBest);
+                    "Золото печатей собрано. Но внизу, за последним сводом, что-то шевельнулось…", lastEarnedStars, lastCompletionTime, targetTime, livesLeft, Lives, lastIsNewBest, false);
             }
         }
 

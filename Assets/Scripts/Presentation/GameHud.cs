@@ -62,6 +62,8 @@ namespace DungeonGuardians.Presentation
 
         public event Action MenuRequested;
         public event Action MapRequested;
+        public event Action NextLevelRequested;
+        public event Action RestartLevelRequested;
 
         public void Bind(PlayerInputBridge bridge)
         {
@@ -256,47 +258,59 @@ namespace DungeonGuardians.Presentation
 
         private Text victoryStars;
         private Text victoryStats;
+        private Button victoryNextButton;
 
         private void BuildVictoryPanel()
         {
             var overlay = new GameObject("Victory Panel").AddComponent<Image>();
             overlay.transform.SetParent(canvas.transform, false);
-            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.65f);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.75f);
             MenuStyle.Stretch(overlay.rectTransform);
 
-            victoryTitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 54);
+            victoryTitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 52);
             victoryTitle.color = new Color(1f, 0.85f, 0.42f);
             victoryTitle.fontStyle = FontStyle.Bold;
             victoryTitle.rectTransform.anchorMin = victoryTitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victoryTitle.rectTransform.sizeDelta = new Vector2(1300f, 80f);
-            victoryTitle.rectTransform.anchoredPosition = new Vector2(0f, 220f);
+            victoryTitle.rectTransform.sizeDelta = new Vector2(1300f, 75f);
+            victoryTitle.rectTransform.anchoredPosition = new Vector2(0f, 215f);
 
-            victoryStars = MenuStyle.AddLabel(overlay.transform, "★★★", 48);
+            victoryStars = MenuStyle.AddLabel(overlay.transform, "★★★", 52);
             victoryStars.color = new Color(1f, 0.84f, 0.28f);
             victoryStars.alignment = TextAnchor.MiddleCenter;
             victoryStars.rectTransform.anchorMin = victoryStars.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victoryStars.rectTransform.sizeDelta = new Vector2(400f, 60f);
-            victoryStars.rectTransform.anchoredPosition = new Vector2(0f, 155f);
+            victoryStars.rectTransform.sizeDelta = new Vector2(500f, 65f);
+            victoryStars.rectTransform.anchoredPosition = new Vector2(0f, 150f);
 
             victoryStats = MenuStyle.AddLabel(overlay.transform, string.Empty, 26);
             victoryStats.color = new Color(0.95f, 0.92f, 0.82f);
             victoryStats.alignment = TextAnchor.MiddleCenter;
             victoryStats.rectTransform.anchorMin = victoryStats.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victoryStats.rectTransform.sizeDelta = new Vector2(800f, 50f);
-            victoryStats.rectTransform.anchoredPosition = new Vector2(0f, 105f);
+            victoryStats.rectTransform.sizeDelta = new Vector2(950f, 65f);
+            victoryStats.rectTransform.anchoredPosition = new Vector2(0f, 85f);
 
-            victorySubtitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 24);
+            victorySubtitle = MenuStyle.AddLabel(overlay.transform, string.Empty, 22);
             victorySubtitle.color = new Color(0.85f, 0.85f, 0.85f);
             victorySubtitle.horizontalOverflow = HorizontalWrapMode.Wrap;
+            victorySubtitle.alignment = TextAnchor.MiddleCenter;
             victorySubtitle.rectTransform.anchorMin = victorySubtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            victorySubtitle.rectTransform.sizeDelta = new Vector2(1100f, 60f);
-            victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 55f);
+            victorySubtitle.rectTransform.sizeDelta = new Vector2(1100f, 75f);
+            victorySubtitle.rectTransform.anchoredPosition = new Vector2(0f, 10f);
 
-            // The one way on: the level map shows the progress and the next level is chosen there.
-            Button map = MenuStyle.CreatePlateButton(overlay.transform, "КАРТА УРОВНЕЙ", new Vector2(460f, 84f), () => MapRequested?.Invoke());
+            // Three buttons: [ КАРТА ]  [ ЗАНОВО ]  [ ДАЛЕЕ ]
+            Button map = MenuStyle.CreatePlateButton(overlay.transform, "КАРТА", new Vector2(250f, 75f), () => MapRequested?.Invoke());
             var mapRect = (RectTransform)map.transform;
             mapRect.anchorMin = mapRect.anchorMax = new Vector2(0.5f, 0.5f);
-            mapRect.anchoredPosition = new Vector2(0f, -40f);
+            mapRect.anchoredPosition = new Vector2(-280f, -80f);
+
+            Button restart = MenuStyle.CreatePlateButton(overlay.transform, "ЗАНОВО", new Vector2(250f, 75f), () => RestartLevelRequested?.Invoke());
+            var restartRect = (RectTransform)restart.transform;
+            restartRect.anchorMin = restartRect.anchorMax = new Vector2(0.5f, 0.5f);
+            restartRect.anchoredPosition = new Vector2(0f, -80f);
+
+            victoryNextButton = MenuStyle.CreatePlateButton(overlay.transform, "ДАЛЕЕ", new Vector2(250f, 75f), () => NextLevelRequested?.Invoke());
+            var nextRect = (RectTransform)victoryNextButton.transform;
+            nextRect.anchorMin = nextRect.anchorMax = new Vector2(0.5f, 0.5f);
+            nextRect.anchoredPosition = new Vector2(280f, -80f);
 
             victoryPanel = overlay.gameObject;
             victoryPanel.SetActive(false);
@@ -312,8 +326,8 @@ namespace DungeonGuardians.Presentation
             }
         }
 
-        // The level is won. Without a next level the "next" button is hidden and the subtitle closes the story.
-        public void ShowVictory(string title, string subtitle, int stars, float timeSeconds, bool isNewBest)
+        // The level is won. Displays full 3-star assessment with speed and life breakdown.
+        public void ShowVictory(string title, string subtitle, int stars, float timeSeconds, float targetTime, int livesLeft, int totalLives, bool isNewBest, bool hasNext)
         {
             if (victoryPanel == null)
             {
@@ -321,23 +335,37 @@ namespace DungeonGuardians.Presentation
             }
 
             victoryTitle.text = title;
-            victorySubtitle.text = subtitle;
-
-            string starsStr;
-            switch (stars)
+            if (victoryNextButton != null)
             {
-                case 3: starsStr = "★ ★ ★"; break;
-                case 2: starsStr = "★ ★ ☆"; break;
-                default: starsStr = "★ ☆ ☆"; break;
+                victoryNextButton.gameObject.SetActive(hasNext);
             }
-            victoryStars.text = starsStr;
+
+            string star1 = "<color=#FFE259>★</color>";
+            string star2 = livesLeft >= totalLives ? "<color=#FFE259>★</color>" : "<color=#554B3E>☆</color>";
+            string star3 = timeSeconds <= targetTime ? "<color=#FFE259>★</color>" : "<color=#554B3E>☆</color>";
+            victoryStars.text = $"{star1}   {star2}   {star3}";
 
             int mins = (int)(timeSeconds / 60f);
             int secs = (int)(timeSeconds % 60f);
+            int targetMins = (int)(targetTime / 60f);
+            int targetSecs = (int)(targetTime % 60f);
             string timeStr = $"{mins:00}:{secs:00}";
-            victoryStats.text = isNewBest
-                ? $"Время: <color=#FFE7B0>{timeStr}</color>  <color=#5AFFDF>★ НОВЫЙ РЕКОРД! ★</color>"
-                : $"Время: <color=#FFE7B0>{timeStr}</color>";
+            string targetStr = $"{targetMins:00}:{targetSecs:00}";
+
+            bool flawless = livesLeft >= totalLives;
+            bool speedBeat = timeSeconds <= targetTime;
+
+            string flawlessTag = flawless ? "<color=#73FF94>✓</color>" : "<color=#FF7766>✗</color>";
+            string speedTag = speedBeat ? "<color=#73FF94>✓</color>" : "<color=#FF8866>✗</color>";
+            string recordBadge = isNewBest ? "  <color=#5AFFDF>★ РЕКОРД! ★</color>" : string.Empty;
+
+            victoryStats.text = $"Время: <color=#FFE7B0>{timeStr}</color> (цель: {targetStr}) {speedTag}{recordBadge}\nЖизни: <color=#FF6B6B>{livesLeft}/{totalLives}</color> {flawlessTag}";
+
+            string req1 = "<color=#FFE7B0>★ Все золото</color>";
+            string req2 = flawless ? "<color=#FFE7B0>★ Без потерь</color>" : "<color=#7A7064>☆ Без потерь</color>";
+            string req3 = speedBeat ? "<color=#FFE7B0>★ На скорость</color>" : "<color=#7A7064>☆ На скорость</color>";
+
+            victorySubtitle.text = $"{req1}   •   {req2}   •   {req3}\n<size=20><color=#C8C3B8>{subtitle}</color></size>";
 
             victoryPanel.SetActive(true);
         }
