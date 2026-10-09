@@ -222,8 +222,8 @@ namespace DungeonGuardians.Presentation
         private static Sprite plate;
         private static bool plateLoaded;
 
-        // Unity 6 removed the built-in Arial.ttf; LegacyRuntime.ttf is its replacement.
-        public static Font Font => font != null ? font : font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        // Loads PTSerif-Bold fantasy font, falling back to LegacyRuntime.ttf
+        public static Font Font => font != null ? font : font = Resources.Load<Font>("Fonts/PTSerif-Bold") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         public static Canvas CreateCanvas(string name, Transform parent, int sortingOrder)
         {

@@ -31,9 +31,9 @@ namespace DungeonGuardians.Presentation
         private const float ValueRight = 1323f;
         private const float ValueHalf = 19f;
 
-        // Row 6: where the painted labels start, and the painted dropdown frame with its chevron.
-        private const float LabelLeft = 455f;
-        private const float LabelHalf = 21f;
+        // Row labels: where dynamic text starts right after painted row icons.
+        private const float LabelLeft = 430f;
+        private const float LabelHalf = 22f;
         private const float CameraChevronLeft = 1282f;
         private static readonly Rect CameraBox = new Rect(948f, 673f, 386f, 64f);
 
@@ -51,6 +51,11 @@ namespace DungeonGuardians.Presentation
         private Sprite vibrationOff;
         private Button cameraStyleButton;
         private Text cameraStyleText;
+        private Text musicLabelText;
+        private Text soundLabelText;
+        private Text vibrationLabelText;
+        private Text buttonSizeLabelText;
+        private Text buttonOpacityLabelText;
         private Text cameraLabelText;
         private Text cancelText;
         private Text doneText;
@@ -112,23 +117,28 @@ namespace DungeonGuardians.Presentation
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/settings", AspectRatioFitter.AspectMode.FitInParent).transform;
 
             // Interactive controls over their exact painted slots on the stone frame:
-            // Row 1: Музыка
+            // Row 1: Музыка / Music
+            musicLabelText = AddRowLabel(MusicRow, "settings_music");
             music = AddSlider(MusicRow, value => GameSettings.Music = value, _ => Percent(GameSettings.Music));
 
-            // Row 2: Звуки
+            // Row 2: Звуки / Sound FX
+            soundLabelText = AddRowLabel(SoundRow, "settings_sound");
             sound = AddSlider(SoundRow, value => GameSettings.Sound = value, _ => Percent(GameSettings.Sound));
 
-            // Row 3: Вибрация + Селектор языка
+            // Row 3: Вибрация / Vibration + Селектор языка
+            vibrationLabelText = AddRowLabel(423f, "settings_vibration");
             AddVibrationSwitch();
             AddLanguageSelector();
 
-            // Row 4: Размер кнопок
+            // Row 4: Размер кнопок / Button Size
+            buttonSizeLabelText = AddRowLabel(ButtonSizeRow, "settings_size");
             buttonSize = AddSlider(ButtonSizeRow, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
 
-            // Row 5: Прозрачность кнопок
+            // Row 5: Прозрачность кнопок / Button Opacity
+            buttonOpacityLabelText = AddRowLabel(ButtonOpacityRow, "settings_opacity");
             buttonOpacity = AddSlider(ButtonOpacityRow, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
 
-            // Row 6: Масштаб камеры
+            // Row 6: Масштаб камеры / Camera Zoom
             AddCameraStyleSwitch(CameraStyleRow);
 
             // The bottom row, either side of the centre: "ОТМЕНА" / "ГОТОВО"
@@ -290,6 +300,26 @@ namespace DungeonGuardians.Presentation
             return (buttonImage, text);
         }
 
+        private Text AddRowLabel(float rowY, string key)
+        {
+            var label = new GameObject("Label_" + key).AddComponent<Text>();
+            label.transform.SetParent(picture, false);
+            label.font = MenuStyle.Font;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleLeft;
+            label.color = LabelGold;
+            label.text = Localization.T(key);
+            label.raycastTarget = false;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 10;
+            label.resizeTextMaxSize = 36;
+            var outline = label.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(LabelLeft, rowY - LabelHalf, TrackLeft - 20f - LabelLeft, 2f * LabelHalf));
+            return label;
+        }
+
         private void RefreshLanguageSelector()
         {
             AppLanguage selected = Localization.SelectedPreference;
@@ -300,9 +330,14 @@ namespace DungeonGuardians.Presentation
             SetLangButtonState(langRuBg, langRuText, selected == AppLanguage.Russian, Localization.T("settings_lang_ru"), activeSprite, inactiveSprite);
             SetLangButtonState(langEnBg, langEnText, selected == AppLanguage.English, Localization.T("settings_lang_en"), activeSprite, inactiveSprite);
 
+            if (musicLabelText != null) musicLabelText.text = Localization.T("settings_music");
+            if (soundLabelText != null) soundLabelText.text = Localization.T("settings_sound");
+            if (vibrationLabelText != null) vibrationLabelText.text = Localization.T("settings_vibration");
+            if (buttonSizeLabelText != null) buttonSizeLabelText.text = Localization.T("settings_size");
+            if (buttonOpacityLabelText != null) buttonOpacityLabelText.text = Localization.T("settings_opacity");
+            if (cameraLabelText != null) cameraLabelText.text = Localization.T("settings_camera");
             if (cancelText != null) cancelText.text = Localization.T("settings_cancel");
             if (doneText != null) doneText.text = Localization.T("settings_done");
-            if (cameraLabelText != null) cameraLabelText.text = Localization.T("settings_camera");
         }
 
         private static void SetLangButtonState(Image bg, Text text, bool isSelected, string caption, Sprite activeSprite, Sprite inactiveSprite)
