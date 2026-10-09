@@ -34,6 +34,18 @@ namespace DungeonGuardians.Core
             }
         }
 
+        public static AppLanguage SelectedPreference
+        {
+            get
+            {
+                if (!initialized)
+                {
+                    Initialize();
+                }
+                return (AppLanguage)PlayerPrefs.GetInt(LanguagePrefKey, (int)AppLanguage.Auto);
+            }
+        }
+
         public static bool IsRussian => CurrentLanguage == AppLanguage.Russian;
 
         public static void Initialize()
@@ -126,6 +138,10 @@ namespace DungeonGuardians.Core
             { "settings_tablet", new[] { "Планшет · 11 рядов", "Tablet · 11 rows" } },
             { "settings_cancel", new[] { "ОТМЕНА", "CANCEL" } },
             { "settings_done", new[] { "ГОТОВО", "DONE" } },
+            { "settings_lang_label", new[] { "Язык", "Language" } },
+            { "settings_lang_auto", new[] { "АВТО", "AUTO" } },
+            { "settings_lang_ru", new[] { "РУС", "RU" } },
+            { "settings_lang_en", new[] { "ENG", "EN" } },
 
             // Story Screen
             { "story_hint", new[] { "нажми, чтобы продолжить", "tap to continue" } },

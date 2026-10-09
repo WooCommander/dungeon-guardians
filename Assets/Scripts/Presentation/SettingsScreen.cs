@@ -51,7 +51,16 @@ namespace DungeonGuardians.Presentation
         private Sprite vibrationOff;
         private Button cameraStyleButton;
         private Text cameraStyleText;
-        private (float music, float sound, bool vibration, float buttonSize, float buttonOpacity, int cameraStyle) opened;
+        private Text cameraLabelText;
+        private Text cancelText;
+        private Text doneText;
+        private Image langAutoBg;
+        private Text langAutoText;
+        private Image langRuBg;
+        private Text langRuText;
+        private Image langEnBg;
+        private Text langEnText;
+        private (float music, float sound, bool vibration, float buttonSize, float buttonOpacity, int cameraStyle, AppLanguage language) opened;
 
         public event Action Changed;
 
@@ -69,7 +78,7 @@ namespace DungeonGuardians.Presentation
         {
             // What "ОТМЕНА" goes back to.
             opened = (GameSettings.Music, GameSettings.Sound, GameSettings.Vibration, GameSettings.ButtonSize,
-                GameSettings.ButtonOpacity, GameSettings.CameraStyle);
+                GameSettings.ButtonOpacity, GameSettings.CameraStyle, Localization.SelectedPreference);
             Refresh();
             gameObject.SetActive(true);
         }
@@ -89,6 +98,7 @@ namespace DungeonGuardians.Presentation
             GameSettings.ButtonSize = opened.buttonSize;
             GameSettings.ButtonOpacity = opened.buttonOpacity;
             GameSettings.CameraStyle = opened.cameraStyle;
+            Localization.SetLanguage(opened.language);
             Refresh();
             Changed?.Invoke();
             Close();
@@ -108,8 +118,9 @@ namespace DungeonGuardians.Presentation
             // Row 2: Звуки
             sound = AddSlider(SoundRow, value => GameSettings.Sound = value, _ => Percent(GameSettings.Sound));
 
-            // Row 3: Вибрация
+            // Row 3: Вибрация + Селектор языка
             AddVibrationSwitch();
+            AddLanguageSelector();
 
             // Row 4: Размер кнопок
             buttonSize = AddSlider(ButtonSizeRow, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
@@ -117,17 +128,13 @@ namespace DungeonGuardians.Presentation
             // Row 5: Прозрачность кнопок
             buttonOpacity = AddSlider(ButtonOpacityRow, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
 
-            // Row 6: Масштаб камеры (вместо выбора языка)
+            // Row 6: Масштаб камеры
             AddCameraStyleSwitch(CameraStyleRow);
 
-            // The bottom row, either side of the centre: "ОТМЕНА" (the same plate as "ГОТОВО", unlit:
-            // tools/unlit_buttons.cs) puts the settings back, "ГОТОВО" keeps them. Both are drawn here:
-            // tools/settings_bottom_row.ps1 clears the painted bottom buttons and tools/settings_back_corner.ps1 the
-            // arrow in the top-left corner. Starting over lives on the level map.
-            // Both captions are written in code, one size and face (the largest at which both fit).
-            Text cancel = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), Localization.T("settings_cancel"), Cancel);
-            Text done = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), Localization.T("settings_done"), MenuStyle.GoldCaption, Close);
-            EqualFontSize.Apply(picture.gameObject, 60, cancel, done);
+            // The bottom row, either side of the centre: "ОТМЕНА" / "ГОТОВО"
+            cancelText = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), Localization.T("settings_cancel"), Cancel);
+            doneText = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), Localization.T("settings_done"), MenuStyle.GoldCaption, Close);
+            EqualFontSize.Apply(picture.gameObject, 60, cancelText, doneText);
         }
 
         private void Refresh()
@@ -142,6 +149,7 @@ namespace DungeonGuardians.Presentation
             }
 
             vibration.sprite = GameSettings.Vibration ? vibrationOn : vibrationOff;
+            RefreshLanguageSelector();
             UpdateCameraStyleText();
         }
 
@@ -243,25 +251,97 @@ namespace DungeonGuardians.Presentation
             });
         }
 
+        private void AddLanguageSelector()
+        {
+            (langAutoBg, langAutoText) = CreateLangButton("Lang_Auto", new Rect(737f, 397f, 137f, 52f), AppLanguage.Auto);
+            (langRuBg, langRuText) = CreateLangButton("Lang_RU", new Rect(886f, 397f, 137f, 52f), AppLanguage.Russian);
+            (langEnBg, langEnText) = CreateLangButton("Lang_EN", new Rect(1035f, 397f, 137f, 52f), AppLanguage.English);
+        }
+
+        private (Image bg, Text text) CreateLangButton(string name, Rect rect, AppLanguage lang)
+        {
+            var buttonImage = new GameObject(name).AddComponent<Image>();
+            buttonImage.transform.SetParent(picture, false);
+            buttonImage.sprite = Resources.Load<Sprite>("UI/settings_cancel");
+            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, rect);
+
+            var text = new GameObject("Text").AddComponent<Text>();
+            text.transform.SetParent(buttonImage.transform, false);
+            MenuStyle.Stretch(text.rectTransform);
+            text.font = MenuStyle.Font;
+            text.fontStyle = FontStyle.Bold;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.raycastTarget = false;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 10;
+            text.resizeTextMaxSize = 34;
+
+            var outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
+            outline.effectDistance = new Vector2(1.5f, -1.5f);
+
+            MenuStyle.MakeButton(buttonImage, () =>
+            {
+                Localization.SetLanguage(lang);
+                Refresh();
+                Changed?.Invoke();
+            });
+
+            return (buttonImage, text);
+        }
+
+        private void RefreshLanguageSelector()
+        {
+            AppLanguage selected = Localization.SelectedPreference;
+            Sprite activeSprite = Resources.Load<Sprite>("UI/settings_done_blank");
+            Sprite inactiveSprite = Resources.Load<Sprite>("UI/settings_cancel");
+
+            SetLangButtonState(langAutoBg, langAutoText, selected == AppLanguage.Auto, Localization.T("settings_lang_auto"), activeSprite, inactiveSprite);
+            SetLangButtonState(langRuBg, langRuText, selected == AppLanguage.Russian, Localization.T("settings_lang_ru"), activeSprite, inactiveSprite);
+            SetLangButtonState(langEnBg, langEnText, selected == AppLanguage.English, Localization.T("settings_lang_en"), activeSprite, inactiveSprite);
+
+            if (cancelText != null) cancelText.text = Localization.T("settings_cancel");
+            if (doneText != null) doneText.text = Localization.T("settings_done");
+            if (cameraLabelText != null) cameraLabelText.text = Localization.T("settings_camera");
+        }
+
+        private static void SetLangButtonState(Image bg, Text text, bool isSelected, string caption, Sprite activeSprite, Sprite inactiveSprite)
+        {
+            if (bg == null || text == null) return;
+            text.text = caption;
+            if (isSelected)
+            {
+                bg.sprite = activeSprite;
+                bg.color = Color.white;
+                text.color = MenuStyle.GoldCaption;
+            }
+            else
+            {
+                bg.sprite = inactiveSprite;
+                bg.color = new Color(0.75f, 0.75f, 0.75f, 0.85f);
+                text.color = new Color(0.75f, 0.72f, 0.65f, 0.75f);
+            }
+        }
+
         // The painted row 6, which tools/settings_camera_row.ps1 gives a magnifier and clears of "Язык" and "Русский":
         // the label goes where "Язык" was, the current choice into the painted dropdown frame.
         private void AddCameraStyleSwitch(float row)
         {
-            var label = new GameObject("CameraStyleLabel").AddComponent<Text>();
-            label.transform.SetParent(picture, false);
-            label.font = MenuStyle.Font;
-            label.fontStyle = FontStyle.Bold;
-            label.alignment = TextAnchor.MiddleLeft;
-            label.color = LabelGold;
-            label.text = Localization.T("settings_camera");
-            label.raycastTarget = false;
-            label.resizeTextForBestFit = true;
-            label.resizeTextMinSize = 8;
-            label.resizeTextMaxSize = 60;
-            var outline = label.gameObject.AddComponent<Outline>();
+            cameraLabelText = new GameObject("CameraStyleLabel").AddComponent<Text>();
+            cameraLabelText.transform.SetParent(picture, false);
+            cameraLabelText.font = MenuStyle.Font;
+            cameraLabelText.fontStyle = FontStyle.Bold;
+            cameraLabelText.alignment = TextAnchor.MiddleLeft;
+            cameraLabelText.color = LabelGold;
+            cameraLabelText.text = Localization.T("settings_camera");
+            cameraLabelText.raycastTarget = false;
+            cameraLabelText.resizeTextForBestFit = true;
+            cameraLabelText.resizeTextMinSize = 8;
+            cameraLabelText.resizeTextMaxSize = 60;
+            var outline = cameraLabelText.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
             outline.effectDistance = new Vector2(2f, -2f);
-            MenuStyle.PlaceOnPicture(label.rectTransform, new Rect(LabelLeft, row - LabelHalf, CameraBox.xMin - 30f - LabelLeft, 2f * LabelHalf));
+            MenuStyle.PlaceOnPicture(cameraLabelText.rectTransform, new Rect(LabelLeft, row - LabelHalf, CameraBox.xMin - 30f - LabelLeft, 2f * LabelHalf));
 
             // The whole painted frame is the button; a tap switches between the two framings.
             var buttonImage = new GameObject("CameraStyleButton").AddComponent<Image>();

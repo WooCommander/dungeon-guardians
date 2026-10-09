@@ -34,6 +34,9 @@ namespace DungeonGuardians.Presentation
         public event Action<int> PlayLevel;
         public event Action SettingsChanged;
         public event Action ResetProgress;
+        private Text playCaption;
+        private Text settingsCaption;
+        private Text exitCaption;
 
         public void Initialize(PlayerProgress progress, LevelCatalog catalog)
         {
@@ -47,21 +50,23 @@ namespace DungeonGuardians.Presentation
             AddEyeGlows(picture.transform);
             
             // 1. ИГРАТЬ (Main gold banner button). Its caption is written in code like the others below it.
-            var captions = new System.Collections.Generic.List<Text>
-            {
-                MenuStyle.AddCaptionedButton(picture.transform, "menu_play_blank", new Rect(619f, 467f, 434f, 124f), Localization.T("menu_play"), MenuStyle.GoldCaption, StartGame),
-            };
+            playCaption = MenuStyle.AddCaptionedButton(picture.transform, "menu_play_blank", new Rect(619f, 467f, 434f, 124f), Localization.T("menu_play"), MenuStyle.GoldCaption, StartGame);
+            var captions = new System.Collections.Generic.List<Text> { playCaption };
 
             // 2. НАСТРОЙКИ and 3. ВЫХОД (desktop only): the size and shape of ИГРАТЬ, unlit. Each covers the small painted
             // plate under it.
-            captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 615f, 434f, 124f), Localization.T("menu_settings"), OpenSettings));
+            settingsCaption = MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 615f, 434f, 124f), Localization.T("menu_settings"), OpenSettings);
+            captions.Add(settingsCaption);
             if (!Application.isMobilePlatform)
             {
-                captions.Add(MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 763f, 434f, 124f), Localization.T("menu_exit"), Application.Quit));
+                exitCaption = MenuStyle.AddQuietButton(picture.transform, "menu_button", new Rect(619f, 763f, 434f, 124f), Localization.T("menu_exit"), Application.Quit);
+                captions.Add(exitCaption);
             }
 
             // One size and face for all three captions: the largest at which "НАСТРОЙКИ" still fits.
             EqualFontSize.Apply(picture.gameObject, 60, captions.ToArray());
+
+            Localization.LanguageChanged += UpdateMenuCaptions;
 
             settings = SettingsScreen.Create(canvas.transform);
             story = StoryScreen.Create(canvas.transform);
@@ -186,6 +191,18 @@ namespace DungeonGuardians.Presentation
         private void OpenSettings()
         {
             settings.Open();
+        }
+
+        private void UpdateMenuCaptions()
+        {
+            if (playCaption != null) playCaption.text = Localization.T("menu_play");
+            if (settingsCaption != null) settingsCaption.text = Localization.T("menu_settings");
+            if (exitCaption != null) exitCaption.text = Localization.T("menu_exit");
+        }
+
+        private void OnDestroy()
+        {
+            Localization.LanguageChanged -= UpdateMenuCaptions;
         }
     }
 
