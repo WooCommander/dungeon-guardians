@@ -6,83 +6,85 @@ using UnityEngine.UI;
 
 namespace DungeonGuardians.Presentation
 {
-    // The settings screen as painted on map-images/settings.png. The picture (tools/cut_settings.py) has its slider
-    // knobs, fills and percentages removed; live sliders, the vibration switch and pressable buttons are laid over
-    // their painted places. Changes are saved at once and reported through Changed.
+    // The settings screen organized into 3 tabs: Sound, Controls, Display & Language.
+    // Built on clean modular sprites and auto-adapting layouts.
     public sealed class SettingsScreen : MonoBehaviour
     {
-        // Picture reference dimensions (1672x941) matching tools/cut_settings.py
-        private const float MusicRow = 241f;
-        private const float SoundRow = 331f;
-        private const float ButtonOpacityRow = 611f;
-
-        private const float TrackLeft = 737f;
-        private const float TrackRight = 1172f;
-        private const float TrackHalf = 15f;
-        private const float KnobHalf = 27f;
-        private const float KnobTravelLeft = TrackLeft + 12f;
-        private const float KnobTravelRight = TrackRight - 12f;
-        private const float FillInset = 4f;
-        private const float FillTop = 9f;
-        private const float FillBottom = 10f;
-
-        private const float ValueLeft = 1207f;
-        private const float ValueRight = 1323f;
-        private const float ValueHalf = 19f;
-
-        // Row labels: where dynamic text starts right after painted row icons.
-        private const float LabelLeft = 430f;
+        // Dimensions matching reference resolution 1672x941
+        private const float IconLeft = 200f;
+        private const float IconSize = 56f;
+        private const float LabelLeft = 275f;
         private const float LabelHalf = 22f;
-        private const float CameraChevronLeft = 1282f;
-        private static readonly Rect CameraBox = new Rect(948f, 673f, 386f, 64f);
-        private static readonly Rect TiltBox = new Rect(948f, 393f, 386f, 64f);
-        private static readonly Rect TabSoundBox = new Rect(140f, 200f, 450f, 74f);
-        private static readonly Rect TabControlsBox = new Rect(610f, 200f, 450f, 74f);
-        private static readonly Rect TabGraphicsBox = new Rect(1080f, 200f, 450f, 74f);
-        private static readonly Rect SectionBackdropBox = new Rect(120f, 300f, 1430f, 415f);
 
-        private static readonly Rect ToggleBox = new Rect(1205f, 393f, 122f, 60f);
+        private const float TrackLeft = 750f;
+        private const float TrackRight = 1180f;
+        private const float TrackHalf = 16f;
+        private const float KnobHalf = 26f;
+        private const float KnobTravelLeft = TrackLeft + 14f;
+        private const float KnobTravelRight = TrackRight - 14f;
+        private const float FillInset = 4f;
+        private const float FillTop = 8f;
+        private const float FillBottom = 9f;
+
+        private const float ValueLeft = 1210f;
+        private const float ValueRight = 1330f;
+        private const float ValueHalf = 20f;
+
+        private static readonly Rect TabSoundBox = new Rect(206f, 195f, 400f, 76f);
+        private static readonly Rect TabControlsBox = new Rect(636f, 195f, 400f, 76f);
+        private static readonly Rect TabGraphicsBox = new Rect(1066f, 195f, 400f, 76f);
+
+        private static readonly Rect ToggleBox = new Rect(1190f, 320f, 136f, 60f);
+        private static readonly Rect ActionButtonBox = new Rect(800f, 0f, 526f, 64f);
+
         private static readonly Color ValueColor = new Color(1f, 0.9f, 0.72f);
         private static readonly Color LabelGold = new Color(1f, 0.88f, 0.58f);
 
         private Transform picture;
         private Transform currentPage;
-        private GameObject generalPage;
         private GameObject soundPage;
         private GameObject controlsPage;
         private GameObject graphicsPage;
+
         private Image soundTabBg;
         private Text soundTabText;
         private Image controlsTabBg;
         private Text controlsTabText;
         private Image graphicsTabBg;
         private Text graphicsTabText;
+
         private Slider music;
         private Slider sound;
         private Slider buttonSize;
         private Slider buttonOpacity;
+
         private Image vibration;
         private Sprite vibrationOn;
         private Sprite vibrationOff;
+
         private Button cameraStyleButton;
         private Text cameraStyleText;
         private Text headerText;
+
         private Text musicLabelText;
         private Text soundLabelText;
         private Text vibrationLabelText;
         private Text buttonSizeLabelText;
         private Text buttonOpacityLabelText;
         private Text cameraLabelText;
+        private Text langLabelText;
         private Text tiltText;
         private Text tiltLabelText;
         private Text cancelText;
         private Text doneText;
+
         private Image langAutoBg;
         private Text langAutoText;
         private Image langRuBg;
         private Text langRuText;
         private Image langEnBg;
         private Text langEnText;
+
         private string currentHeaderKey = "settings_header";
         private (float music, float sound, bool vibration, float buttonSize, float buttonOpacity, int cameraStyle, bool tiltControl, float tiltCalibration, float tiltVerticalCalibration, AppLanguage language) opened;
 
@@ -101,11 +103,10 @@ namespace DungeonGuardians.Presentation
 
         public void Open()
         {
-            // What "ОТМЕНА" goes back to.
             opened = (GameSettings.Music, GameSettings.Sound, GameSettings.Vibration, GameSettings.ButtonSize,
                 GameSettings.ButtonOpacity, GameSettings.CameraStyle, GameSettings.TiltControl, GameSettings.TiltCalibration,
                 GameSettings.TiltVerticalCalibration, Localization.SelectedPreference);
-            SetPage(generalPage, "settings_header");
+            SetPage(soundPage, "settings_sound_section");
             Refresh();
             gameObject.SetActive(true);
         }
@@ -121,7 +122,6 @@ namespace DungeonGuardians.Presentation
             }
         }
 
-        // Puts every setting back as it was when the screen opened, and closes it.
         private void Cancel()
         {
             GameSettings.Music = opened.music;
@@ -141,64 +141,60 @@ namespace DungeonGuardians.Presentation
 
         private void Build()
         {
-            // A blurred copy fills the screen around the picture, which is shown whole so no row is ever cut off.
             Image backing = MenuStyle.CreatePicture(transform, "Backgrounds/settings_blur", AspectRatioFitter.AspectMode.EnvelopeParent);
             backing.raycastTarget = true;
             picture = MenuStyle.CreatePicture(transform, "Backgrounds/settings", AspectRatioFitter.AspectMode.FitInParent).transform;
 
             // Top Header: НАСТРОЙКИ / SETTINGS
             headerText = AddHeaderTitle();
+
+            // 3 Pages
             soundPage = CreatePage("SoundPage");
             controlsPage = CreatePage("ControlsPage");
             graphicsPage = CreatePage("GraphicsPage");
+
             AddTabs();
+
+            // 1) Sound Tab
             currentPage = soundPage.transform;
-            AddSectionBackdrop();
+            AddIcon(410f, "UI/icon_sound");
+            musicLabelText = AddRowLabel(410f, "settings_music");
+            music = AddSlider(410f, value => GameSettings.Music = value, _ => Percent(GameSettings.Music));
 
-            // Interactive controls over their exact painted slots on the stone frame:
-            // Row 1: Музыка / Music
-            musicLabelText = AddRowLabel(370f, "settings_music");
-            music = AddSlider(370f, value => GameSettings.Music = value, _ => Percent(GameSettings.Music));
+            AddIcon(530f, "UI/icon_sound");
+            soundLabelText = AddRowLabel(530f, "settings_sound");
+            sound = AddSlider(530f, value => GameSettings.Sound = value, _ => Percent(GameSettings.Sound));
 
-            // Row 2: Звуки / Sound FX
-            soundLabelText = AddRowLabel(505f, "settings_sound");
-            sound = AddSlider(505f, value => GameSettings.Sound = value, _ => Percent(GameSettings.Sound));
-
-            // Row 3: Вибрация / Vibration + Селектор языка
-            currentPage = graphicsPage.transform;
-            AddSectionBackdrop();
-            AddLanguageSelector();
-            AddCameraStyleSwitch(505f);
-
-            // Row 4: Размер кнопок / Button Size
+            // 2) Controls Tab
             currentPage = controlsPage.transform;
-            AddSectionBackdrop();
-            vibrationLabelText = AddRowLabel(370f, "settings_vibration");
-            AddVibrationSwitch();
+            AddIcon(350f, "UI/icon_vibration");
+            vibrationLabelText = AddRowLabel(350f, "settings_vibration");
+            AddVibrationSwitch(350f);
 
-            // Row 5: Прозрачность кнопок / Button Opacity
-            
+            AddIcon(440f, "UI/icon_dpad");
+            tiltLabelText = AddRowLabel(440f, "settings_tilt");
+            AddTiltSwitch(440f);
 
-            // Row 6: Масштаб камеры / Camera Zoom
-            buttonSizeLabelText = AddRowLabel(505f, "settings_size");
-            buttonSize = AddSlider(505f, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
-            buttonOpacityLabelText = AddRowLabel(640f, "settings_opacity");
-            buttonOpacity = AddSlider(640f, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
-            AddTiltSwitch();
+            AddIcon(530f, "UI/icon_controls");
+            buttonSizeLabelText = AddRowLabel(530f, "settings_size");
+            buttonSize = AddSlider(530f, value => GameSettings.ButtonSize = value, _ => Percent(GameSettings.ButtonScale));
 
-            // The bottom row, either side of the centre: "ОТМЕНА" / "ГОТОВО"
+            AddIcon(620f, "UI/icon_controls");
+            buttonOpacityLabelText = AddRowLabel(620f, "settings_opacity");
+            buttonOpacity = AddSlider(620f, value => GameSettings.ButtonOpacity = value, _ => Percent(GameSettings.ButtonAlpha));
+
+            // 3) Display & Language Tab
+            currentPage = graphicsPage.transform;
+            langLabelText = AddRowLabel(410f, "settings_lang_label");
+            AddLanguageSelector(410f);
+            AddCameraStyleSwitch(530f);
+
+            // Bottom Buttons
             cancelText = MenuStyle.AddQuietButton(picture, "settings_cancel", new Rect(380f, 763f, 435f, 112f), Localization.T("settings_cancel"), Cancel);
             doneText = MenuStyle.AddCaptionedButton(picture, "settings_done_blank", new Rect(855f, 763f, 435f, 112f), Localization.T("settings_done"), MenuStyle.GoldCaption, Close);
             EqualFontSize.Apply(picture.gameObject, 60, cancelText, doneText);
-            SetPage(soundPage, "settings_sound_section");
-        }
 
-        private void AddSectionBackdrop()
-        {
-            var backdrop = new GameObject("SectionBackdrop").AddComponent<Image>();
-            backdrop.transform.SetParent(currentPage, false);
-            backdrop.color = new Color(0.02f, 0.018f, 0.014f, 0.86f);
-            MenuStyle.PlaceOnPicture(backdrop.rectTransform, SectionBackdropBox);
+            SetPage(soundPage, "settings_sound_section");
         }
 
         private void AddTabs()
@@ -215,10 +211,17 @@ namespace DungeonGuardians.Presentation
             Image bg = button.GetComponent<Image>();
             Text text = button.GetComponentInChildren<Text>();
             text.text = Localization.T(key);
-            text.fontSize = 34;
+            text.fontSize = 32;
+            text.fontStyle = FontStyle.Bold;
             text.resizeTextForBestFit = true;
-            text.resizeTextMinSize = 10;
-            text.resizeTextMaxSize = 42;
+            text.resizeTextMinSize = 12;
+            text.resizeTextMaxSize = 36;
+            var outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.12f, 0.05f, 0.01f, 0.98f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            var shadow = text.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0.04f, 0.02f, 0.01f, 0.9f);
+            shadow.effectDistance = new Vector2(2f, -2f);
             return (bg, text);
         }
 
@@ -238,18 +241,36 @@ namespace DungeonGuardians.Presentation
             UpdateCameraStyleText();
         }
 
+        private void AddIcon(float rowY, string spritePath)
+        {
+            var iconImg = new GameObject("Icon").AddComponent<Image>();
+            iconImg.transform.SetParent(currentPage ?? picture, false);
+            iconImg.sprite = Resources.Load<Sprite>(spritePath);
+            iconImg.color = new Color(1f, 0.88f, 0.58f, 0.95f);
+            iconImg.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(iconImg.rectTransform, new Rect(IconLeft, rowY - IconSize / 2f, IconSize, IconSize));
+        }
+
         private Slider AddSlider(float row, Action<float> store, Func<float, string> format)
         {
             Transform parent = currentPage ?? picture;
             float width = TrackRight - TrackLeft;
             float height = 2f * KnobHalf;
+
+            // Track background
+            var trackBg = new GameObject("TrackBg").AddComponent<Image>();
+            trackBg.transform.SetParent(parent, false);
+            trackBg.sprite = Resources.Load<Sprite>("UI/settings_track");
+            trackBg.type = Image.Type.Sliced;
+            trackBg.raycastTarget = false;
+            MenuStyle.PlaceOnPicture(trackBg.rectTransform, new Rect(TrackLeft, row - TrackHalf, width, TrackHalf * 2f));
+
             var root = new GameObject("Slider").AddComponent<Image>();
             root.transform.SetParent(parent, false);
-            // Invisible, but catches taps anywhere along the track.
             root.color = Color.clear;
             MenuStyle.PlaceOnPicture(root.rectTransform, new Rect(TrackLeft, row - KnobHalf, width, height));
 
-            // The slider drives the anchors of the fill and the knob within their own areas.
+            // Fill
             RectTransform fillArea = AddArea(root.transform, "Fill Area",
                 new Vector2(FillInset / width, (KnobHalf - FillBottom) / height),
                 new Vector2(1f - FillInset / width, (KnobHalf + FillTop) / height));
@@ -257,25 +278,26 @@ namespace DungeonGuardians.Presentation
             fill.transform.SetParent(fillArea, false);
             fill.raycastTarget = false;
             fill.sprite = Resources.Load<Sprite>("UI/settings_fill");
-            fill.color = fill.sprite != null ? Color.white : new Color(1f, 0.7f, 0.2f);
+            fill.color = Color.white;
             fill.type = Image.Type.Filled;
             fill.fillMethod = Image.FillMethod.Horizontal;
             fill.fillOrigin = (int)Image.OriginHorizontal.Left;
             MenuStyle.Stretch(fill.rectTransform);
 
+            // Knob
             RectTransform knobArea = AddArea(root.transform, "Knob Area",
                 new Vector2((KnobTravelLeft - TrackLeft) / width, 0f),
                 new Vector2((KnobTravelRight - TrackLeft) / width, 1f));
             var knob = new GameObject("Knob").AddComponent<Image>();
             knob.transform.SetParent(knobArea, false);
             knob.sprite = Resources.Load<Sprite>("UI/settings_knob");
-            knob.color = knob.sprite != null ? Color.white : new Color(0.3f, 0.9f, 1f);
-            // The knob is as tall as the slider and square.
+            knob.color = Color.white;
             knob.rectTransform.sizeDelta = Vector2.zero;
             var square = knob.gameObject.AddComponent<AspectRatioFitter>();
             square.aspectMode = AspectRatioFitter.AspectMode.HeightControlsWidth;
             square.aspectRatio = 1f;
 
+            // Value text
             var valueText = new GameObject("Value").AddComponent<Text>();
             valueText.transform.SetParent(parent, false);
             valueText.font = MenuStyle.Font;
@@ -294,7 +316,6 @@ namespace DungeonGuardians.Presentation
             slider.targetGraphic = knob;
             slider.direction = Slider.Direction.LeftToRight;
             slider.transition = Selectable.Transition.None;
-            // Arrow keys would move a slider that still has focus after a drag.
             slider.navigation = new Navigation { mode = Navigation.Mode.None };
             slider.onValueChanged.AddListener(value =>
             {
@@ -323,34 +344,34 @@ namespace DungeonGuardians.Presentation
             return area;
         }
 
-        private void AddVibrationSwitch()
+        private void AddVibrationSwitch(float rowY)
         {
             Transform parent = currentPage ?? picture;
             vibrationOn = Resources.Load<Sprite>("UI/settings_toggle_on");
             vibrationOff = Resources.Load<Sprite>("UI/settings_toggle_off");
             vibration = new GameObject("Vibration").AddComponent<Image>();
             vibration.transform.SetParent(parent, false);
-            MenuStyle.PlaceOnPicture(vibration.rectTransform, ToggleBox);
-            if (vibrationOn == null || vibrationOff == null)
-            {
-                vibration.color = new Color(0.2f, 0.7f, 0.7f);
-            }
+            MenuStyle.PlaceOnPicture(vibration.rectTransform, new Rect(ToggleBox.x, rowY - ToggleBox.height / 2f, ToggleBox.width, ToggleBox.height));
 
             MenuStyle.MakeButton(vibration, () =>
             {
                 GameSettings.Vibration = !GameSettings.Vibration;
                 vibration.sprite = GameSettings.Vibration ? vibrationOn : vibrationOff;
-                // A buzz when it is switched on, so the player feels what it does.
                 GameSettings.Vibrate();
                 Changed?.Invoke();
             });
         }
 
-        private void AddLanguageSelector()
+        private void AddLanguageSelector(float rowY)
         {
-            (langAutoBg, langAutoText) = CreateLangButton("Lang_Auto", new Rect(737f, 397f, 137f, 52f), AppLanguage.Auto);
-            (langRuBg, langRuText) = CreateLangButton("Lang_RU", new Rect(886f, 397f, 137f, 52f), AppLanguage.Russian);
-            (langEnBg, langEnText) = CreateLangButton("Lang_EN", new Rect(1035f, 397f, 137f, 52f), AppLanguage.English);
+            float btnW = 160f;
+            float btnH = 64f;
+            float spacing = 20f;
+            float startX = 800f;
+
+            (langAutoBg, langAutoText) = CreateLangButton("Lang_Auto", new Rect(startX, rowY - btnH / 2f, btnW, btnH), AppLanguage.Auto);
+            (langRuBg, langRuText) = CreateLangButton("Lang_RU", new Rect(startX + btnW + spacing, rowY - btnH / 2f, btnW, btnH), AppLanguage.Russian);
+            (langEnBg, langEnText) = CreateLangButton("Lang_EN", new Rect(startX + (btnW + spacing) * 2f, rowY - btnH / 2f, btnW, btnH), AppLanguage.English);
         }
 
         private (Image bg, Text text) CreateLangButton(string name, Rect rect, AppLanguage lang)
@@ -358,7 +379,8 @@ namespace DungeonGuardians.Presentation
             Transform parent = currentPage ?? picture;
             var buttonImage = new GameObject(name).AddComponent<Image>();
             buttonImage.transform.SetParent(parent, false);
-            buttonImage.sprite = Resources.Load<Sprite>("UI/settings_cancel");
+            buttonImage.sprite = Resources.Load<Sprite>("UI/tab_inactive");
+            buttonImage.type = Image.Type.Sliced;
             MenuStyle.PlaceOnPicture(buttonImage.rectTransform, rect);
 
             var text = new GameObject("Text").AddComponent<Text>();
@@ -370,7 +392,7 @@ namespace DungeonGuardians.Presentation
             text.raycastTarget = false;
             text.resizeTextForBestFit = true;
             text.resizeTextMinSize = 10;
-            text.resizeTextMaxSize = 34;
+            text.resizeTextMaxSize = 32;
 
             var outline = text.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.12f, 0.06f, 0.02f, 0.95f);
@@ -404,8 +426,7 @@ namespace DungeonGuardians.Presentation
             outline.effectColor = new Color(0.14f, 0.07f, 0.02f, 0.95f);
             outline.effectDistance = new Vector2(3f, -3f);
 
-            // Centered plaque area between the two crystals
-            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(570f, 65f, 532f, 92f));
+            MenuStyle.PlaceOnPicture(title.rectTransform, new Rect(530f, 65f, 612f, 92f));
             return title;
         }
 
@@ -433,8 +454,8 @@ namespace DungeonGuardians.Presentation
         private void RefreshLanguageSelector()
         {
             AppLanguage selected = Localization.SelectedPreference;
-            Sprite activeSprite = Resources.Load<Sprite>("UI/settings_done_blank");
-            Sprite inactiveSprite = Resources.Load<Sprite>("UI/settings_cancel");
+            Sprite activeSprite = Resources.Load<Sprite>("UI/tab_active");
+            Sprite inactiveSprite = Resources.Load<Sprite>("UI/tab_inactive");
 
             SetLangButtonState(langAutoBg, langAutoText, selected == AppLanguage.Auto, Localization.T("settings_lang_auto"), activeSprite, inactiveSprite);
             SetLangButtonState(langRuBg, langRuText, selected == AppLanguage.Russian, Localization.T("settings_lang_ru"), activeSprite, inactiveSprite);
@@ -450,16 +471,17 @@ namespace DungeonGuardians.Presentation
             if (buttonSizeLabelText != null) buttonSizeLabelText.text = Localization.T("settings_size");
             if (buttonOpacityLabelText != null) buttonOpacityLabelText.text = Localization.T("settings_opacity");
             if (cameraLabelText != null) cameraLabelText.text = Localization.T("settings_camera");
+            if (langLabelText != null) langLabelText.text = Localization.T("settings_lang_label");
             if (tiltLabelText != null) tiltLabelText.text = Localization.T("settings_tilt");
             if (tiltText != null) tiltText.text = Localization.T(GameSettings.TiltControl ? "settings_tilt_on" : "settings_tilt_off");
             if (cancelText != null) cancelText.text = Localization.T("settings_cancel");
             if (doneText != null) doneText.text = Localization.T("settings_done");
         }
 
-        private void AddTiltSwitch()
+        private void AddTiltSwitch(float rowY)
         {
-            tiltLabelText = AddRowLabel(423f, "settings_tilt");
-            Button button = MenuStyle.CreatePlateButtonOnPicture(currentPage ?? picture, string.Empty, TiltBox, ToggleTiltControl);
+            Rect box = new Rect(ActionButtonBox.x, rowY - ActionButtonBox.height / 2f, ActionButtonBox.width, ActionButtonBox.height);
+            Button button = MenuStyle.CreatePlateButtonOnPicture(currentPage ?? picture, string.Empty, box, ToggleTiltControl);
             tiltText = button.GetComponentInChildren<Text>();
             tiltText.fontSize = 24;
             tiltText.resizeTextForBestFit = true;
@@ -501,14 +523,14 @@ namespace DungeonGuardians.Presentation
             if (soundPage != null) soundPage.SetActive(page == soundPage);
             if (controlsPage != null) controlsPage.SetActive(page == controlsPage);
             if (graphicsPage != null) graphicsPage.SetActive(page == graphicsPage);
-            if (headerText != null) headerText.text = Localization.T(headerKey);
+            if (headerText != null) headerText.text = Localization.T("settings_header");
             UpdateTabs(page);
         }
 
         private void UpdateTabs(GameObject activePage)
         {
-            Sprite activeSprite = Resources.Load<Sprite>("UI/settings_done_blank");
-            Sprite inactiveSprite = Resources.Load<Sprite>("UI/settings_cancel");
+            Sprite activeSprite = Resources.Load<Sprite>("UI/tab_active");
+            Sprite inactiveSprite = Resources.Load<Sprite>("UI/tab_inactive");
             SetTabState(soundTabBg, soundTabText, activePage == soundPage, activeSprite, inactiveSprite);
             SetTabState(controlsTabBg, controlsTabText, activePage == controlsPage, activeSprite, inactiveSprite);
             SetTabState(graphicsTabBg, graphicsTabText, activePage == graphicsPage, activeSprite, inactiveSprite);
@@ -518,34 +540,25 @@ namespace DungeonGuardians.Presentation
         {
             if (bg == null || text == null) return;
             bg.sprite = isSelected ? activeSprite : inactiveSprite;
-            bg.color = isSelected ? Color.white : new Color(0.72f, 0.72f, 0.72f, 0.88f);
-            text.color = isSelected ? MenuStyle.GoldCaption : MenuStyle.QuietCaption;
+            bg.type = Image.Type.Sliced;
+            bg.color = isSelected ? Color.white : new Color(0.85f, 0.85f, 0.85f, 0.95f);
+            text.color = isSelected ? new Color(1f, 0.97f, 0.84f) : new Color(0.74f, 0.70f, 0.62f, 0.85f);
         }
 
         private static void SetLangButtonState(Image bg, Text text, bool isSelected, string caption, Sprite activeSprite, Sprite inactiveSprite)
         {
             if (bg == null || text == null) return;
             text.text = caption;
-            if (isSelected)
-            {
-                bg.sprite = activeSprite;
-                bg.color = Color.white;
-                text.color = MenuStyle.GoldCaption;
-            }
-            else
-            {
-                bg.sprite = inactiveSprite;
-                bg.color = new Color(0.75f, 0.75f, 0.75f, 0.85f);
-                text.color = new Color(0.75f, 0.72f, 0.65f, 0.75f);
-            }
+            bg.sprite = isSelected ? activeSprite : inactiveSprite;
+            bg.type = Image.Type.Sliced;
+            bg.color = isSelected ? Color.white : new Color(0.85f, 0.85f, 0.85f, 0.9f);
+            text.color = isSelected ? new Color(1f, 0.97f, 0.84f) : new Color(0.74f, 0.70f, 0.62f, 0.85f);
         }
 
-        // The painted row 6, which tools/settings_camera_row.ps1 gives a magnifier and clears of "Язык" and "Русский":
-        // the label goes where "Язык" was, the current choice into the painted dropdown frame.
         private void AddCameraStyleSwitch(float row)
         {
             Transform parent = currentPage ?? picture;
-            Rect box = new Rect(CameraBox.x, row - 32f, CameraBox.width, CameraBox.height);
+            Rect box = new Rect(ActionButtonBox.x, row - ActionButtonBox.height / 2f, ActionButtonBox.width, ActionButtonBox.height);
             cameraLabelText = new GameObject("CameraStyleLabel").AddComponent<Text>();
             cameraLabelText.transform.SetParent(parent, false);
             cameraLabelText.font = MenuStyle.Font;
@@ -562,32 +575,19 @@ namespace DungeonGuardians.Presentation
             outline.effectDistance = new Vector2(2f, -2f);
             MenuStyle.PlaceOnPicture(cameraLabelText.rectTransform, new Rect(LabelLeft, row - LabelHalf, box.xMin - 30f - LabelLeft, 2f * LabelHalf));
 
-            // The whole painted frame is the button; a tap switches between the two framings.
-            var buttonImage = new GameObject("CameraStyleButton").AddComponent<Image>();
-            buttonImage.transform.SetParent(parent, false);
-            buttonImage.color = Color.clear;
-            MenuStyle.PlaceOnPicture(buttonImage.rectTransform, box);
-
-            cameraStyleText = new GameObject("CameraStyleValue").AddComponent<Text>();
-            cameraStyleText.transform.SetParent(parent, false);
-            cameraStyleText.font = MenuStyle.Font;
-            cameraStyleText.fontStyle = FontStyle.Bold;
-            cameraStyleText.alignment = TextAnchor.MiddleCenter;
-            cameraStyleText.color = ValueColor;
-            cameraStyleText.raycastTarget = false;
-            cameraStyleText.resizeTextForBestFit = true;
-            cameraStyleText.resizeTextMinSize = 8;
-            cameraStyleText.resizeTextMaxSize = 60;
-            // Between the frame's left edge and its painted chevron.
-            MenuStyle.PlaceOnPicture(cameraStyleText.rectTransform,
-                new Rect(box.xMin + 22f, row - ValueHalf, CameraChevronLeft - box.xMin - 34f, 2f * ValueHalf));
-
-            cameraStyleButton = MenuStyle.MakeButton(buttonImage, () =>
+            Button button = MenuStyle.CreatePlateButtonOnPicture(parent, string.Empty, box, () =>
             {
                 GameSettings.CameraStyle = GameSettings.CameraStyle == 0 ? 1 : 0;
                 UpdateCameraStyleText();
                 Changed?.Invoke();
             });
+            cameraStyleButton = button;
+            cameraStyleText = button.GetComponentInChildren<Text>();
+            cameraStyleText.fontSize = 24;
+            cameraStyleText.resizeTextForBestFit = true;
+            cameraStyleText.resizeTextMinSize = 10;
+            cameraStyleText.resizeTextMaxSize = 28;
+            cameraStyleText.color = MenuStyle.GoldCaption;
 
             UpdateCameraStyleText();
         }
