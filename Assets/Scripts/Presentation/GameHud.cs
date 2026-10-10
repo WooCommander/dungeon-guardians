@@ -42,6 +42,11 @@ namespace DungeonGuardians.Presentation
         // The level's name, shown large when the level starts and fading away.
         private Text titleBanner;
         private Text keyboardHint;
+        private Text pauseTitle;
+        private Text pauseContinueText;
+        private Text pauseSettingsText;
+        private Text pauseRestartText;
+        private Text pauseMenuText;
         // The keyboard hint stays a little longer than the title.
         private const float HintHold = 5f;
         private float titleShownAt = -100f;
@@ -60,6 +65,11 @@ namespace DungeonGuardians.Presentation
         private static Sprite softCircle;
         private PlayerInputBridge input;
         private string messageLabel = string.Empty;
+        private string currentLevelTitle = string.Empty;
+        private int currentLevelIndex;
+        private int currentLevelCount;
+        private int currentLivesLeft;
+        private int currentLivesTotal;
 
         public event Action MenuRequested;
         public event Action MapRequested;
@@ -73,11 +83,16 @@ namespace DungeonGuardians.Presentation
             if (canvas == null)
             {
                 Build();
+                Localization.LanguageChanged += RefreshLocalization;
+                RefreshLocalization();
             }
         }
 
         public void SetLevel(string title, int index, int count)
         {
+            currentLevelTitle = title;
+            currentLevelIndex = index;
+            currentLevelCount = count;
             string levelWord = Localization.T("hud_level", string.Empty).Trim().ToUpperInvariant();
             levelText.text = conceptTopBar ? $"{levelWord} <color=#FFC23A>{index}</color>" : $"{index}/{count}  {title}";
             titleBanner.text = $"<size=30>{levelWord}</size>\n{title}";
@@ -87,6 +102,8 @@ namespace DungeonGuardians.Presentation
         // Hearts: the lives left glow red, the lost ones are dark.
         public void SetLives(int left, int total)
         {
+            currentLivesLeft = left;
+            currentLivesTotal = total;
             var hearts = new System.Text.StringBuilder();
             for (int i = 0; i < total; i++)
             {
@@ -97,7 +114,30 @@ namespace DungeonGuardians.Presentation
                 }
             }
 
-            livesText.text = hearts.ToString();
+            livesText.text = $"{Localization.T("hud_lives_short").ToUpperInvariant()} <color=#FF5A3C>{left}</color>";
+        }
+
+        public void RefreshLocalization()
+        {
+            if (levelText != null && currentLevelIndex > 0)
+            {
+                SetLevel(currentLevelTitle, currentLevelIndex, currentLevelCount);
+            }
+
+            if (livesText != null && currentLivesTotal > 0)
+            {
+                SetLives(currentLivesLeft, currentLivesTotal);
+            }
+
+            if (pauseTitle != null)
+            {
+                pauseTitle.text = Localization.T("hud_pause");
+            }
+
+            if (pauseContinueText != null) pauseContinueText.text = Localization.T("hud_continue");
+            if (pauseSettingsText != null) pauseSettingsText.text = Localization.T("menu_settings");
+            if (pauseRestartText != null) pauseRestartText.text = Localization.T("hud_restart");
+            if (pauseMenuText != null) pauseMenuText.text = Localization.T("hud_menu");
         }
 
         public void SetGold(int collected, int total)
@@ -426,27 +466,28 @@ namespace DungeonGuardians.Presentation
             overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.7f);
             MenuStyle.Stretch(overlay.rectTransform);
 
-            Text title = MenuStyle.AddLabel(overlay.transform, Localization.T("hud_pause"), 54);
-            title.color = new Color(1f, 0.8f, 0.4f);
-            title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            title.rectTransform.sizeDelta = new Vector2(600f, 90f);
-            title.rectTransform.anchoredPosition = new Vector2(0f, 190f);
+            pauseTitle = MenuStyle.AddLabel(overlay.transform, Localization.T("hud_pause"), 54);
+            pauseTitle.color = new Color(1f, 0.8f, 0.4f);
+            pauseTitle.rectTransform.anchorMin = pauseTitle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            pauseTitle.rectTransform.sizeDelta = new Vector2(600f, 90f);
+            pauseTitle.rectTransform.anchoredPosition = new Vector2(0f, 190f);
 
-            AddPauseButton(overlay.transform, Localization.T("hud_continue"), 70f, () => input.TogglePause());
-            AddPauseButton(overlay.transform, Localization.T("menu_settings"), -30f, () => SettingsRequested?.Invoke());
-            AddPauseButton(overlay.transform, Localization.T("hud_restart"), -130f, () => input.Restart());
-            AddPauseButton(overlay.transform, Localization.T("hud_menu"), -230f, () => MenuRequested?.Invoke());
+            pauseContinueText = AddPauseButton(overlay.transform, Localization.T("hud_continue"), 70f, () => input.TogglePause());
+            pauseSettingsText = AddPauseButton(overlay.transform, Localization.T("menu_settings"), -30f, () => SettingsRequested?.Invoke());
+            pauseRestartText = AddPauseButton(overlay.transform, Localization.T("hud_restart"), -130f, () => input.Restart());
+            pauseMenuText = AddPauseButton(overlay.transform, Localization.T("hud_menu"), -230f, () => MenuRequested?.Invoke());
 
             pausePanel = overlay.gameObject;
             pausePanel.SetActive(false);
         }
 
-        private static void AddPauseButton(Transform parent, string label, float y, Action onClick)
+        private static Text AddPauseButton(Transform parent, string label, float y, Action onClick)
         {
             Button button = MenuStyle.CreatePlateButton(parent, label, new Vector2(360f, 76f), onClick);
             var rect = (RectTransform)button.transform;
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(0f, y);
+            return button.GetComponentInChildren<Text>();
         }
 
         // The concept's top bar: "УРОВЕНЬ 03" on a dark plate at the top left, the gold counter with a bar icon in the
@@ -465,7 +506,7 @@ namespace DungeonGuardians.Presentation
             Image level = AddSprite("Level Plate", levelPlate, TextAnchor.UpperLeft, new Vector2(137.5f, -37.5f));
             PlaceLabel(levelText, level.transform, Vector2.zero, 27, TextAnchor.MiddleCenter);
             Image lives = AddSprite("Lives Plate", levelPlate, TextAnchor.UpperLeft, new Vector2(137.5f + 245f, -37.5f));
-            PlaceLabel(livesText, lives.transform, Vector2.zero, 30, TextAnchor.MiddleCenter);
+            PlaceLabel(livesText, lives.transform, Vector2.zero, 24, TextAnchor.MiddleCenter);
 
             Image gold = AddSprite("Gold Plate", goldPlate, TextAnchor.UpperCenter, new Vector2(0.5f, -39f));
             Image icon = AddSprite("Gold Icon", goldIcon, TextAnchor.UpperCenter, new Vector2(-51f, -40f));
@@ -703,6 +744,11 @@ namespace DungeonGuardians.Presentation
                 default:
                     return new Vector2(0.5f, 0.5f);
             }
+        }
+
+        private void OnDestroy()
+        {
+            Localization.LanguageChanged -= RefreshLocalization;
         }
     }
 }

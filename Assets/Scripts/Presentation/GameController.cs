@@ -76,12 +76,12 @@ namespace DungeonGuardians.Presentation
             hud.NextLevelRequested += PlayNextLevel;
             hud.RestartLevelRequested += RestartCurrentLevel;
             menu.PlayLevel += StartLevel;
-            menu.SettingsChanged += hud.RefreshControls;
+            menu.SettingsChanged += RefreshHudSettings;
             menu.ResetProgress += ResetProgress;
             menu.Initialize(progress, catalog);
             Canvas settingsCanvas = MenuStyle.CreateCanvas("In-Game Settings", transform, 30);
             inGameSettings = SettingsScreen.Create(settingsCanvas.transform);
-            inGameSettings.Changed += hud.RefreshControls;
+            inGameSettings.Changed += RefreshHudSettings;
             inGameSettings.Closed += CloseInGameSettings;
             inGameSettings.Close();
         }
@@ -300,6 +300,12 @@ namespace DungeonGuardians.Presentation
             pendingDigRight = false;
             hud.SetPaused(paused);
             music.SetMood(paused ? MusicPlayer.Mood.Paused : MusicPlayer.Mood.Game);
+        }
+
+        private void RefreshHudSettings()
+        {
+            hud.RefreshControls();
+            hud.RefreshLocalization();
         }
 
         private void OpenInGameSettings()

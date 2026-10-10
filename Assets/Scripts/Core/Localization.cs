@@ -170,6 +170,7 @@ namespace DungeonGuardians.Core
 
             // In-Game HUD & Victory
             { "hud_level", new[] { "Уровень {0}", "Level {0}" } },
+            { "hud_lives_short", new[] { "Жизни", "Lives" } },
             { "hud_pause", new[] { "ПАУЗА", "PAUSE" } },
             { "hud_continue", new[] { "ПРОДОЛЖИТЬ", "CONTINUE" } },
             { "hud_restart", new[] { "ЗАНОВО", "RESTART" } },
