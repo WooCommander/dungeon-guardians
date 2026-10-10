@@ -13,6 +13,7 @@ namespace DungeonGuardians.Presentation
         private LevelRenderer levelRenderer;
         private GameHud hud;
         private GameMenu menu;
+        private SettingsScreen inGameSettings;
         private MusicPlayer music;
         private FootstepPlayer footsteps;
         private SoundEffectPlayer sfx;
@@ -28,6 +29,8 @@ namespace DungeonGuardians.Presentation
         private int levelIndex;
         private float accumulator;
         private bool paused;
+        private bool settingsOpen;
+        private bool pauseBeforeSettings;
         private bool pendingDigLeft;
         private bool pendingDigRight;
         private bool lossReported;
@@ -69,12 +72,18 @@ namespace DungeonGuardians.Presentation
             // Navigation events
             hud.MenuRequested += ShowMenu;
             hud.MapRequested += ShowLevelMap;
+            hud.SettingsRequested += OpenInGameSettings;
             hud.NextLevelRequested += PlayNextLevel;
             hud.RestartLevelRequested += RestartCurrentLevel;
             menu.PlayLevel += StartLevel;
             menu.SettingsChanged += hud.RefreshControls;
             menu.ResetProgress += ResetProgress;
             menu.Initialize(progress, catalog);
+            Canvas settingsCanvas = MenuStyle.CreateCanvas("In-Game Settings", transform, 30);
+            inGameSettings = SettingsScreen.Create(settingsCanvas.transform);
+            inGameSettings.Changed += hud.RefreshControls;
+            inGameSettings.Closed += CloseInGameSettings;
+            inGameSettings.Close();
         }
 
         private void ResetProgress()
@@ -93,6 +102,7 @@ namespace DungeonGuardians.Presentation
 
         private void ShowLevelMap()
         {
+            CloseInGameSettings();
             if (sfx != null)
             {
                 sfx.BindSimulation(null);
@@ -133,6 +143,7 @@ namespace DungeonGuardians.Presentation
 
         private void ShowMenu()
         {
+            CloseInGameSettings();
             // The level stops; it stays built behind the opaque start screen until the next one replaces it.
             if (sfx != null)
             {
@@ -158,6 +169,11 @@ namespace DungeonGuardians.Presentation
         private void Update()
         {
             if (simulation == null)
+            {
+                return;
+            }
+
+            if (settingsOpen)
             {
                 return;
             }
@@ -284,6 +300,37 @@ namespace DungeonGuardians.Presentation
             pendingDigRight = false;
             hud.SetPaused(paused);
             music.SetMood(paused ? MusicPlayer.Mood.Paused : MusicPlayer.Mood.Game);
+        }
+
+        private void OpenInGameSettings()
+        {
+            if (simulation == null || inGameSettings == null || settingsOpen)
+            {
+                return;
+            }
+
+            pauseBeforeSettings = paused;
+            settingsOpen = true;
+            SetPaused(true);
+            inGameSettings.Open();
+        }
+
+        private void CloseInGameSettings()
+        {
+            if (!settingsOpen)
+            {
+                return;
+            }
+
+            settingsOpen = false;
+            if (inGameSettings != null && inGameSettings.gameObject.activeSelf)
+            {
+                inGameSettings.Close();
+                return;
+            }
+
+            SetPaused(pauseBeforeSettings);
+            hud.RefreshControls();
         }
 
         private void LoadLevel(int index)

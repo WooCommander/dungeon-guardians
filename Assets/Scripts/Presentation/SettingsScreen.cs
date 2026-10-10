@@ -69,6 +69,7 @@ namespace DungeonGuardians.Presentation
         private (float music, float sound, bool vibration, float buttonSize, float buttonOpacity, int cameraStyle, AppLanguage language) opened;
 
         public event Action Changed;
+        public event Action Closed;
 
         public static SettingsScreen Create(Transform parent)
         {
@@ -91,8 +92,13 @@ namespace DungeonGuardians.Presentation
 
         public void Close()
         {
+            bool wasActive = gameObject.activeSelf;
             GameSettings.Save();
             gameObject.SetActive(false);
+            if (wasActive)
+            {
+                Closed?.Invoke();
+            }
         }
 
         // Puts every setting back as it was when the screen opened, and closes it.

@@ -171,6 +171,9 @@ namespace DungeonGuardians.Core
             // In-Game HUD & Victory
             { "hud_level", new[] { "Уровень {0}", "Level {0}" } },
             { "hud_pause", new[] { "ПАУЗА", "PAUSE" } },
+            { "hud_continue", new[] { "ПРОДОЛЖИТЬ", "CONTINUE" } },
+            { "hud_restart", new[] { "ЗАНОВО", "RESTART" } },
+            { "hud_menu", new[] { "В МЕНЮ", "MENU" } },
             { "hint_dig", new[] { "КОПАЙ", "DIG" } },
             { "hint_exit", new[] { "ВЫХОД", "EXIT" } },
             { "hud_victory_title", new[] { "Уровень пройден", "Level Completed" } },

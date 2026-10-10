@@ -63,6 +63,7 @@ namespace DungeonGuardians.Presentation
 
         public event Action MenuRequested;
         public event Action MapRequested;
+        public event Action SettingsRequested;
         public event Action NextLevelRequested;
         public event Action RestartLevelRequested;
 
@@ -78,7 +79,7 @@ namespace DungeonGuardians.Presentation
         public void SetLevel(string title, int index, int count)
         {
             string levelWord = Localization.T("hud_level", string.Empty).Trim().ToUpperInvariant();
-            levelText.text = conceptTopBar ? $"{levelWord} <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
+            levelText.text = conceptTopBar ? $"{levelWord} <color=#FFC23A>{index}</color>" : $"{index}/{count}  {title}";
             titleBanner.text = $"<size=30>{levelWord}</size>\n{title}";
             titleShownAt = Time.unscaledTime;
         }
@@ -425,15 +426,16 @@ namespace DungeonGuardians.Presentation
             overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.7f);
             MenuStyle.Stretch(overlay.rectTransform);
 
-            Text title = MenuStyle.AddLabel(overlay.transform, "ПАУЗА", 54);
+            Text title = MenuStyle.AddLabel(overlay.transform, Localization.T("hud_pause"), 54);
             title.color = new Color(1f, 0.8f, 0.4f);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             title.rectTransform.sizeDelta = new Vector2(600f, 90f);
             title.rectTransform.anchoredPosition = new Vector2(0f, 190f);
 
-            AddPauseButton(overlay.transform, "ПРОДОЛЖИТЬ", 70f, () => input.TogglePause());
-            AddPauseButton(overlay.transform, "ЗАНОВО", -30f, () => input.Restart());
-            AddPauseButton(overlay.transform, "В МЕНЮ", -130f, () => MenuRequested?.Invoke());
+            AddPauseButton(overlay.transform, Localization.T("hud_continue"), 70f, () => input.TogglePause());
+            AddPauseButton(overlay.transform, Localization.T("menu_settings"), -30f, () => SettingsRequested?.Invoke());
+            AddPauseButton(overlay.transform, Localization.T("hud_restart"), -130f, () => input.Restart());
+            AddPauseButton(overlay.transform, Localization.T("hud_menu"), -230f, () => MenuRequested?.Invoke());
 
             pausePanel = overlay.gameObject;
             pausePanel.SetActive(false);
