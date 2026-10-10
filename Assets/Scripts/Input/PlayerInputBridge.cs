@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DungeonGuardians.Core;
+using DungeonGuardians.Presentation;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
@@ -94,6 +95,8 @@ namespace DungeonGuardians.Input
                 DigRightHeld |= keyboard.eKey.isPressed || keyboard.xKey.isPressed;
             }
 
+            ApplyTiltControl(ref snapshot);
+
             snapshot.Restart |= restartRequested;
             snapshot.Pause |= pauseRequested;
             restartRequested = false;
@@ -110,6 +113,7 @@ namespace DungeonGuardians.Input
             {
                 snapshot.Up = false;
                 snapshot.Down = false;
+                snapshot.TiltVertical = false;
             }
 
             HeldDirections = new InputSnapshot
@@ -120,6 +124,52 @@ namespace DungeonGuardians.Input
                 Down = snapshot.Down
             };
             return snapshot;
+        }
+
+        private static void ApplyTiltControl(ref InputSnapshot snapshot)
+        {
+            if (!GameSettings.TiltControl || snapshot.Left || snapshot.Right)
+            {
+                return;
+            }
+
+            Accelerometer accelerometer = Accelerometer.current;
+            if (accelerometer == null)
+            {
+                return;
+            }
+
+            if (!accelerometer.enabled)
+            {
+                InputSystem.EnableDevice(accelerometer);
+            }
+
+            Vector3 acceleration = accelerometer.acceleration.ReadValue();
+            float tilt = acceleration.x - GameSettings.TiltCalibration;
+            float verticalTilt = acceleration.y - GameSettings.TiltVerticalCalibration;
+            float deadZone = GameSettings.TiltSensitivity;
+            if (tilt < -deadZone)
+            {
+                snapshot.Left = true;
+            }
+            else if (tilt > deadZone)
+            {
+                snapshot.Right = true;
+            }
+
+            if (!snapshot.Up && !snapshot.Down)
+            {
+                if (verticalTilt < -deadZone)
+                {
+                    snapshot.Down = true;
+                    snapshot.TiltVertical = true;
+                }
+                else if (verticalTilt > deadZone)
+                {
+                    snapshot.Up = true;
+                    snapshot.TiltVertical = true;
+                }
+            }
         }
 
         // Debug shortcut: keys 1-9 jump straight to that level. Returns a zero-based index or -1.

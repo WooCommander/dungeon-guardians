@@ -10,6 +10,7 @@ namespace DungeonGuardians.Core
         public bool DigRight;
         public bool Restart;
         public bool Pause;
+        public bool TiltVertical;
 
         public static InputSnapshot Empty => new InputSnapshot();
     }

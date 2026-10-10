@@ -12,6 +12,10 @@ namespace DungeonGuardians.Presentation
         private const string ButtonSizeKey = "settings_button_size";
         private const string ButtonOpacityKey = "settings_button_opacity";
         private const string CameraStyleKey = "settings_camera_style";
+        private const string TiltControlKey = "settings_tilt_control";
+        private const string TiltCalibrationKey = "settings_tilt_calibration";
+        private const string TiltVerticalCalibrationKey = "settings_tilt_vertical_calibration";
+        private const string TiltSensitivityKey = "settings_tilt_sensitivity";
 
         // Defaults as on the settings concept; buttons start at their normal size.
         public const float DefaultMusic = 0.6f;
@@ -25,6 +29,7 @@ namespace DungeonGuardians.Presentation
         private const float MinButtonScale = 0.6f;
         private const float MaxButtonScale = 1.4f;
         private const float MinButtonOpacity = 0.2f;
+        public const float DefaultTiltSensitivity = 0.22f;
 
         // 0 = Close (7 rows), 1 = Overview (11 rows)
         public static int CameraStyle
@@ -34,6 +39,30 @@ namespace DungeonGuardians.Presentation
         }
 
         public static int MobileRows => CameraStyle == 0 ? DefaultCameraRows : OverviewCameraRows;
+
+        public static bool TiltControl
+        {
+            get => PlayerPrefs.GetInt(TiltControlKey, 0) != 0;
+            set => PlayerPrefs.SetInt(TiltControlKey, value ? 1 : 0);
+        }
+
+        public static float TiltCalibration
+        {
+            get => PlayerPrefs.GetFloat(TiltCalibrationKey, 0f);
+            set => PlayerPrefs.SetFloat(TiltCalibrationKey, Mathf.Clamp(value, -1f, 1f));
+        }
+
+        public static float TiltVerticalCalibration
+        {
+            get => PlayerPrefs.GetFloat(TiltVerticalCalibrationKey, 0f);
+            set => PlayerPrefs.SetFloat(TiltVerticalCalibrationKey, Mathf.Clamp(value, -1f, 1f));
+        }
+
+        public static float TiltSensitivity
+        {
+            get => PlayerPrefs.GetFloat(TiltSensitivityKey, DefaultTiltSensitivity);
+            set => PlayerPrefs.SetFloat(TiltSensitivityKey, Mathf.Clamp(value, 0.08f, 0.5f));
+        }
 
         public static float Music
         {
