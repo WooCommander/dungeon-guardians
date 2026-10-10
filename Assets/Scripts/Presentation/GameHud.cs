@@ -77,7 +77,7 @@ namespace DungeonGuardians.Presentation
 
         public void SetLevel(string title, int index, int count)
         {
-            string levelWord = Localization.T("hud_level", index).ToUpperInvariant();
+            string levelWord = Localization.T("hud_level", string.Empty).Trim().ToUpperInvariant();
             levelText.text = conceptTopBar ? $"{levelWord} <color=#FFC23A>{index:00}</color>" : $"{index:00}/{count:00}  {title}";
             titleBanner.text = $"<size=30>{levelWord}</size>\n{title}";
             titleShownAt = Time.unscaledTime;
