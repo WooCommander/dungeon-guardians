@@ -31,6 +31,11 @@ namespace DungeonGuardians.Presentation
         private RectTransform leftGroup;
         private RectTransform rightGroup;
         private GameObject pausePanel;
+        private GameObject briefingPanel;
+        private Text briefingTitle;
+        private Text briefingBody;
+        private Text briefingButtonText;
+        private Action briefingClosed;
         private GameObject defeatPanel;
         private Text defeatTitle;
         private GameObject victoryPanel;
@@ -280,6 +285,7 @@ namespace DungeonGuardians.Presentation
             }
 
             BuildPausePanel();
+            BuildBriefingPanel();
             BuildDefeatPanel();
             BuildVictoryPanel();
             BuildKeyboardHint();
@@ -431,6 +437,77 @@ namespace DungeonGuardians.Presentation
             {
                 defeatPanel.SetActive(false);
             }
+        }
+
+        public void ShowBriefing(string title, string body, Action onClosed)
+        {
+            briefingClosed = onClosed;
+            briefingTitle.text = title;
+            briefingBody.text = body;
+            briefingButtonText.text = Localization.T("briefing_ok");
+            briefingPanel.SetActive(true);
+        }
+
+        public void HideBriefing()
+        {
+            if (briefingPanel != null)
+            {
+                briefingPanel.SetActive(false);
+            }
+        }
+
+        private void CloseBriefing()
+        {
+            HideBriefing();
+            Action callback = briefingClosed;
+            briefingClosed = null;
+            callback?.Invoke();
+        }
+
+        private void BuildBriefingPanel()
+        {
+            var overlay = new GameObject("Briefing Panel").AddComponent<Image>();
+            overlay.transform.SetParent(canvas.transform, false);
+            overlay.color = new Color(0.01f, 0.02f, 0.03f, 0.68f);
+            MenuStyle.Stretch(overlay.rectTransform);
+
+            var box = new GameObject("Briefing Box").AddComponent<Image>();
+            box.transform.SetParent(overlay.transform, false);
+            Sprite briefingFrame = Resources.Load<Sprite>("UI/briefing_panel");
+            box.sprite = briefingFrame != null ? briefingFrame : Resources.Load<Sprite>("UI/menu_plate");
+            box.color = briefingFrame != null ? Color.white : new Color(0.08f, 0.06f, 0.04f, 0.94f);
+            if (box.sprite != null && briefingFrame == null)
+            {
+                box.type = Image.Type.Sliced;
+            }
+            RectTransform boxRect = box.rectTransform;
+            boxRect.anchorMin = boxRect.anchorMax = new Vector2(0.5f, 0.5f);
+            boxRect.sizeDelta = new Vector2(1120f, 552f);
+            boxRect.anchoredPosition = Vector2.zero;
+
+            briefingTitle = MenuStyle.AddLabel(box.transform, string.Empty, 42);
+            briefingTitle.color = new Color(1f, 0.84f, 0.42f);
+            briefingTitle.rectTransform.anchorMin = briefingTitle.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+            briefingTitle.rectTransform.sizeDelta = new Vector2(820f, 72f);
+            briefingTitle.rectTransform.anchoredPosition = new Vector2(0f, -112f);
+
+            briefingBody = MenuStyle.AddLabel(box.transform, string.Empty, 27);
+            briefingBody.color = new Color(0.95f, 0.9f, 0.78f);
+            briefingBody.alignment = TextAnchor.MiddleCenter;
+            briefingBody.horizontalOverflow = HorizontalWrapMode.Wrap;
+            briefingBody.verticalOverflow = VerticalWrapMode.Truncate;
+            briefingBody.rectTransform.anchorMin = briefingBody.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            briefingBody.rectTransform.sizeDelta = new Vector2(840f, 190f);
+            briefingBody.rectTransform.anchoredPosition = new Vector2(0f, -10f);
+
+            Button ok = MenuStyle.CreatePlateButton(box.transform, Localization.T("briefing_ok"), new Vector2(300f, 74f), CloseBriefing);
+            RectTransform okRect = (RectTransform)ok.transform;
+            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 0f);
+            okRect.anchoredPosition = new Vector2(0f, 96f);
+            briefingButtonText = ok.GetComponentInChildren<Text>();
+
+            briefingPanel = overlay.gameObject;
+            briefingPanel.SetActive(false);
         }
 
         // The level stays visible behind it, the stone explorer in the middle of it.

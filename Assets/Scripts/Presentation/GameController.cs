@@ -31,6 +31,7 @@ namespace DungeonGuardians.Presentation
         private bool paused;
         private bool settingsOpen;
         private bool pauseBeforeSettings;
+        private bool briefingOpen;
         private bool pendingDigLeft;
         private bool pendingDigRight;
         private bool lossReported;
@@ -174,6 +175,11 @@ namespace DungeonGuardians.Presentation
             }
 
             if (settingsOpen)
+            {
+                return;
+            }
+
+            if (briefingOpen)
             {
                 return;
             }
@@ -374,6 +380,120 @@ namespace DungeonGuardians.Presentation
             music.SetMood(MusicPlayer.Mood.Game);
             hud.ShowMessage(string.Empty);
             Render();
+            ShowLevelBriefingIfNeeded(catalog.Levels[levelIndex]);
+        }
+
+        private void ShowLevelBriefingIfNeeded(LevelDefinition level)
+        {
+            string key = GetBriefingKey(levelIndex, level);
+            if (string.IsNullOrEmpty(key))
+            {
+                briefingOpen = false;
+                hud.HideBriefing();
+                return;
+            }
+
+            briefingOpen = true;
+            pendingDigLeft = false;
+            pendingDigRight = false;
+            music.SetMood(MusicPlayer.Mood.Paused);
+            hud.ShowBriefing(Localization.T(key + "_title"), Localization.T(key + "_body"), () =>
+            {
+                briefingOpen = false;
+                music.SetMood(paused ? MusicPlayer.Mood.Paused : MusicPlayer.Mood.Game);
+            });
+        }
+
+        private static string GetBriefingKey(int index, LevelDefinition level)
+        {
+            if (index == 0)
+            {
+                return "briefing_intro";
+            }
+
+            if (index == 1)
+            {
+                return "briefing_guardian";
+            }
+
+            if (level.dark && level.lightRepelsGuardians)
+            {
+                return "briefing_light";
+            }
+
+            if (level.dark)
+            {
+                return "briefing_dark";
+            }
+
+            bool hasGates = HasGateTiles(level);
+            if (hasGates && level.playerPressesPlates && !level.GatesLatch)
+            {
+                return "briefing_hold_gate";
+            }
+
+            if (hasGates && !level.playerPressesPlates)
+            {
+                return "briefing_gate";
+            }
+
+            if (HasGuardianKind(level, "warden"))
+            {
+                return "briefing_warden";
+            }
+
+            if (HasGuardianKind(level, "heavy"))
+            {
+                return "briefing_heavy";
+            }
+
+            if (HasGuardianKind(level, "listener"))
+            {
+                return "briefing_listener";
+            }
+
+            if (HasGuardianKind(level, "infected"))
+            {
+                return "briefing_infected";
+            }
+
+            return string.Empty;
+        }
+
+        private static bool HasGateTiles(LevelDefinition level)
+        {
+            if (level.rows == null)
+            {
+                return false;
+            }
+
+            foreach (string row in level.rows)
+            {
+                if (!string.IsNullOrEmpty(row) && (row.IndexOf('_') >= 0 || row.IndexOf('|') >= 0))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasGuardianKind(LevelDefinition level, string kind)
+        {
+            if (level.guardianKinds == null)
+            {
+                return false;
+            }
+
+            foreach (GuardianSpec spec in level.guardianKinds)
+            {
+                if (spec != null && spec.kind == kind)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void Render()
