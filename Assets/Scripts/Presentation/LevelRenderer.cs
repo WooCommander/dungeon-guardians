@@ -130,6 +130,9 @@ namespace DungeonGuardians.Presentation
         private const float LightRefreshInterval = 0.3f;
         private Vector3 cameraVelocity;
         private bool snapCamera = true;
+        private bool hasCameraPlayerX;
+        private int lastCameraPlayerX;
+        private int cameraFacing = 1;
         private float lastPlayerY;
         private float lookDown;
         private float lightRefreshAt;
@@ -512,6 +515,7 @@ namespace DungeonGuardians.Presentation
             if (newRun)
             {
                 snapCamera = true;
+                hasCameraPlayerX = false;
             }
 
             if (player == null)
@@ -541,6 +545,7 @@ namespace DungeonGuardians.Presentation
             }
 
             Vector3 playerWorld = ToActorWorld(state.PlayerPosition);
+            UpdateCameraFacing(state.PlayerPosition.x);
             player.SetTarget(state.Lost ? playerWorld + new Vector3(0f, 0f, -CaughtDepth) : playerWorld);
             if (state.Lost)
             {
@@ -610,6 +615,22 @@ namespace DungeonGuardians.Presentation
             }
 
             return simulation.HasSupport(position) ? CharacterPose.Ground : CharacterPose.Fall;
+        }
+
+        private void UpdateCameraFacing(int playerX)
+        {
+            if (!hasCameraPlayerX)
+            {
+                hasCameraPlayerX = true;
+                lastCameraPlayerX = playerX;
+                return;
+            }
+
+            if (playerX != lastCameraPlayerX)
+            {
+                cameraFacing = playerX > lastCameraPlayerX ? 1 : -1;
+                lastCameraPlayerX = playerX;
+            }
         }
 
         public void ResetZoom()
@@ -796,7 +817,7 @@ namespace DungeonGuardians.Presentation
             float falling = explorer.y < lastPlayerY - 0.001f ? 1f : 0f;
             lastPlayerY = explorer.y;
             lookDown = Mathf.MoveTowards(lookDown, falling * FallLookDown, Time.deltaTime * 6f);
-            float facing = player.Facing;
+            float facing = cameraFacing;
 
             float x = explorer.x + facing * LookAhead;
             float y = explorer.y - lookDown - (fieldBottom + (fieldTop - fieldBottom) * FollowAnchor);
